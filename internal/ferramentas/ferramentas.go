@@ -49,7 +49,6 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 			"chame iniciar_sessao; ao terminar, chame encerrar_sessao com um resumo para o próximo agente.",
 	})
 
-	mcp.AddTool(s, &mcp.Tool{Name: "listar_tarefas", Description: "Lista tarefas, com filtro opcional por status e organização."}, f.listarTarefas)
 	mcp.AddTool(s, &mcp.Tool{Name: "obter_tarefa", Description: "Obtém uma tarefa, incluindo o resumo para retomar e a sessão ativa."}, f.obterTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_tarefa", Description: "Cria uma tarefa."}, f.criarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_tarefa", Description: "Altera campos de uma tarefa."}, f.alterarTarefa)
@@ -108,15 +107,6 @@ func decodificar(resp *http.Response, err error, destino any) error {
 
 type Id struct {
 	Id string `json:"id" jsonschema:"identificador, como T-0001"`
-}
-
-type FiltroTarefas struct {
-	Status      *api.StatusTarefa `json:"status,omitempty" jsonschema:"a_fazer, em_andamento, pausada, bloqueada, em_validacao ou concluida"`
-	Organizacao *string           `json:"organizacao,omitempty"`
-}
-
-type Tarefas struct {
-	Tarefas []api.Tarefa `json:"tarefas"`
 }
 
 type Sessoes struct {
@@ -190,12 +180,6 @@ type FiltroEventos struct {
 
 type Eventos struct {
 	Eventos []api.Evento `json:"eventos"`
-}
-
-func (f *Ferramentas) listarTarefas(ctx context.Context, _ *mcp.CallToolRequest, in FiltroTarefas) (*mcp.CallToolResult, Tarefas, error) {
-	var out Tarefas
-	resp, err := f.cliente.ListarTarefas(ctx, &api.ListarTarefasParams{Status: in.Status, Organizacao: in.Organizacao})
-	return nil, out, decodificar(resp, err, &out.Tarefas)
 }
 
 func (f *Ferramentas) obterTarefa(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, api.Tarefa, error) {
