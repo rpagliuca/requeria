@@ -54,7 +54,7 @@ func servir(args []string) {
 
 	s := servidor.Novo(db)
 	if *configLancador != "" {
-		l, err := lancador.Carregar(*configLancador, s.Tarefa)
+		l, err := lancador.Carregar(*configLancador)
 		if err != nil {
 			log.Fatalf("lançador: %v", err)
 		}

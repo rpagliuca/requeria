@@ -66,13 +66,16 @@ Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`,
    - decisões e descobertas que o próximo não pode perder;
    - onde está o detalhe (journal, PR, arquivo).
 
-Depois do encerramento, o lançador fecha a sessão tmux deste agente em alguns minutos.
+3. Escreva a mensagem final ao usuário (o que ficou feito, o que falta) e, **como última ação**, se
+   você roda numa sessão tmux (`$TMUX` preenchido), feche-a:
+   `tmux kill-session -t "$(tmux display-message -p '#S')"`. Nada depois disso. Fora do tmux (um chat
+   comum), não feche nada.
 
 ## Quando o lançador pede para encerrar
 
 A mensagem diz que a tarefa foi movida para outro status por outra pessoa. **Não altere o status**:
-quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde parou e chame
-`encerrar_sessao` com o resumo para retomar.
+quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde parou, chame
+`encerrar_sessao` com o resumo para retomar e feche o seu tmux como no passo 3 acima.
 
 ## Recusas e o que fazer
 
@@ -95,3 +98,6 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 - Não abra sessão só para ler; ler não exige sessão.
 - Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do requerial.
 - Não mostre nem procure o token da sessão: ele fica no processo MCP.
+- Nunca feche o tmux de outro agente; só o seu, e só depois de encerrar a sua sessão.
+- Para criar tarefas para outros agentes, pausar ou mover tarefas que não são suas: skill
+  `requerial-coordenacao`.
