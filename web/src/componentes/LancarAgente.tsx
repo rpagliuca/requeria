@@ -34,7 +34,7 @@ export function LancarAgente({
         )
       }}
     >
-      <p className="font-medium text-sm">Pôr em andamento com um agente</p>
+      <p className="text-sm">A tarefa vai para <strong>em andamento</strong> e um agente sobe para trabalhar nela.</p>
       <div className="space-y-1.5">
         <Label htmlFor="instrucao">Instrução adicional de reabertura (opcional)</Label>
         <Textarea

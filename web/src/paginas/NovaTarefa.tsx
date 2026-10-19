@@ -61,16 +61,16 @@ export function NovaTarefa() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(nomesStatusTarefa) as StatusTarefa[]).map((s) => (
-              <SelectItem key={s} value={s}>
-                {nomesStatusTarefa[s]}
-              </SelectItem>
-            ))}
+            {(Object.keys(nomesStatusTarefa) as StatusTarefa[])
+              .filter((s) => s !== "em_andamento")
+              .map((s) => (
+                <SelectItem key={s} value={s}>
+                  {nomesStatusTarefa[s]}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
-        {status === "em_andamento" && (
-          <p className="text-muted-foreground text-xs">Em andamento: um agente sobe para trabalhar nela.</p>
-        )}
+        <p className="text-muted-foreground text-xs">Para pôr um agente nela, use "Iniciar agente…" na página da tarefa.</p>
       </div>
       <Button type="submit" disabled={criar.isPending}>
         Criar
