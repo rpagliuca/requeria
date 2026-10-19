@@ -26,10 +26,16 @@ export function Tarefas() {
     else novos.set(chave, valor)
     setParams(novos, { replace: true })
   }
-  const alternarStatus = (s: StatusTarefa) => {
+  // Clique mostra só aquele status; Ctrl (ou Cmd) + clique soma ou tira do filtro.
+  const escolherStatus = (s: StatusTarefa, somar: boolean) => {
+    if (!somar) {
+      alterar("status", s)
+      return
+    }
     const proximos = status.includes(s) ? status.filter((x) => x !== s) : [...status, s]
     alterar("status", proximos.join(","))
   }
+  const mesmoConjunto = (a: StatusTarefa[]) => a.length === status.length && a.every((s) => status.includes(s))
 
   const organizacoes = useMemo(() => [...new Set((data ?? []).map((t) => t.organizacao))].sort(), [data])
   const contagem = useMemo(() => {
@@ -76,12 +82,23 @@ export function Tarefas() {
         </Select>
       </div>
       <div className="flex flex-wrap gap-1.5">
+        <Button size="sm" variant={mesmoConjunto(abertas) ? "default" : "outline"} onClick={() => alterar("status", null)}>
+          Abertas
+        </Button>
+        <Button
+          size="sm"
+          variant={mesmoConjunto(todosOsStatus) ? "default" : "outline"}
+          onClick={() => alterar("status", todosOsStatus.join(","))}
+        >
+          Todas
+        </Button>
+        <span className="mx-1 w-px self-stretch bg-border" />
         {todosOsStatus.map((s) => (
           <Button
             key={s}
             size="sm"
             variant={status.includes(s) ? "default" : "outline"}
-            onClick={() => alternarStatus(s)}
+            onClick={(e) => escolherStatus(s, e.ctrlKey || e.metaKey)}
           >
             {nomesStatusTarefa[s]} <span className="opacity-60">{contagem[s] ?? 0}</span>
           </Button>
@@ -91,7 +108,9 @@ export function Tarefas() {
       <Estado carregando={isLoading} erro={error} />
       {data && (
         <>
-          <p className="text-muted-foreground text-xs">{filtradas.length} tarefas</p>
+          <p className="text-muted-foreground text-xs">
+            {filtradas.length} tarefas · Ctrl + clique num status soma ao filtro
+          </p>
           <ul className="divide-y rounded-md border">
             {filtradas.map((t) => (
               <li key={t.id}>
