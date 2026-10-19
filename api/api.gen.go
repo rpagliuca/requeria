@@ -91,6 +91,19 @@ type Evento struct {
 	Tipo     string                 `json:"tipo"`
 }
 
+// ImportacaoTarefa defines model for ImportacaoTarefa.
+type ImportacaoTarefa struct {
+	CriadaEm    time.Time `json:"criada_em"`
+	Descricao   *string   `json:"descricao,omitempty"`
+	Organizacao string    `json:"organizacao"`
+
+	// Origem De onde a tarefa veio
+	Origem  string            `json:"origem"`
+	Sessoes []SessaoImportada `json:"sessoes"`
+	Status  StatusTarefa      `json:"status"`
+	Titulo  string            `json:"titulo"`
+}
+
 // MotivoEncerramento defines model for MotivoEncerramento.
 type MotivoEncerramento string
 
@@ -152,6 +165,16 @@ type SessaoCriada struct {
 	Token  string `json:"token"`
 }
 
+// SessaoImportada defines model for SessaoImportada.
+type SessaoImportada struct {
+	Agente      string    `json:"agente"`
+	EncerradaEm time.Time `json:"encerrada_em"`
+	IniciadaEm  time.Time `json:"iniciada_em"`
+	Journal     *string   `json:"journal,omitempty"`
+	Resumo      string    `json:"resumo"`
+	Servidor    string    `json:"servidor"`
+}
+
 // StatusSessao defines model for StatusSessao.
 type StatusSessao string
 
@@ -200,6 +223,9 @@ type ListarTarefasParams struct {
 	Status      *StatusTarefa `form:"status,omitempty" json:"status,omitempty"`
 	Organizacao *string       `form:"organizacao,omitempty" json:"organizacao,omitempty"`
 }
+
+// ImportarTarefaJSONRequestBody defines body for ImportarTarefa for application/json ContentType.
+type ImportarTarefaJSONRequestBody = ImportacaoTarefa
 
 // CriarSessaoJSONRequestBody defines body for CriarSessao for application/json ContentType.
 type CriarSessaoJSONRequestBody = NovaSessao
@@ -298,6 +324,11 @@ type ClientInterface interface {
 	// ListarEventos request
 	ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ImportarTarefaWithBody request with any body
+	ImportarTarefaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarSessoes request
 	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -351,6 +382,30 @@ type ClientInterface interface {
 
 func (c *Client) ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListarEventosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ImportarTarefaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportarTarefaRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportarTarefaRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -634,6 +689,46 @@ func NewListarEventosRequest(server string, params *ListarEventosParams) (*http.
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewImportarTarefaRequest calls the generic ImportarTarefa builder with application/json body
+func NewImportarTarefaRequest(server string, body ImportarTarefaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewImportarTarefaRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewImportarTarefaRequestWithBody generates requests for ImportarTarefa with any type of body
+func NewImportarTarefaRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/importacao")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -1215,6 +1310,11 @@ type ClientWithResponsesInterface interface {
 	// ListarEventosWithResponse request
 	ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error)
 
+	// ImportarTarefaWithBodyWithResponse request with any body
+	ImportarTarefaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error)
+
+	ImportarTarefaWithResponse(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error)
+
 	// ListarSessoesWithResponse request
 	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
 
@@ -1282,6 +1382,29 @@ func (r ListarEventosResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListarEventosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ImportarTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Tarefa
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ImportarTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ImportarTarefaResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1584,6 +1707,23 @@ func (c *ClientWithResponses) ListarEventosWithResponse(ctx context.Context, par
 	return ParseListarEventosResponse(rsp)
 }
 
+// ImportarTarefaWithBodyWithResponse request with arbitrary body returning *ImportarTarefaResponse
+func (c *ClientWithResponses) ImportarTarefaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error) {
+	rsp, err := c.ImportarTarefaWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportarTarefaResponse(rsp)
+}
+
+func (c *ClientWithResponses) ImportarTarefaWithResponse(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error) {
+	rsp, err := c.ImportarTarefa(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportarTarefaResponse(rsp)
+}
+
 // ListarSessoesWithResponse request returning *ListarSessoesResponse
 func (c *ClientWithResponses) ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error) {
 	rsp, err := c.ListarSessoes(ctx, params, reqEditors...)
@@ -1768,6 +1908,39 @@ func ParseListarEventosResponse(rsp *http.Response) (*ListarEventosResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseImportarTarefaResponse parses an HTTP response from a ImportarTarefaWithResponse call
+func ParseImportarTarefaResponse(rsp *http.Response) (*ImportarTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ImportarTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -2253,6 +2426,9 @@ type ServerInterface interface {
 	// (GET /eventos)
 	ListarEventos(w http.ResponseWriter, r *http.Request, params ListarEventosParams)
 
+	// (POST /importacao)
+	ImportarTarefa(w http.ResponseWriter, r *http.Request)
+
 	// (GET /sessoes)
 	ListarSessoes(w http.ResponseWriter, r *http.Request, params ListarSessoesParams)
 
@@ -2317,6 +2493,20 @@ func (siw *ServerInterfaceWrapper) ListarEventos(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListarEventos(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportarTarefa operation middleware
+func (siw *ServerInterfaceWrapper) ImportarTarefa(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportarTarefa(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2761,6 +2951,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
+	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes", wrapper.CriarSessao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)

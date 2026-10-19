@@ -211,6 +211,24 @@ paths:
         '401': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
+  /importacao:
+    post:
+      operationId: importarTarefa
+      description: |
+        Importa uma tarefa já existente fora do requeria, com as datas originais e as sessões que
+        trabalharam nela, todas já encerradas. Os eventos registram o momento real da importação.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportacaoTarefa' }
+      responses:
+        '201':
+          description: Tarefa importada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400': { $ref: '#/components/responses/Erro' }
   /eventos:
     get:
       operationId: listarEventos
@@ -364,6 +382,30 @@ components:
         tipo_agente: { $ref: '#/components/schemas/TipoAgente' }
         chat: { type: string }
         servidor: { type: string, description: Se omitido, usa o da sessão anterior }
+    ImportacaoTarefa:
+      type: object
+      required: [titulo, organizacao, status, criada_em, origem, sessoes]
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        status: { $ref: '#/components/schemas/StatusTarefa' }
+        criada_em: { type: string, format: date-time }
+        origem: { type: string, description: De onde a tarefa veio, para o log de eventos }
+        sessoes:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/SessaoImportada' }
+    SessaoImportada:
+      type: object
+      required: [agente, servidor, iniciada_em, encerrada_em, resumo]
+      properties:
+        agente: { type: string }
+        servidor: { type: string }
+        journal: { type: string }
+        iniciada_em: { type: string, format: date-time }
+        encerrada_em: { type: string, format: date-time }
+        resumo: { type: string }
     Evento:
       type: object
       required: [id, momento, autor, entidade, tipo, dados]
