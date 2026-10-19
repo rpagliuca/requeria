@@ -69,7 +69,7 @@ da verificação e dos commits nos componentes. A primeira regra que casar vence
 | Estado | Regra |
 |---|---|
 | **Falhado** | A última execução falhou |
-| **Suspeito** | Um commit tocou um componente do requisito depois da última execução |
+| **Suspeito** *(backlog)* | Um commit tocou um componente do requisito depois da última execução |
 | **Vencido** | A última execução passou, mas o prazo da periodicidade acabou |
 | **Válido** | A última execução passou, está no prazo e nada mudou desde então |
 | **Não verificado** | Ainda não há execução |
@@ -146,10 +146,19 @@ token de sessão encerrada.
 Este repositório é público e não contém dados de nenhuma instalação. A configuração de cada
 instalação fica num repositório privado separado, com valores cifrados.
 
+## Ordem de construção
+
+1. Tarefas e Sessões de Trabalho, com os hooks do agente.
+2. Origens, Requisitos e Execuções, com o estado calculado.
+
+## Backlog
+
+- Estado **Suspeito**: Componentes, recebimento de Commits pelo hook de `post-commit` e marcação dos
+  requisitos dependentes. Fica fora da primeira versão; até lá, o estado vem só das execuções e da
+  periodicidade.
+
 ## Em aberto
 
 - Cifragem da configuração particular (proposta: sops + age, com uma chave de recuperação).
 - Onde ficam os journals: repositório central ou um por organização.
-- Estado Suspeito já na primeira versão ou depois.
-- Ordem de construção (proposta: Tarefas e Sessões primeiro, Requisitos e Execuções depois).
 - Validar a detecção de modelo e esforço pelos hooks.
