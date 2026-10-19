@@ -157,6 +157,7 @@ func TestLancamentoComModeloEsforcoEInstrucao(t *testing.T) {
 		Modelos:           []Modelo{{Nome: "Modelo A", Argumentos: []string{"--model", "a"}}, {Nome: "Modelo B", Argumentos: []string{"--model", "b"}}},
 		Esforcos:          []string{"low", "high"},
 		ArgumentosEsforco: []string{"--effort", "{esforco}"},
+		RemoverDoAmbiente: []string{"CLAUDE_EFFORT"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +177,7 @@ func TestLancamentoComModeloEsforcoEInstrucao(t *testing.T) {
 	tarefa := api.Tarefa{Id: "T-0009", Titulo: "Corrigir importação", Status: api.EmAndamento}
 	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "local", Lancamento: &pedido})
 	ultima := f.chamadas[len(f.chamadas)-1]
-	if !strings.Contains(ultima, "agente --model b --effort low") || !strings.Contains(ultima, "Comece pelo teste que falhou.") {
+	if !strings.Contains(ultima, "env -u CLAUDE_EFFORT agente --model b --effort low") || !strings.Contains(ultima, "Comece pelo teste que falhou.") {
 		t.Fatalf("comando inesperado: %s", ultima)
 	}
 

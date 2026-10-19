@@ -48,6 +48,9 @@ type Config struct {
 	Esforcos          []string `json:"esforcos"`
 	ArgumentosEsforco []string `json:"argumentos_esforco"`
 	EsforcoPadrao     string   `json:"esforco_padrao"`
+	// RemoverDoAmbiente lista variáveis que o agente não pode herdar do servidor tmux (por exemplo,
+	// as de um agente que abriu o tmux), para que o agente novo defina as suas.
+	RemoverDoAmbiente []string `json:"remover_do_ambiente"`
 }
 
 // Modelo é uma opção de modelo do agente.
@@ -200,6 +203,12 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 		return err
 	}
 	args := []string{"new-session", "-d", "-s", nome, "-c", l.cfg.Diretorio, "-e", VariavelTarefa + "=" + t.Id}
+	if len(l.cfg.RemoverDoAmbiente) > 0 {
+		args = append(args, "env")
+		for _, v := range l.cfg.RemoverDoAmbiente {
+			args = append(args, "-u", v)
+		}
+	}
 	for _, parte := range l.cfg.Comando {
 		args = append(args, strings.ReplaceAll(parte, "{nome}", nome))
 	}

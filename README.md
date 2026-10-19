@@ -56,9 +56,13 @@ agente fecha o seu tmux (skill `requerial`).
   ],
   "esforcos": ["low", "medium", "high"],
   "argumentos_esforco": ["--effort", "{esforco}"],
-  "esforco_padrao": "high"
+  "esforco_padrao": "high",
+  "remover_do_ambiente": ["CLAUDECODE", "CLAUDE_EFFORT", "CLAUDE_CODE_SESSION_ID"]
 }
 ```
+
+`remover_do_ambiente` evita que o agente herde variáveis do servidor tmux: se o tmux foi aberto de
+dentro de outro agente, o novo herdaria o esforço e o chat dele.
 
 No frontend, pôr uma tarefa em andamento abre a escolha de modelo, esforço e uma instrução adicional
 de reabertura (`POST /tarefas/{id}/lancamento`); o primeiro modelo é o padrão.
