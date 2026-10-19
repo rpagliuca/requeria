@@ -96,8 +96,9 @@ func (s *Servidor) CriarTarefa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var criada api.Tarefa
-	err := s.emTransacao(func(tx *sql.Tx) error {
-		quem, err := autor(tx, r)
+	var quem string
+	err := s.emTransacao(func(tx *sql.Tx) (err error) {
+		quem, err = autor(tx, r)
 		if err != nil {
 			return err
 		}
@@ -139,6 +140,7 @@ func (s *Servidor) CriarTarefa(w http.ResponseWriter, r *http.Request) {
 		responderErro(w, err)
 		return
 	}
+	s.avisarMudanca(MudancaDeStatus{Tarefa: criada, Autor: quem})
 	responder(w, http.StatusCreated, criada)
 }
 
@@ -168,14 +170,17 @@ func (s *Servidor) AlterarTarefa(w http.ResponseWriter, r *http.Request, id api.
 		return
 	}
 	var alterada api.Tarefa
-	err = s.emTransacao(func(tx *sql.Tx) error {
-		quem, err := autor(tx, r)
+	var anterior api.StatusTarefa
+	var quem string
+	err = s.emTransacao(func(tx *sql.Tx) (err error) {
+		if quem, err = autor(tx, r); err != nil {
+			return err
+		}
+		atual, err := carregarTarefa(tx, n)
 		if err != nil {
 			return err
 		}
-		if _, err := carregarTarefa(tx, n); err != nil {
-			return err
-		}
+		anterior = atual.Status
 		campos := map[string]any{}
 		var sets []string
 		var args []any
@@ -225,6 +230,7 @@ func (s *Servidor) AlterarTarefa(w http.ResponseWriter, r *http.Request, id api.
 		responderErro(w, err)
 		return
 	}
+	s.avisarMudanca(MudancaDeStatus{Tarefa: alterada, Anterior: anterior, Autor: quem})
 	responder(w, http.StatusOK, alterada)
 }
 

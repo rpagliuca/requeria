@@ -53,6 +53,9 @@ export function Tarefas() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row">
+        <Button asChild>
+          <Link to="/tarefas/nova">Nova tarefa</Link>
+        </Button>
         <Input
           placeholder="Buscar em id, título, descrição e resumo"
           value={texto}

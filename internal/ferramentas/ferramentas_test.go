@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,14 +24,22 @@ type chat struct {
 
 // novoChat sobe a API e conecta um cliente MCP, como faria um agente.
 func novoChat(t *testing.T, endereco string) *chat {
+	return novoChatCom(t, endereco, nil, "")
+}
+
+// novoChatCom permite acrescentar variáveis de ambiente do agente e a raiz dos journals.
+func novoChatCom(t *testing.T, endereco string, extra map[string]string, journals string) *chat {
 	t.Helper()
 	f, err := Novo(endereco)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.ambiente = func(nome string) string {
-		return map[string]string{"CLAUDE_EFFORT": "medium", "CLAUDE_CODE_SESSION_ID": "chat-de-teste"}[nome]
+	ambiente := map[string]string{"CLAUDE_EFFORT": "medium", "CLAUDE_CODE_SESSION_ID": "chat-de-teste"}
+	for k, v := range extra {
+		ambiente[k] = v
 	}
+	f.ambiente = func(nome string) string { return ambiente[nome] }
+	f.ComJournals(journals)
 	ladoServidor, ladoCliente := mcp.NewInMemoryTransports()
 	ctx := context.Background()
 	if _, err := f.Servidor().Connect(ctx, ladoServidor, nil); err != nil {
@@ -168,5 +178,43 @@ func TestRepassePeloMCP(t *testing.T) {
 	c.chamar("sessao_atual", map[string]any{}, &atual)
 	if atual.Id != nova.Id || atual.Agente != "Claude Fable 5.1 XHigh" {
 		t.Fatalf("o chat não passou para a sessão nova: %+v", atual)
+	}
+}
+
+func TestSessaoLancadaUsaTarefaDoAmbienteECriaJournal(t *testing.T) {
+	endereco := novaAPI(t)
+	var tarefa api.Tarefa
+	novoChat(t, endereco).chamar("criar_tarefa", map[string]any{"titulo": "Revisar backup", "organizacao": "Exemplo"}, &tarefa)
+
+	raiz := t.TempDir()
+	c := novoChatCom(t, endereco, map[string]string{"REQUERIAL_TAREFA": tarefa.Id}, raiz)
+	var sessao api.Sessao
+	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5"}, &sessao)
+	if len(sessao.Tarefas) != 1 || sessao.Tarefas[0] != tarefa.Id {
+		t.Fatalf("a sessão não pegou a tarefa do ambiente: %+v", sessao)
+	}
+	arquivo := filepath.Join(raiz, sessao.Id, "journal.md")
+	conteudo, err := os.ReadFile(arquivo)
+	if err != nil || !strings.Contains(string(conteudo), "# Sessão "+sessao.Id) {
+		t.Fatalf("journal não criado: %v %q", err, conteudo)
+	}
+	if sessao.Journal == nil || !strings.HasSuffix(*sessao.Journal, ":"+arquivo) {
+		t.Fatalf("localizador do journal não registrado: %v", sessao.Journal)
+	}
+}
+
+func TestSessaoSemTarefaVinculaDepois(t *testing.T) {
+	endereco := novaAPI(t)
+	c := novoChat(t, endereco)
+	var sessao api.Sessao
+	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5"}, &sessao)
+	if len(sessao.Tarefas) != 0 {
+		t.Fatalf("sessão nasceu com tarefas: %+v", sessao)
+	}
+	var tarefa api.Tarefa
+	c.chamar("criar_tarefa", map[string]any{"titulo": "Promovida", "organizacao": "Exemplo", "status": "em_andamento"}, &tarefa)
+	c.chamar("vincular_tarefa", map[string]any{"tarefa": tarefa.Id}, &sessao)
+	if len(sessao.Tarefas) != 1 {
+		t.Fatalf("vínculo não registrado: %+v", sessao)
 	}
 }

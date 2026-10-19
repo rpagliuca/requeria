@@ -149,6 +149,14 @@ instalação fica num repositório privado separado, cifrada com **sops + age**:
 destinatários, a chave age da máquina (o servidor lê sozinho) e uma chave de recuperação mantida
 fora da máquina.
 
+## Lançador de agentes
+
+O requerial é a fonte única do status. Entrar em `em_andamento` sem sessão ativa, por alguém que
+não é uma sessão, sobe um agente (tmux, comando configurável) com `REQUERIAL_TAREFA` no ambiente;
+sair de `em_andamento` por mão de outro pede ao agente vivo que encerre com resumo, sem mexer no
+status. Sem agente vivo, a sessão é encerrada à mão pelo frontend. O journal de cada sessão fica na
+pasta dela, `<journals>/S-0001/`, criada pelo MCP.
+
 ## Ordem de construção
 
 1. Tarefas e Sessões de Trabalho, com os hooks do agente.

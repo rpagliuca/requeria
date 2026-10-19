@@ -1,10 +1,11 @@
 import { Link, useParams } from "react-router-dom"
 
 import { useSessoesDaTarefa, useTarefa } from "@/api/cliente"
+import { AlterarStatus } from "@/componentes/AlterarStatus"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
-import { Data, StatusDaTarefa } from "@/componentes/rotulos"
+import { Data } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Texto } from "@/componentes/Texto"
 
@@ -22,8 +23,8 @@ export function Tarefa() {
           ← Tarefas
         </Link>
         <h1 className="font-semibold text-xl">{t.titulo}</h1>
+        <AlterarStatus tarefa={t} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
-          <StatusDaTarefa status={t.status} />
           <span className="font-mono">{t.id}</span>
           <span>{t.organizacao}</span>
           <span>
@@ -49,7 +50,7 @@ export function Tarefa() {
       <Secao titulo={`Sessões de trabalho${sessoes.data ? ` (${sessoes.data.length})` : ""}`}>
         <Estado carregando={sessoes.isLoading} erro={sessoes.error} />
         <div className="space-y-2">
-          {sessoes.data?.map((s) => <CartaoSessao key={s.id} sessao={s} />)}
+          {sessoes.data?.map((s) => <CartaoSessao key={s.id} sessao={s} comTarefa={s.tarefas.length > 1} />)}
         </div>
       </Secao>
       <Secao titulo="Eventos" recolhida>

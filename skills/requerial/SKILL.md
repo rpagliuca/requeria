@@ -1,69 +1,78 @@
 ---
 name: requerial
-description: "Como um agente de IA trabalha numa Tarefa do requerial pelas ferramentas MCP: abrir a Sessão de Trabalho, registrar o journal, encerrar com resumo para o próximo agente e lidar com recusas. Use ao começar, retomar ou encerrar trabalho numa tarefa do requerial, quando o usuário citar um identificador T-0001 ou S-0001, ou quando as ferramentas mcp__requerial__* estiverem disponíveis. Triggers: requerial, tarefa T-, sessão S-, iniciar_sessao, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa já tem a sessão ativa."
+description: "Ciclo de trabalho de um agente de IA no requerial pelas ferramentas MCP: abrir a Sessão de Trabalho, escrever o journal na pasta da sessão, mudar o status da Tarefa, encerrar com resumo para o próximo agente e atender ao pedido de encerramento do lançador. Use ao começar, retomar ou encerrar trabalho numa tarefa do requerial, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA estiver no ambiente, quando o usuário pedir para este chat virar (se promover a) uma tarefa, ou quando as ferramentas mcp__requerial__* estiverem disponíveis. Triggers: requerial, tarefa T-, sessão S-, iniciar_sessao, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
 user-invocable: true
 ---
 
-# requerial: trabalhar numa Tarefa como agente
+# requerial: o ciclo de um agente
 
-O requerial guarda **Tarefas** (o que fazer) e **Sessões de Trabalho** (quem trabalhou, quando e com
-qual agente). Você, agente, só escreve nele pelas ferramentas MCP `mcp__requerial__*`. O servidor
-impõe as regras; se ele recusar, a recusa é a resposta certa, não um obstáculo a contornar.
+O requerial é a fonte única de **Tarefas** (o que fazer, com status) e **Sessões de Trabalho**
+(quem trabalhou, quando, com qual agente e onde está o journal). Você só escreve nele pelas
+ferramentas MCP `mcp__requerial__*`. O servidor impõe as regras; uma recusa é a resposta certa, não
+um obstáculo a contornar.
 
-Se as ferramentas `mcp__requerial__*` não estiverem disponíveis, diga isso ao usuário e pare. Não
-tente falar com a API por `curl` nem editar o banco.
+Se as ferramentas não estiverem disponíveis, diga isso ao usuário e pare. Não fale com a API por
+`curl` nem edite o banco.
 
 ## Conceitos em uma linha
 
-- **Tarefa** (`T-0001`): tem status (`a_fazer`, `em_andamento`, `pausada`, `bloqueada`,
-  `em_validacao`, `concluida`) e um **resumo para retomar**, escrito pela última sessão.
-- **Sessão de Trabalho** (`S-0001`): este chat, com um **agente imutável**. Cada tarefa tem no
-  máximo uma sessão ativa.
-- **Journal**: o seu registro livre do trabalho, num arquivo do git. O requerial guarda só onde ele
-  está.
+- **Tarefa** (`T-0001`): status `a_fazer`, `em_andamento`, `pausada`, `bloqueada`, `em_validacao` ou
+  `concluida`, e um **resumo para retomar**, escrito no encerramento da última sessão.
+- **Sessão de Trabalho** (`S-0001`): este chat, com um **agente imutável**. Uma tarefa tem no máximo
+  uma sessão ativa; várias sessões, em máquinas diferentes, trabalham nela ao longo do tempo.
+- **Journal**: o seu registro do trabalho, num arquivo da **pasta da sessão**, criada pelo
+  `iniciar_sessao`. Artefatos da sessão ficam na mesma pasta.
+- **Lançador**: quando alguém põe uma tarefa em andamento, ele sobe um agente para ela (talvez você)
+  com `REQUERIAL_TAREFA` no ambiente; quando alguém a tira de andamento, ele pede ao agente que
+  encerre.
 
 ## Ao começar
 
-1. **Leia a tarefa**: `obter_tarefa(id)`. O campo `resumo` é o que a sessão anterior deixou para
-   você; comece por ele. Se precisar de mais contexto, `historico_da_tarefa(id)` lista as sessões
-   anteriores com o journal de cada uma.
-2. **Abra a sessão**: `iniciar_sessao` com:
-   - `modelo`: provider e modelo, exatamente como você é, sem o esforço: `Claude Opus 5.5`,
-     `Claude Fable 5.1`. O modelo está no seu prompt de sistema.
-   - `tarefas`: as tarefas em que vai trabalhar.
-   - `journal`: o localizador do arquivo, `<maquina>:<caminho-absoluto>`, se já souber onde vai
-     escrever.
+Há dois caminhos.
 
-   O esforço e o identificador do chat vêm do cliente do agente; não os informe. O nome registrado
-   fica como `Claude Opus 5.5 Medium`. Só se a ferramenta disser que o esforço não foi fornecido,
-   pergunte ao usuário e passe em `esforco`.
-3. **Marque o andamento**, se fizer sentido: `alterar_tarefa(id, status: "em_andamento")`.
+**Você foi lançado para uma tarefa** (o prompt cita a tarefa, `REQUERIAL_TAREFA` está no ambiente):
 
-Uma sessão por chat. Se precisar de mais uma tarefa no meio do trabalho, use `vincular_tarefa`, não
-uma sessão nova.
+1. `obter_tarefa(id)`: leia o **resumo** primeiro; é o que a sessão anterior deixou para você.
+2. `historico_da_tarefa(id)`: as sessões anteriores, com o journal de cada uma. Leia os journals que
+   o resumo não cobrir.
+3. `iniciar_sessao` só com `modelo` (provider e modelo, sem o esforço: `Claude Opus 5.5`). A tarefa
+   vem do ambiente; o esforço e o chat vêm do cliente do agente. Se a ferramenta disser que o esforço
+   não foi fornecido, pergunte ao usuário e passe em `esforco`.
+4. A resposta traz o `journal`: `<máquina>:<caminho>/S-0001/journal.md`. Escreva nele.
+
+**O usuário pediu para este chat virar uma tarefa** (ou começou a trabalhar numa sem o lançador):
+
+1. `iniciar_sessao` com `modelo` e sem tarefas.
+2. Se a tarefa já existe, o usuário diz o id; senão, `criar_tarefa` (título, organização, descrição,
+   `status: "em_andamento"`). Uma tarefa criada por uma sessão não aciona o lançador.
+3. `vincular_tarefa` com o id. Avise o usuário em uma linha qual tarefa foi criada ou vinculada.
+
+Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`, não outra sessão.
 
 ## Durante
 
-- Escreva o journal no arquivo, como sempre: o que fez, o que decidiu e por quê, o que falhou.
-- Ao criar ou mover o journal ou artefatos, atualize os localizadores com `atualizar_journal`.
+- Escreva o journal: o que fez, o que decidiu e por quê, o que falhou, onde estão os artefatos.
+- Ao criar artefatos fora da pasta da sessão, registre-os com `atualizar_journal`.
 - Toda alteração que você fizer pelas ferramentas fica atribuída à sua sessão no log de eventos.
 
-## Ao terminar
+## Ao terminar o trabalho
 
-Chame `encerrar_sessao` com o **resumo**. Ele é gravado em cada tarefa da sessão e é a primeira
-coisa que o próximo agente lê. Escreva para quem não viu nada desta conversa:
+1. **Primeiro** ajuste o status da tarefa: `em_validacao` (pronto, falta o usuário validar),
+   `concluida`, `bloqueada` (dependência externa; diga qual no resumo) ou `pausada`.
+2. **Depois** `encerrar_sessao` com o **resumo**. Ele vai para cada tarefa da sessão e é a primeira
+   coisa que o próximo agente lê. Escreva para quem não viu nada desta conversa:
+   - em que estado a tarefa ficou;
+   - o que falta, começando pelo próximo passo concreto;
+   - decisões e descobertas que o próximo não pode perder;
+   - onde está o detalhe (journal, PR, arquivo).
 
-- em que estado a tarefa ficou;
-- o que falta, começando pelo próximo passo concreto;
-- decisões e descobertas que o próximo não pode perder;
-- onde está o detalhe (journal, PR, arquivo).
+Depois do encerramento, o lançador fecha a sessão tmux deste agente em alguns minutos.
 
-Curto e factual; o detalhe fica no journal. **Antes** de encerrar, ajuste o status da tarefa se mudou
-(`em_validacao`, `concluida`, `bloqueada`...): depois do encerramento, a alteração não é mais
-atribuída à sua sessão.
+## Quando o lançador pede para encerrar
 
-Persista o journal no git antes de encerrar e passe o localizador definitivo no próprio
-`encerrar_sessao`: `github.com/<dono>/<repo>@<commit>:<caminho>`.
+A mensagem diz que a tarefa foi movida para outro status por outra pessoa. **Não altere o status**:
+quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde parou e chame
+`encerrar_sessao` com o resumo para retomar.
 
 ## Recusas e o que fazer
 
@@ -76,14 +85,13 @@ Persista o journal no git antes de encerrar e passe o localizador definitivo no 
 
 ## Troca de agente
 
-Se o usuário trocar o modelo ou o esforço no meio do chat, você deixou de ser o agente registrado
-na sessão. Chame `repassar_sessao` com o `modelo` e o `esforco` novos (aqui o esforço é obrigatório): a sessão atual termina como substituída e
-outra começa com as mesmas tarefas. Não faça isso por iniciativa própria; só quando a troca
-aconteceu.
+Se o usuário trocar o modelo ou o esforço no meio do chat, você deixou de ser o agente registrado.
+Chame `repassar_sessao` com o `modelo` e o `esforco` novos (aqui o esforço é obrigatório): a sessão
+atual termina como substituída e outra começa com as mesmas tarefas. Só quando a troca aconteceu.
 
 ## O que não fazer
 
-- Não altere o resumo de uma tarefa com `alterar_tarefa` para "registrar progresso": o resumo é do
-  encerramento.
+- Não altere o resumo com `alterar_tarefa` para registrar progresso: o resumo é do encerramento.
 - Não abra sessão só para ler; ler não exige sessão.
-- Não mostre nem procure o token da sessão: ele fica no processo MCP e você não precisa dele.
+- Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do requerial.
+- Não mostre nem procure o token da sessão: ele fica no processo MCP.

@@ -24,6 +24,51 @@ import (
 type Servidor struct {
 	db    *sql.DB
 	agora func() time.Time
+
+	aoMudarStatus    []func(MudancaDeStatus)
+	aoEncerrarSessao []func(api.Sessao)
+}
+
+// MudancaDeStatus descreve uma tarefa que mudou de status, já gravada no banco.
+type MudancaDeStatus struct {
+	Tarefa   api.Tarefa
+	Anterior api.StatusTarefa // vazio quando a tarefa acabou de ser criada
+	Autor    string           // a sessão que mudou (S-0001) ou "local"
+}
+
+// AoMudarStatus registra f para ser chamada depois de cada mudança de status de tarefa, fora da
+// transação. É por aqui que o lançador de agentes reage.
+func (s *Servidor) AoMudarStatus(f func(MudancaDeStatus)) {
+	s.aoMudarStatus = append(s.aoMudarStatus, f)
+}
+
+// AoEncerrarSessao registra f para ser chamada depois que uma sessão termina, por qualquer motivo.
+func (s *Servidor) AoEncerrarSessao(f func(api.Sessao)) {
+	s.aoEncerrarSessao = append(s.aoEncerrarSessao, f)
+}
+
+func (s *Servidor) avisarEncerramento(x api.Sessao) {
+	for _, f := range s.aoEncerrarSessao {
+		f(x)
+	}
+}
+
+// Tarefa lê uma tarefa pelo identificador, para quem reage aos avisos fora de uma requisição.
+func (s *Servidor) Tarefa(id string) (api.Tarefa, error) {
+	n, err := numero(id, "T")
+	if err != nil {
+		return api.Tarefa{}, err
+	}
+	return carregarTarefa(s.db, n)
+}
+
+func (s *Servidor) avisarMudanca(m MudancaDeStatus) {
+	if m.Anterior == m.Tarefa.Status {
+		return
+	}
+	for _, f := range s.aoMudarStatus {
+		f(m)
+	}
 }
 
 var _ api.ServerInterface = (*Servidor)(nil)

@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from "react-router-dom"
 
+import { NovaTarefa } from "@/paginas/NovaTarefa"
 import { Sessao } from "@/paginas/Sessao"
 import { Sessoes } from "@/paginas/Sessoes"
 import { Tarefa } from "@/paginas/Tarefa"
@@ -23,6 +24,7 @@ export default function App() {
       </nav>
       <Routes>
         <Route path="/" element={<Tarefas />} />
+        <Route path="/tarefas/nova" element={<NovaTarefa />} />
         <Route path="/tarefas/:id" element={<Tarefa />} />
         <Route path="/sessoes" element={<Sessoes />} />
         <Route path="/sessoes/:id" element={<Sessao />} />

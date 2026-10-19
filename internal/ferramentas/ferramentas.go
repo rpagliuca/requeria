@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -27,6 +29,8 @@ type Ferramentas struct {
 	// ambiente lê as variáveis que o cliente do agente passa ao processo MCP, como
 	// CLAUDE_EFFORT e CLAUDE_CODE_SESSION_ID. Substituível nos testes.
 	ambiente func(string) string
+	// journals é a raiz onde cada sessão ganha a pasta do seu journal; vazio desliga.
+	journals string
 
 	mu     sync.Mutex
 	sessao string
@@ -42,6 +46,12 @@ func Novo(endereco string) (*Ferramentas, error) {
 	return &Ferramentas{cliente: cliente, ambiente: os.Getenv}, nil
 }
 
+// ComJournals faz cada sessão iniciada sem journal ganhar a pasta <dir>/<S-0001>/journal.md.
+func (f *Ferramentas) ComJournals(dir string) *Ferramentas {
+	f.journals = dir
+	return f
+}
+
 // Servidor monta o servidor MCP com todas as ferramentas registradas.
 func (f *Ferramentas) Servidor() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "requerial", Version: "0.1.0"}, &mcp.ServerOptions{
@@ -53,7 +63,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_tarefa", Description: "Cria uma tarefa."}, f.criarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_tarefa", Description: "Altera campos de uma tarefa."}, f.alterarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "historico_da_tarefa", Description: "Lista as sessões que trabalharam na tarefa, da mais recente para a mais antiga."}, f.historicoDaTarefa)
-	mcp.AddTool(s, &mcp.Tool{Name: "iniciar_sessao", Description: "Abre a Sessão de Trabalho deste chat nas tarefas dadas. Recusa tarefa que já tem sessão ativa."}, f.iniciarSessao)
+	mcp.AddTool(s, &mcp.Tool{Name: "iniciar_sessao", Description: "Abre a Sessão de Trabalho deste chat, nas tarefas dadas ou sem nenhuma (vincule depois). Cria a pasta do journal. Recusa tarefa que já tem sessão ativa."}, f.iniciarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "sessao_atual", Description: "Mostra a Sessão de Trabalho aberta neste chat."}, f.sessaoAtual)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_tarefa", Description: "Liga mais uma tarefa à sessão deste chat."}, f.vincularTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "atualizar_journal", Description: "Atualiza os localizadores do journal e dos artefatos da sessão deste chat."}, f.atualizarJournal)
@@ -124,7 +134,7 @@ type NovaSessao struct {
 	Chat     *string  `json:"chat,omitempty" jsonschema:"identificador do chat; padrão: o informado pelo cliente do agente"`
 	Servidor *string  `json:"servidor,omitempty" jsonschema:"máquina onde a sessão roda; padrão: o nome desta máquina"`
 	Journal  *string  `json:"journal,omitempty" jsonschema:"localizador do journal: <maquina>:<caminho>"`
-	Tarefas  []string `json:"tarefas" jsonschema:"tarefas em que a sessão vai trabalhar"`
+	Tarefas  []string `json:"tarefas,omitempty" jsonschema:"tarefas em que a sessão vai trabalhar; pode ficar vazio e ser vinculado depois. Padrão: a tarefa em REQUERIAL_TAREFA, se o lançador definiu"`
 }
 
 type Repasse struct {
@@ -218,15 +228,48 @@ func (f *Ferramentas) iniciarSessao(ctx context.Context, _ *mcp.CallToolRequest,
 	if in.Servidor != nil && *in.Servidor != "" {
 		servidor = *in.Servidor
 	}
+	tarefas := in.Tarefas
+	if len(tarefas) == 0 {
+		if t := f.ambiente("REQUERIAL_TAREFA"); t != "" {
+			tarefas = []string{t}
+		}
+	}
 	var criada api.SessaoCriada
 	resp, err := f.cliente.CriarSessao(ctx, api.NovaSessao{
-		Agente: agente, TipoAgente: api.Ia, Chat: f.chatAtual(in.Chat), Servidor: servidor, Journal: in.Journal, Tarefas: in.Tarefas,
+		Agente: agente, TipoAgente: api.Ia, Chat: f.chatAtual(in.Chat), Servidor: servidor, Journal: in.Journal, Tarefas: tarefas,
 	})
 	if err := decodificar(resp, err, &criada); err != nil {
 		return nil, api.Sessao{}, err
 	}
 	f.guardar(criada)
+	if in.Journal == nil && f.journals != "" {
+		sessao, err := f.criarJournal(ctx, criada.Sessao, servidor)
+		if err != nil {
+			return nil, criada.Sessao, fmt.Errorf("sessão %s aberta, mas a pasta do journal falhou: %w", criada.Sessao.Id, err)
+		}
+		return nil, sessao, nil
+	}
 	return nil, criada.Sessao, nil
+}
+
+// criarJournal cria <journals>/<S-0001>/journal.md e registra o localizador na sessão.
+func (f *Ferramentas) criarJournal(ctx context.Context, x api.Sessao, servidor string) (api.Sessao, error) {
+	pasta := filepath.Join(f.journals, x.Id)
+	if err := os.MkdirAll(pasta, 0o755); err != nil {
+		return x, err
+	}
+	arquivo := filepath.Join(pasta, "journal.md")
+	if _, err := os.Stat(arquivo); errors.Is(err, os.ErrNotExist) {
+		cabecalho := fmt.Sprintf("# Sessão %s\n\n- Tarefas: %s\n- Agente: %s\n- Máquina: %s\n- Início: %s\n\n## Journal\n\n",
+			x.Id, strings.Join(x.Tarefas, ", "), x.Agente, servidor, x.IniciadaEm.Format(time.RFC3339))
+		if err := os.WriteFile(arquivo, []byte(cabecalho), 0o644); err != nil {
+			return x, err
+		}
+	}
+	journal := servidor + ":" + arquivo
+	var alterada api.Sessao
+	resp, err := f.cliente.AlterarSessao(ctx, x.Id, api.AlteracaoSessao{Journal: &journal}, f.autorizar)
+	return alterada, decodificar(resp, err, &alterada)
 }
 
 func (f *Ferramentas) sessaoAtual(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, api.Sessao, error) {
