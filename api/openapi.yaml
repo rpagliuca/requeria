@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: requeria
+  version: 0.1.0
+  description: |
+    API de Tarefas e Sessões de Trabalho do requeria.
+    Operações sobre uma sessão exigem o token entregue na criação dela.
+paths:
+  /tarefas:
+    get:
+      operationId: listarTarefas
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/StatusTarefa' }
+        - name: organizacao
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Tarefas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tarefa' }
+    post:
+      operationId: criarTarefa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaTarefa' }
+      responses:
+        '201':
+          description: Tarefa criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterTarefa
+      responses:
+        '200':
+          description: Tarefa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarTarefa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoTarefa' }
+      responses:
+        '200':
+          description: Tarefa alterada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/sessoes:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: listarSessoesDaTarefa
+      description: Histórico de sessões que trabalharam na tarefa, da mais recente para a mais antiga.
+      responses:
+        '200':
+          description: Sessões
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Sessao' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /sessoes:
+    get:
+      operationId: listarSessoes
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/StatusSessao' }
+      responses:
+        '200':
+          description: Sessões
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Sessao' }
+    post:
+      operationId: criarSessao
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaSessao' }
+      responses:
+        '201':
+          description: Sessão criada; o token só é entregue aqui
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessaoCriada' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterSessao
+      responses:
+        '200':
+          description: Sessão
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarSessao
+      description: Atualiza os localizadores do journal e dos artefatos. O agente não pode ser alterado.
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoSessao' }
+      responses:
+        '200':
+          description: Sessão alterada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/tarefas:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: vincularTarefa
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Vinculo' }
+      responses:
+        '200':
+          description: Tarefa vinculada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/encerramento:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: encerrarSessao
+      description: Encerra a sessão, libera as tarefas e grava o resumo em cada uma delas.
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Encerramento' }
+      responses:
+        '200':
+          description: Sessão encerrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/repasse:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: repassarSessao
+      description: |
+        Troca de agente. Encerra a sessão como substituída e cria outra, com `anterior` apontando
+        para ela e as mesmas tarefas, numa única operação.
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Repasse' }
+      responses:
+        '201':
+          description: Nova sessão; o token só é entregue aqui
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessaoCriada' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /eventos:
+    get:
+      operationId: listarEventos
+      parameters:
+        - name: entidade
+          in: query
+          description: Identificador da entidade, como T-0001 ou S-0001
+          schema: { type: string }
+      responses:
+        '200':
+          description: Eventos, do mais antigo para o mais recente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Evento' }
+components:
+  securitySchemes:
+    tokenDaSessao:
+      type: http
+      scheme: bearer
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Erro:
+      description: Erro
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+  schemas:
+    Erro:
+      type: object
+      required: [mensagem]
+      properties:
+        mensagem: { type: string }
+    StatusTarefa:
+      type: string
+      enum: [a_fazer, em_andamento, pausada, bloqueada, em_validacao, concluida]
+    StatusSessao:
+      type: string
+      enum: [ativa, encerrada, substituida]
+    TipoAgente:
+      type: string
+      enum: [ia, humano]
+    MotivoEncerramento:
+      type: string
+      enum: [fim_do_trabalho, troca_de_agente]
+    Tarefa:
+      type: object
+      required: [id, titulo, descricao, organizacao, status, resumo, criada_em, atualizada_em]
+      properties:
+        id: { type: string, example: T-0001 }
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        status: { $ref: '#/components/schemas/StatusTarefa' }
+        resumo:
+          type: string
+          description: Estado para retomar, gravado no encerramento de cada sessão
+        sessao_ativa: { type: string, example: S-0001 }
+        criada_em: { type: string, format: date-time }
+        atualizada_em: { type: string, format: date-time }
+    NovaTarefa:
+      type: object
+      required: [titulo, organizacao]
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        status: { $ref: '#/components/schemas/StatusTarefa' }
+    AlteracaoTarefa:
+      type: object
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        status: { $ref: '#/components/schemas/StatusTarefa' }
+        resumo: { type: string }
+    Sessao:
+      type: object
+      required: [id, status, agente, tipo_agente, servidor, artefatos, tarefas, iniciada_em]
+      properties:
+        id: { type: string, example: S-0001 }
+        status: { $ref: '#/components/schemas/StatusSessao' }
+        agente:
+          type: string
+          description: Provider, modelo e esforço, ou o nome de um humano. Imutável.
+          example: Claude Opus 5.5 Medium
+        tipo_agente: { $ref: '#/components/schemas/TipoAgente' }
+        chat: { type: string, description: Identificador do chat do agente }
+        servidor: { type: string, description: Máquina onde a sessão roda }
+        anterior: { type: string, example: S-0001 }
+        motivo_encerramento: { $ref: '#/components/schemas/MotivoEncerramento' }
+        journal: { type: string, description: 'Localizador: <maquina>:<caminho> ou github.com/<dono>/<repo>@<commit>:<caminho>' }
+        artefatos:
+          type: array
+          items: { type: string }
+        tarefas:
+          type: array
+          items: { type: string }
+        iniciada_em: { type: string, format: date-time }
+        encerrada_em: { type: string, format: date-time }
+    NovaSessao:
+      type: object
+      required: [agente, tipo_agente, servidor, tarefas]
+      properties:
+        agente: { type: string }
+        tipo_agente: { $ref: '#/components/schemas/TipoAgente' }
+        chat: { type: string }
+        servidor: { type: string }
+        journal: { type: string }
+        tarefas:
+          type: array
+          items: { type: string }
+    SessaoCriada:
+      type: object
+      required: [sessao, token]
+      properties:
+        sessao: { $ref: '#/components/schemas/Sessao' }
+        token: { type: string }
+    AlteracaoSessao:
+      type: object
+      properties:
+        journal: { type: string }
+        artefatos:
+          type: array
+          items: { type: string }
+    Vinculo:
+      type: object
+      required: [tarefa]
+      properties:
+        tarefa: { type: string }
+    Encerramento:
+      type: object
+      required: [resumo]
+      properties:
+        resumo: { type: string, description: Gravado como resumo de cada tarefa da sessão }
+        journal: { type: string }
+        artefatos:
+          type: array
+          items: { type: string }
+    Repasse:
+      type: object
+      required: [agente, tipo_agente]
+      properties:
+        agente: { type: string }
+        tipo_agente: { $ref: '#/components/schemas/TipoAgente' }
+        chat: { type: string }
+        servidor: { type: string, description: Se omitido, usa o da sessão anterior }
+    Evento:
+      type: object
+      required: [id, momento, autor, entidade, tipo, dados]
+      properties:
+        id: { type: integer, format: int64 }
+        momento: { type: string, format: date-time }
+        autor: { type: string }
+        entidade: { type: string }
+        tipo: { type: string }
+        dados:
+          type: object
+          additionalProperties: true
