@@ -92,7 +92,8 @@ regressão de fato é a verificação automatizada rodando periodicamente.
   confiança na avaliação.
 - **Cada tarefa tem no máximo uma sessão ativa.** O repasse entre sessões é explícito, por
   `anterior`.
-- **Journal e artefatos** ficam no git, livres. O cabeçalho guarda localizadores com o servidor:
+- **Journal e artefatos** ficam no git, livres, num único repositório privado de journals para
+  todas as organizações. O cabeçalho guarda localizadores com o servidor:
   `<maquina>:<caminho>` durante a sessão e `github.com/<dono>/<repo>@<commit>:<caminho>` depois de
   persistida.
 - **Ao encerrar**, um resumo é sincronizado na Tarefa. O próximo agente o recebe no início da
@@ -161,5 +162,4 @@ fora da máquina.
 
 ## Em aberto
 
-- Onde ficam os journals: repositório central ou um por organização.
 - Validar a detecção de modelo e esforço pelos hooks.
