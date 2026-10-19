@@ -163,3 +163,6 @@ fora da máquina.
 ## Em aberto
 
 - Validar a detecção de modelo e esforço pelos hooks.
+- Consultas do MCP para agentes (tarefas relacionadas, do mesmo requisito, recentes): entram quando
+  o uso mostrar quais são úteis, sempre devolvendo o mínimo de campos. A listagem completa de
+  tarefas é só do frontend; no MCP ela custa dezenas de milhares de tokens sem ajudar o agente.
