@@ -49,9 +49,19 @@ agente fecha o seu tmux (skill `requerial`).
 ```json
 {
   "diretorio": "/caminho/dos/journals",
-  "comando": ["claude", "--remote-control", "{nome}"]
+  "comando": ["claude", "--remote-control", "{nome}"],
+  "modelos": [
+    {"nome": "Modelo A", "argumentos": ["--model", "modelo-a"]},
+    {"nome": "Modelo B", "argumentos": ["--model", "modelo-b"]}
+  ],
+  "esforcos": ["low", "medium", "high"],
+  "argumentos_esforco": ["--effort", "{esforco}"],
+  "esforco_padrao": "high"
 }
 ```
+
+No frontend, pôr uma tarefa em andamento abre a escolha de modelo, esforço e uma instrução adicional
+de reabertura (`POST /tarefas/{id}/lancamento`); o primeiro modelo é o padrão.
 
 `prompt_iniciar` e `prompt_encerrar` são opcionais e aceitam `{tarefa}`, `{titulo}` e `{status}`.
 No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux dos agentes.

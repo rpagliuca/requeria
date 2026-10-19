@@ -40,6 +40,20 @@ type Config struct {
 	// PromptIniciar e PromptEncerrar aceitam {tarefa}, {titulo} e {status}.
 	PromptIniciar  string `json:"prompt_iniciar"`
 	PromptEncerrar string `json:"prompt_encerrar"`
+	// Modelos que se pode escolher ao lançar; o primeiro é o padrão. Os argumentos entram no
+	// comando logo depois dele.
+	Modelos []Modelo `json:"modelos"`
+	// Esforcos que se pode escolher; ArgumentosEsforco recebe "{esforco}". Sem esforço escolhido nem
+	// EsforcoPadrao, o agente usa o padrão dele.
+	Esforcos          []string `json:"esforcos"`
+	ArgumentosEsforco []string `json:"argumentos_esforco"`
+	EsforcoPadrao     string   `json:"esforco_padrao"`
+}
+
+// Modelo é uma opção de modelo do agente.
+type Modelo struct {
+	Nome       string   `json:"nome"`
+	Argumentos []string `json:"argumentos"`
 }
 
 const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do requerial ({titulo}). " +
@@ -91,9 +105,67 @@ func Novo(cfg Config) (*Lancador, error) {
 	return l, nil
 }
 
-// Conectar registra o lançador nos avisos do servidor.
+// Conectar registra o lançador nos avisos e nos endpoints de lançamento do servidor.
 func (l *Lancador) Conectar(s *servidor.Servidor) {
 	s.AoMudarStatus(l.MudouStatus)
+	s.ComLancador(l)
+}
+
+// Opcoes lista os modelos e esforços configurados.
+func (l *Lancador) Opcoes() api.OpcoesDeLancamento {
+	o := api.OpcoesDeLancamento{Modelos: []string{}, Esforcos: l.cfg.Esforcos}
+	if o.Esforcos == nil {
+		o.Esforcos = []string{}
+	}
+	for _, m := range l.cfg.Modelos {
+		o.Modelos = append(o.Modelos, m.Nome)
+	}
+	if len(o.Modelos) > 0 {
+		o.ModeloPadrao = o.Modelos[0]
+	}
+	if l.cfg.EsforcoPadrao != "" {
+		o.EsforcoPadrao = &l.cfg.EsforcoPadrao
+	}
+	return o
+}
+
+// Validar confere o pedido contra a configuração e preenche os padrões.
+func (l *Lancador) Validar(p *api.PedidoDeLancamento) error {
+	if p.Modelo == nil || *p.Modelo == "" {
+		if len(l.cfg.Modelos) > 0 {
+			p.Modelo = &l.cfg.Modelos[0].Nome
+		}
+	} else if l.modelo(*p.Modelo) == nil {
+		return fmt.Errorf("modelo desconhecido: %q", *p.Modelo)
+	}
+	if p.Esforco == nil || *p.Esforco == "" {
+		if l.cfg.EsforcoPadrao != "" {
+			p.Esforco = &l.cfg.EsforcoPadrao
+		} else {
+			p.Esforco = nil
+		}
+	} else if !contem(l.cfg.Esforcos, *p.Esforco) {
+		return fmt.Errorf("esforço desconhecido: %q", *p.Esforco)
+	}
+	return nil
+}
+
+func (l *Lancador) modelo(nome string) *Modelo {
+	for i := range l.cfg.Modelos {
+		if l.cfg.Modelos[i].Nome == nome {
+			return &l.cfg.Modelos[i]
+		}
+	}
+	return nil
+}
+
+func contem(lista []string, valor string) bool {
+	for _, v := range lista {
+		if v == valor {
+			return true
+		}
+	}
+	return false
 }
 
 // MudouStatus decide se sobe ou avisa um agente.
@@ -101,15 +173,20 @@ func (l *Lancador) MudouStatus(m servidor.MudancaDeStatus) {
 	t := m.Tarefa
 	autorESessao := strings.HasPrefix(m.Autor, "S-")
 	switch {
+	case m.Lancamento != nil && t.SessaoAtiva == nil:
+		// Pedido explícito, com opções: vale mesmo se a tarefa já estava em andamento.
+		l.registrar(l.iniciar(t, *m.Lancamento))
 	case t.Status == api.EmAndamento && m.Anterior != api.EmAndamento && t.SessaoAtiva == nil && !autorESessao:
 		// Uma sessão que põe a tarefa em andamento vai trabalhar nela ela mesma.
-		l.registrar(l.iniciar(t))
+		var pedido api.PedidoDeLancamento
+		l.registrar(l.Validar(&pedido))
+		l.registrar(l.iniciar(t, pedido))
 	case m.Anterior == api.EmAndamento && t.Status != api.EmAndamento && t.SessaoAtiva != nil && m.Autor != *t.SessaoAtiva:
 		l.registrar(l.avisar(t))
 	}
 }
 
-func (l *Lancador) iniciar(t api.Tarefa) error {
+func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 	// Um tmux antigo desta tarefa, sem sessão ativa, é de um agente que já terminou.
 	if antigo, err := l.encontrar(t.Id); err != nil {
 		return err
@@ -126,7 +203,22 @@ func (l *Lancador) iniciar(t api.Tarefa) error {
 	for _, parte := range l.cfg.Comando {
 		args = append(args, strings.ReplaceAll(parte, "{nome}", nome))
 	}
-	args = append(args, preencher(l.cfg.PromptIniciar, t))
+	if pedido.Modelo != nil {
+		if m := l.modelo(*pedido.Modelo); m != nil {
+			args = append(args, m.Argumentos...)
+		}
+	}
+	if pedido.Esforco != nil {
+		for _, parte := range l.cfg.ArgumentosEsforco {
+			args = append(args, strings.ReplaceAll(parte, "{esforco}", *pedido.Esforco))
+		}
+	}
+	prompt := preencher(l.cfg.PromptIniciar, t)
+	if pedido.Instrucao != nil && strings.TrimSpace(*pedido.Instrucao) != "" {
+		prompt += "\n\nInstrução adicional de quem reabriu a tarefa (o resto do contexto está na tarefa e nas " +
+			"sessões anteriores):\n" + strings.TrimSpace(*pedido.Instrucao)
+	}
+	args = append(args, prompt)
 	if saida, err := l.executar(args...); err != nil {
 		return fmt.Errorf("subir o agente da tarefa %s: %v: %s", t.Id, err, saida)
 	}

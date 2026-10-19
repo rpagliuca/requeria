@@ -150,3 +150,38 @@ func TestNomeCurto(t *testing.T) {
 		}
 	}
 }
+
+func TestLancamentoComModeloEsforcoEInstrucao(t *testing.T) {
+	l, err := Novo(Config{
+		Diretorio: "/journals", Comando: []string{"agente"},
+		Modelos:           []Modelo{{Nome: "Modelo A", Argumentos: []string{"--model", "a"}}, {Nome: "Modelo B", Argumentos: []string{"--model", "b"}}},
+		Esforcos:          []string{"low", "high"},
+		ArgumentosEsforco: []string{"--effort", "{esforco}"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &tmuxFalso{sessoes: map[string]string{}}
+	l.executar = f.executar
+
+	ruim := api.PedidoDeLancamento{Modelo: ptr("Modelo Z")}
+	if l.Validar(&ruim) == nil {
+		t.Fatal("aceitou modelo desconhecido")
+	}
+	pedido := api.PedidoDeLancamento{Modelo: ptr("Modelo B"), Esforco: ptr("low"), Instrucao: ptr("Comece pelo teste que falhou.")}
+	if err := l.Validar(&pedido); err != nil {
+		t.Fatal(err)
+	}
+	// Relançar uma tarefa que já estava em andamento, sem agente, também vale.
+	tarefa := api.Tarefa{Id: "T-0009", Titulo: "Corrigir importação", Status: api.EmAndamento}
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "local", Lancamento: &pedido})
+	ultima := f.chamadas[len(f.chamadas)-1]
+	if !strings.Contains(ultima, "agente --model b --effort low") || !strings.Contains(ultima, "Comece pelo teste que falhou.") {
+		t.Fatalf("comando inesperado: %s", ultima)
+	}
+
+	padrao := api.PedidoDeLancamento{}
+	if err := l.Validar(&padrao); err != nil || *padrao.Modelo != "Modelo A" || padrao.Esforco != nil {
+		t.Fatalf("padrões inesperados: %+v %v", padrao, err)
+	}
+}
