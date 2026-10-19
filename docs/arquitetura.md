@@ -144,7 +144,9 @@ token de sessão encerrada.
 ## Configuração particular
 
 Este repositório é público e não contém dados de nenhuma instalação. A configuração de cada
-instalação fica num repositório privado separado, com valores cifrados.
+instalação fica num repositório privado separado, cifrada com **sops + age**: cada arquivo tem dois
+destinatários, a chave age da máquina (o servidor lê sozinho) e uma chave de recuperação mantida
+fora da máquina.
 
 ## Ordem de construção
 
@@ -159,6 +161,5 @@ instalação fica num repositório privado separado, com valores cifrados.
 
 ## Em aberto
 
-- Cifragem da configuração particular (proposta: sops + age, com uma chave de recuperação).
 - Onde ficam os journals: repositório central ou um por organização.
 - Validar a detecção de modelo e esforço pelos hooks.
