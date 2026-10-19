@@ -1,8 +1,9 @@
 import { useMemo } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 import { type StatusTarefa, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
+import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Data, StatusDaTarefa, nomesStatusTarefa } from "@/componentes/rotulos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +16,7 @@ const TODAS = "todas"
 // Filtros ficam na URL: o link reabre a mesma visão.
 export function Tarefas() {
   const { data, isLoading, error } = useTarefas()
-  const [params, setParams] = useSearchParams()
+  const [params, setParams] = useFiltrosLembrados("tarefas")
   const texto = params.get("q") ?? ""
   const organizacao = params.get("org") ?? TODAS
   const status = params.has("status") ? (params.get("status")!.split(",").filter(Boolean) as StatusTarefa[]) : abertas

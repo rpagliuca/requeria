@@ -1,8 +1,9 @@
 import { useMemo } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 import { type StatusSessao, useSessoes, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
+import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Data, StatusDaSessao, nomesStatusSessao } from "@/componentes/rotulos"
 import { TituloDasTarefas } from "@/componentes/TituloDasTarefas"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,7 @@ const todosOsStatus = Object.keys(nomesStatusSessao) as StatusSessao[]
 export function Sessoes() {
   const { data, isLoading, error } = useSessoes()
   const tarefas = useTarefas()
-  const [params, setParams] = useSearchParams()
+  const [params, setParams] = useFiltrosLembrados("sessoes")
   const texto = params.get("q") ?? ""
   const status = (params.get("status") ?? "ativa") as StatusSessao | "todas"
 
