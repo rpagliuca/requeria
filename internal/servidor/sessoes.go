@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/rpagliuca/requeria/api"
+	"github.com/rpagliuca/requerial/api"
 )
 
 const colunasSessao = `s.id, s.status, s.agente, s.tipo_agente, s.chat, s.servidor, s.anterior_id,

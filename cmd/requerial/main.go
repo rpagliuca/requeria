@@ -1,7 +1,7 @@
-// Comando requeria.
+// Comando requerial.
 //
-//	requeria servir   servidor da API (único processo que escreve no banco)
-//	requeria mcp      servidor MCP por stdio, para um agente de IA, falando com a API
+//	requerial servir   servidor da API (único processo que escreve no banco)
+//	requerial mcp      servidor MCP por stdio, para um agente de IA, falando com a API
 package main
 
 import (
@@ -14,17 +14,17 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requeria/internal/banco"
-	"github.com/rpagliuca/requeria/internal/ferramentas"
-	"github.com/rpagliuca/requeria/internal/servidor"
-	"github.com/rpagliuca/requeria/web"
+	"github.com/rpagliuca/requerial/internal/banco"
+	"github.com/rpagliuca/requerial/internal/ferramentas"
+	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/requerial/web"
 )
 
 const enderecoPadrao = "127.0.0.1:8787"
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "uso: requeria servir | mcp [opções]")
+		fmt.Fprintln(os.Stderr, "uso: requerial servir | mcp [opções]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -40,7 +40,7 @@ func main() {
 
 func servir(args []string) {
 	opcoes := flag.NewFlagSet("servir", flag.ExitOnError)
-	caminho := opcoes.String("banco", "requeria.db", "arquivo do SQLite")
+	caminho := opcoes.String("banco", "requerial.db", "arquivo do SQLite")
 	endereco := opcoes.String("endereco", enderecoPadrao, "endereço HTTP (só local, até a integração com Tailscale)")
 	opcoes.Parse(args)
 
@@ -50,7 +50,7 @@ func servir(args []string) {
 	}
 	defer db.Close()
 
-	log.Printf("requeria ouvindo em http://%s (banco %s)", *endereco, *caminho)
+	log.Printf("requerial ouvindo em http://%s (banco %s)", *endereco, *caminho)
 	log.Fatal(http.ListenAndServe(*endereco, rotas(servidor.Novo(db).Handler())))
 }
 
@@ -68,7 +68,7 @@ func rotas(apiHandler http.Handler) http.Handler {
 
 func servirMCP(args []string) {
 	opcoes := flag.NewFlagSet("mcp", flag.ExitOnError)
-	endereco := opcoes.String("api", "http://"+enderecoPadrao, "endereço da API do requeria")
+	endereco := opcoes.String("api", "http://"+enderecoPadrao, "endereço da API do requerial")
 	opcoes.Parse(args)
 
 	f, err := ferramentas.Novo(*endereco)

@@ -122,17 +122,17 @@
   }
 }
 /* Markdown de descrições e resumos, sem depender do plugin de tipografia. */
-.prose-requeria h1, .prose-requeria h2, .prose-requeria h3, .prose-requeria h4 { font-weight: 600; margin: 1em 0 0.4em; }
-.prose-requeria h1 { font-size: 1.15em; }
-.prose-requeria h2 { font-size: 1.08em; }
-.prose-requeria p, .prose-requeria pre, .prose-requeria table { margin: 0.5em 0; }
-.prose-requeria ul { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
-.prose-requeria ol { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
-.prose-requeria li + li { margin-top: 0.15em; }
-.prose-requeria a { text-decoration: underline; }
-.prose-requeria code { font-family: var(--font-mono, monospace); font-size: 0.9em; background: var(--muted); padding: 0.1em 0.3em; border-radius: 4px; }
-.prose-requeria pre { background: var(--muted); padding: 0.7em; border-radius: 6px; overflow-x: auto; }
-.prose-requeria pre code { background: none; padding: 0; }
-.prose-requeria table { display: block; overflow-x: auto; border-collapse: collapse; }
-.prose-requeria th, .prose-requeria td { border: 1px solid var(--border); padding: 0.25em 0.5em; text-align: left; }
-.prose-requeria blockquote { border-left: 3px solid var(--border); padding-left: 0.8em; color: var(--muted-foreground); }
+.prose-requerial h1, .prose-requerial h2, .prose-requerial h3, .prose-requerial h4 { font-weight: 600; margin: 1em 0 0.4em; }
+.prose-requerial h1 { font-size: 1.15em; }
+.prose-requerial h2 { font-size: 1.08em; }
+.prose-requerial p, .prose-requerial pre, .prose-requerial table { margin: 0.5em 0; }
+.prose-requerial ul { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
+.prose-requerial ol { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
+.prose-requerial li + li { margin-top: 0.15em; }
+.prose-requerial a { text-decoration: underline; }
+.prose-requerial code { font-family: var(--font-mono, monospace); font-size: 0.9em; background: var(--muted); padding: 0.1em 0.3em; border-radius: 4px; }
+.prose-requerial pre { background: var(--muted); padding: 0.7em; border-radius: 6px; overflow-x: auto; }
+.prose-requerial pre code { background: none; padding: 0; }
+.prose-requerial table { display: block; overflow-x: auto; border-collapse: collapse; }
+.prose-requerial th, .prose-requerial td { border: 1px solid var(--border); padding: 0.25em 0.5em; text-align: left; }
+.prose-requerial blockquote { border-left: 3px solid var(--border); padding-left: 0.8em; color: var(--muted-foreground); }

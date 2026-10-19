@@ -1,4 +1,4 @@
-// Package servidor implementa a API do requeria sobre o SQLite.
+// Package servidor implementa a API do requerial sobre o SQLite.
 //
 // Toda escrita passa por aqui, numa transação, e gera um evento no log. As invariantes são
 // conferidas antes da escrita, para dar uma mensagem clara, e o banco as impõe de novo.
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requeria/api"
+	"github.com/rpagliuca/requerial/api"
 )
 
 // Servidor implementa api.ServerInterface.

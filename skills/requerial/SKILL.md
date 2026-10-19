@@ -1,16 +1,16 @@
 ---
-name: requeria
-description: "Como um agente de IA trabalha numa Tarefa do requeria pelas ferramentas MCP: abrir a Sessão de Trabalho, registrar o journal, encerrar com resumo para o próximo agente e lidar com recusas. Use ao começar, retomar ou encerrar trabalho numa tarefa do requeria, quando o usuário citar um identificador T-0001 ou S-0001, ou quando as ferramentas mcp__requeria__* estiverem disponíveis. Triggers: requeria, tarefa T-, sessão S-, iniciar_sessao, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa já tem a sessão ativa."
+name: requerial
+description: "Como um agente de IA trabalha numa Tarefa do requerial pelas ferramentas MCP: abrir a Sessão de Trabalho, registrar o journal, encerrar com resumo para o próximo agente e lidar com recusas. Use ao começar, retomar ou encerrar trabalho numa tarefa do requerial, quando o usuário citar um identificador T-0001 ou S-0001, ou quando as ferramentas mcp__requerial__* estiverem disponíveis. Triggers: requerial, tarefa T-, sessão S-, iniciar_sessao, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa já tem a sessão ativa."
 user-invocable: true
 ---
 
-# requeria: trabalhar numa Tarefa como agente
+# requerial: trabalhar numa Tarefa como agente
 
-O requeria guarda **Tarefas** (o que fazer) e **Sessões de Trabalho** (quem trabalhou, quando e com
-qual agente). Você, agente, só escreve nele pelas ferramentas MCP `mcp__requeria__*`. O servidor
+O requerial guarda **Tarefas** (o que fazer) e **Sessões de Trabalho** (quem trabalhou, quando e com
+qual agente). Você, agente, só escreve nele pelas ferramentas MCP `mcp__requerial__*`. O servidor
 impõe as regras; se ele recusar, a recusa é a resposta certa, não um obstáculo a contornar.
 
-Se as ferramentas `mcp__requeria__*` não estiverem disponíveis, diga isso ao usuário e pare. Não
+Se as ferramentas `mcp__requerial__*` não estiverem disponíveis, diga isso ao usuário e pare. Não
 tente falar com a API por `curl` nem editar o banco.
 
 ## Conceitos em uma linha
@@ -19,7 +19,7 @@ tente falar com a API por `curl` nem editar o banco.
   `em_validacao`, `concluida`) e um **resumo para retomar**, escrito pela última sessão.
 - **Sessão de Trabalho** (`S-0001`): este chat, com um **agente imutável**. Cada tarefa tem no
   máximo uma sessão ativa.
-- **Journal**: o seu registro livre do trabalho, num arquivo do git. O requeria guarda só onde ele
+- **Journal**: o seu registro livre do trabalho, num arquivo do git. O requerial guarda só onde ele
   está.
 
 ## Ao começar
