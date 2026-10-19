@@ -152,6 +152,9 @@ type Sessao struct {
 	Journal            *string             `json:"journal,omitempty"`
 	MotivoEncerramento *MotivoEncerramento `json:"motivo_encerramento,omitempty"`
 
+	// Resumo Resumo gravado no encerramento desta sessão
+	Resumo *string `json:"resumo,omitempty"`
+
 	// Servidor Máquina onde a sessão roda
 	Servidor   string       `json:"servidor"`
 	Status     StatusSessao `json:"status"`

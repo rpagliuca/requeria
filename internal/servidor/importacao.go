@@ -74,9 +74,9 @@ func (s *Servidor) ImportarTarefa(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			res, err := tx.Exec(`INSERT INTO sessoes (status, agente, tipo_agente, servidor, motivo_encerramento, journal,
-				token_hash, iniciada_em, encerrada_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				token_hash, iniciada_em, encerrada_em, resumo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				string(api.Encerrada), x.Agente, string(api.Ia), x.Servidor, string(api.FimDoTrabalho), x.Journal,
-				hash, data(x.IniciadaEm), data(x.EncerradaEm))
+				hash, data(x.IniciadaEm), data(x.EncerradaEm), x.Resumo)
 			if err != nil {
 				return err
 			}

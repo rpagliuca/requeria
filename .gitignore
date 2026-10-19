@@ -2,3 +2,6 @@
 *.db-shm
 *.db-wal
 /requeria
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep

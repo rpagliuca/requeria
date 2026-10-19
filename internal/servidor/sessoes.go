@@ -10,7 +10,7 @@ import (
 )
 
 const colunasSessao = `s.id, s.status, s.agente, s.tipo_agente, s.chat, s.servidor, s.anterior_id,
-	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em`
+	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em, s.resumo`
 
 // listarSessoes carrega as sessões que casam com o filtro, já com as tarefas de cada uma.
 // As tarefas são lidas depois de fechar o cursor: o banco tem uma única conexão.
@@ -25,10 +25,10 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		var x api.Sessao
 		var n int64
 		var status, tipo, artefatos, iniciada string
-		var chat, motivo, journal, encerrada sql.NullString
+		var chat, motivo, journal, encerrada, resumo sql.NullString
 		var anterior sql.NullInt64
 		if err := linhas.Scan(&n, &status, &x.Agente, &tipo, &chat, &x.Servidor, &anterior,
-			&motivo, &journal, &artefatos, &iniciada, &encerrada); err != nil {
+			&motivo, &journal, &artefatos, &iniciada, &encerrada, &resumo); err != nil {
 			linhas.Close()
 			return nil, err
 		}
@@ -53,6 +53,9 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		if encerrada.Valid {
 			t := lerMomento(encerrada.String)
 			x.EncerradaEm = &t
+		}
+		if resumo.Valid {
+			x.Resumo = &resumo.String
 		}
 		if err := json.Unmarshal([]byte(artefatos), &x.Artefatos); err != nil {
 			linhas.Close()
@@ -336,6 +339,9 @@ func (s *Servidor) EncerrarSessao(w http.ResponseWriter, r *http.Request, id api
 			if _, err := tx.Exec(`UPDATE sessoes SET artefatos = ? WHERE id = ?`, string(texto), n); err != nil {
 				return err
 			}
+		}
+		if _, err := tx.Exec(`UPDATE sessoes SET resumo = ? WHERE id = ?`, enc.Resumo, n); err != nil {
+			return err
 		}
 		tarefas, err := tarefasDaSessao(tx, n, true)
 		if err != nil {
