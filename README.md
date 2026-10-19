@@ -87,4 +87,4 @@ REQUERIAL_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API e
 ```
 
 O frontend fica em `/` e navega pelo hash da URL (`/#/tarefas/T-0001`); os caminhos `/tarefas`,
-`/sessoes`, `/eventos` e `/importacao` são da API.
+`/sessoes`, `/eventos`, `/importacao` e `/lancador` são da API.
