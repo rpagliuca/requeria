@@ -3,23 +3,22 @@ import { Link } from "react-router-dom"
 
 import { type StatusTarefa, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
+import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Data, StatusDaTarefa, nomesStatusTarefa } from "@/componentes/rotulos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const todosOsStatus = Object.keys(nomesStatusTarefa) as StatusTarefa[]
 const abertas = todosOsStatus.filter((s) => s !== "concluida")
-const TODAS = "todas"
 
-// Filtros ficam na URL: o link reabre a mesma visão.
+// Filtros ficam na URL: o link reabre a mesma visão. Status e organização aceitam vários valores.
 export function Tarefas() {
   const { data, isLoading, error } = useTarefas()
   const [params, setParams] = useFiltrosLembrados("tarefas")
   const texto = params.get("q") ?? ""
-  const organizacao = params.get("org") ?? TODAS
-  const status = params.has("status") ? (params.get("status")!.split(",").filter(Boolean) as StatusTarefa[]) : abertas
+  const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
+  const status = params.has("status") ? (lista("status") as StatusTarefa[]) : abertas
 
   const alterar = (chave: string, valor: string | null) => {
     const novos = new URLSearchParams(params)
@@ -27,35 +26,34 @@ export function Tarefas() {
     else novos.set(chave, valor)
     setParams(novos, { replace: true })
   }
-  // Clique mostra só aquele status; Ctrl (ou Cmd) + clique soma ou tira do filtro.
-  const escolherStatus = (s: StatusTarefa, somar: boolean) => {
-    if (!somar) {
-      alterar("status", s)
-      return
-    }
-    const proximos = status.includes(s) ? status.filter((x) => x !== s) : [...status, s]
-    alterar("status", proximos.join(","))
-  }
-  const mesmoConjunto = (a: StatusTarefa[]) => a.length === status.length && a.every((s) => status.includes(s))
 
   const organizacoes = useMemo(() => [...new Set((data ?? []).map((t) => t.organizacao))].sort(), [data])
-  const contagem = useMemo(() => {
-    const c = {} as Record<StatusTarefa, number>
-    for (const t of data ?? []) if (organizacao === TODAS || t.organizacao === organizacao) c[t.status] = (c[t.status] ?? 0) + 1
+  // Sem "org" na URL, todas as organizações.
+  const orgs = params.has("org") ? lista("org") : organizacoes
+  const naOrganizacao = (o: string) => !params.has("org") || orgs.includes(o)
+
+  const contagemStatus = useMemo(() => {
+    const c = {} as Record<string, number>
+    for (const t of data ?? []) if (naOrganizacao(t.organizacao)) c[t.status] = (c[t.status] ?? 0) + 1
     return c
-  }, [data, organizacao])
+  }, [data, params]) // eslint-disable-line react-hooks/exhaustive-deps
+  const contagemOrg = useMemo(() => {
+    const c = {} as Record<string, number>
+    for (const t of data ?? []) if (status.includes(t.status)) c[t.organizacao] = (c[t.organizacao] ?? 0) + 1
+    return c
+  }, [data, params]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtradas = useMemo(() => {
     const termos = texto.toLowerCase().split(/\s+/).filter(Boolean)
     return (data ?? [])
       .filter((t) => status.includes(t.status))
-      .filter((t) => organizacao === TODAS || t.organizacao === organizacao)
+      .filter((t) => naOrganizacao(t.organizacao))
       .filter((t) => {
         const alvo = `${t.id} ${t.titulo} ${t.organizacao} ${t.descricao} ${t.resumo}`.toLowerCase()
         return termos.every((termo) => alvo.includes(termo))
       })
       .sort((a, b) => b.atualizada_em.localeCompare(a.atualizada_em))
-  }, [data, texto, status, organizacao])
+  }, [data, params]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-4">
@@ -68,49 +66,30 @@ export function Tarefas() {
           value={texto}
           onChange={(e) => alterar("q", e.target.value || null)}
         />
-        <Select value={organizacao} onValueChange={(v) => alterar("org", v === TODAS ? null : v)}>
-          <SelectTrigger className="sm:w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODAS}>Todas as organizações</SelectItem>
-            {organizacoes.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Button size="sm" variant={mesmoConjunto(abertas) ? "default" : "outline"} onClick={() => alterar("status", null)}>
-          Abertas
-        </Button>
-        <Button
-          size="sm"
-          variant={mesmoConjunto(todosOsStatus) ? "default" : "outline"}
-          onClick={() => alterar("status", todosOsStatus.join(","))}
-        >
-          Todas
-        </Button>
-        <span className="mx-1 w-px self-stretch bg-border" />
-        {todosOsStatus.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={status.includes(s) ? "default" : "outline"}
-            onClick={(e) => escolherStatus(s, e.ctrlKey || e.metaKey)}
-          >
-            {nomesStatusTarefa[s]} <span className="opacity-60">{contagem[s] ?? 0}</span>
-          </Button>
-        ))}
+        <SelecaoMultipla
+          rotulo="Status"
+          opcoes={todosOsStatus.map((s) => ({ valor: s, rotulo: nomesStatusTarefa[s], contagem: contagemStatus[s] ?? 0 }))}
+          selecionados={status}
+          alterar={(v) => alterar("status", v.join(","))}
+          atalhos={[
+            { rotulo: "Abertas", valores: abertas },
+            { rotulo: "Todos", valores: todosOsStatus },
+          ]}
+        />
+        <SelecaoMultipla
+          rotulo="Organização"
+          opcoes={organizacoes.map((o) => ({ valor: o, rotulo: o, contagem: contagemOrg[o] ?? 0 }))}
+          selecionados={orgs}
+          alterar={(v) => alterar("org", v.length === organizacoes.length ? null : v.join(","))}
+          atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
+        />
       </div>
 
       <Estado carregando={isLoading} erro={error} />
       {data && (
         <>
           <p className="text-muted-foreground text-xs">
-            {filtradas.length} tarefas · Ctrl + clique num status soma ao filtro
+            {filtradas.length} tarefas
           </p>
           <ul className="divide-y rounded-md border">
             {filtradas.map((t) => (
