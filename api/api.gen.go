@@ -6,9 +6,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/oapi-codegen/runtime"
@@ -216,6 +221,2031 @@ type CriarTarefaJSONRequestBody = NovaTarefa
 
 // AlterarTarefaJSONRequestBody defines body for AlterarTarefa for application/json ContentType.
 type AlterarTarefaJSONRequestBody = AlteracaoTarefa
+
+// RequestEditorFn  is the function signature for the RequestEditor callback function
+type RequestEditorFn func(ctx context.Context, req *http.Request) error
+
+// Doer performs HTTP requests.
+//
+// The standard http.Client implements this interface.
+type HttpRequestDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// Client which conforms to the OpenAPI3 specification for this service.
+type Client struct {
+	// The endpoint of the server conforming to this interface, with scheme,
+	// https://api.deepmap.com for example. This can contain a path relative
+	// to the server, such as https://api.deepmap.com/dev-test, and all the
+	// paths in the swagger spec will be appended to the server.
+	Server string
+
+	// Doer for performing requests, typically a *http.Client with any
+	// customized settings, such as certificate chains.
+	Client HttpRequestDoer
+
+	// A list of callbacks for modifying requests which are generated before sending over
+	// the network.
+	RequestEditors []RequestEditorFn
+}
+
+// ClientOption allows setting custom parameters during construction
+type ClientOption func(*Client) error
+
+// Creates a new Client, with reasonable defaults
+func NewClient(server string, opts ...ClientOption) (*Client, error) {
+	// create a client with sane default values
+	client := Client{
+		Server: server,
+	}
+	// mutate client and add all optional params
+	for _, o := range opts {
+		if err := o(&client); err != nil {
+			return nil, err
+		}
+	}
+	// ensure the server URL always has a trailing slash
+	if !strings.HasSuffix(client.Server, "/") {
+		client.Server += "/"
+	}
+	// create httpClient, if not already present
+	if client.Client == nil {
+		client.Client = &http.Client{}
+	}
+	return &client, nil
+}
+
+// WithHTTPClient allows overriding the default Doer, which is
+// automatically created using http.Client. This is useful for tests.
+func WithHTTPClient(doer HttpRequestDoer) ClientOption {
+	return func(c *Client) error {
+		c.Client = doer
+		return nil
+	}
+}
+
+// WithRequestEditorFn allows setting up a callback function, which will be
+// called right before sending the request. This can be used to mutate the request.
+func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
+	return func(c *Client) error {
+		c.RequestEditors = append(c.RequestEditors, fn)
+		return nil
+	}
+}
+
+// The interface specification for the client above.
+type ClientInterface interface {
+	// ListarEventos request
+	ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarSessoes request
+	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarSessaoWithBody request with any body
+	CriarSessaoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarSessao(ctx context.Context, body CriarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterSessao request
+	ObterSessao(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarSessaoWithBody request with any body
+	AlterarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarSessao(ctx context.Context, id Id, body AlterarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EncerrarSessaoWithBody request with any body
+	EncerrarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EncerrarSessao(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RepassarSessaoWithBody request with any body
+	RepassarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RepassarSessao(ctx context.Context, id Id, body RepassarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VincularTarefaWithBody request with any body
+	VincularTarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	VincularTarefa(ctx context.Context, id Id, body VincularTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarTarefas request
+	ListarTarefas(ctx context.Context, params *ListarTarefasParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarTarefaWithBody request with any body
+	CriarTarefaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarTarefa(ctx context.Context, body CriarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterTarefa request
+	ObterTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarTarefaWithBody request with any body
+	AlterarTarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarSessoesDaTarefa request
+	ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarEventosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarSessoesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarSessaoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarSessaoRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarSessao(ctx context.Context, body CriarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarSessaoRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterSessao(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterSessaoRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarSessaoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarSessao(ctx context.Context, id Id, body AlterarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarSessaoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EncerrarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEncerrarSessaoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EncerrarSessao(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEncerrarSessaoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RepassarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRepassarSessaoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RepassarSessao(ctx context.Context, id Id, body RepassarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRepassarSessaoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularTarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularTarefaRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularTarefa(ctx context.Context, id Id, body VincularTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularTarefaRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarTarefas(ctx context.Context, params *ListarTarefasParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarTarefasRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarTarefaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarTarefaRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarTarefa(ctx context.Context, body CriarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarTarefaRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterTarefaRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarTarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarTarefaRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarTarefaRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarSessoesDaTarefaRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewListarEventosRequest generates requests for ListarEventos
+func NewListarEventosRequest(server string, params *ListarEventosParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/eventos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Entidade != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "entidade", runtime.ParamLocationQuery, *params.Entidade); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListarSessoesRequest generates requests for ListarSessoes
+func NewListarSessoesRequest(server string, params *ListarSessoesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarSessaoRequest calls the generic CriarSessao builder with application/json body
+func NewCriarSessaoRequest(server string, body CriarSessaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarSessaoRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarSessaoRequestWithBody generates requests for CriarSessao with any type of body
+func NewCriarSessaoRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterSessaoRequest generates requests for ObterSessao
+func NewObterSessaoRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarSessaoRequest calls the generic AlterarSessao builder with application/json body
+func NewAlterarSessaoRequest(server string, id Id, body AlterarSessaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarSessaoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarSessaoRequestWithBody generates requests for AlterarSessao with any type of body
+func NewAlterarSessaoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEncerrarSessaoRequest calls the generic EncerrarSessao builder with application/json body
+func NewEncerrarSessaoRequest(server string, id Id, body EncerrarSessaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEncerrarSessaoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewEncerrarSessaoRequestWithBody generates requests for EncerrarSessao with any type of body
+func NewEncerrarSessaoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/encerramento", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRepassarSessaoRequest calls the generic RepassarSessao builder with application/json body
+func NewRepassarSessaoRequest(server string, id Id, body RepassarSessaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRepassarSessaoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRepassarSessaoRequestWithBody generates requests for RepassarSessao with any type of body
+func NewRepassarSessaoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/repasse", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewVincularTarefaRequest calls the generic VincularTarefa builder with application/json body
+func NewVincularTarefaRequest(server string, id Id, body VincularTarefaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewVincularTarefaRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewVincularTarefaRequestWithBody generates requests for VincularTarefa with any type of body
+func NewVincularTarefaRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/tarefas", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListarTarefasRequest generates requests for ListarTarefas
+func NewListarTarefasRequest(server string, params *ListarTarefasParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarTarefaRequest calls the generic CriarTarefa builder with application/json body
+func NewCriarTarefaRequest(server string, body CriarTarefaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarTarefaRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarTarefaRequestWithBody generates requests for CriarTarefa with any type of body
+func NewCriarTarefaRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterTarefaRequest generates requests for ObterTarefa
+func NewObterTarefaRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarTarefaRequest calls the generic AlterarTarefa builder with application/json body
+func NewAlterarTarefaRequest(server string, id Id, body AlterarTarefaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarTarefaRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarTarefaRequestWithBody generates requests for AlterarTarefa with any type of body
+func NewAlterarTarefaRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListarSessoesDaTarefaRequest generates requests for ListarSessoesDaTarefa
+func NewListarSessoesDaTarefaRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/sessoes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
+	for _, r := range c.RequestEditors {
+		if err := r(ctx, req); err != nil {
+			return err
+		}
+	}
+	for _, r := range additionalEditors {
+		if err := r(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ClientWithResponses builds on ClientInterface to offer response payloads
+type ClientWithResponses struct {
+	ClientInterface
+}
+
+// NewClientWithResponses creates a new ClientWithResponses, which wraps
+// Client with return type handling
+func NewClientWithResponses(server string, opts ...ClientOption) (*ClientWithResponses, error) {
+	client, err := NewClient(server, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &ClientWithResponses{client}, nil
+}
+
+// WithBaseURL overrides the baseURL.
+func WithBaseURL(baseURL string) ClientOption {
+	return func(c *Client) error {
+		newBaseURL, err := url.Parse(baseURL)
+		if err != nil {
+			return err
+		}
+		c.Server = newBaseURL.String()
+		return nil
+	}
+}
+
+// ClientWithResponsesInterface is the interface specification for the client with responses above.
+type ClientWithResponsesInterface interface {
+	// ListarEventosWithResponse request
+	ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error)
+
+	// ListarSessoesWithResponse request
+	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
+
+	// CriarSessaoWithBodyWithResponse request with any body
+	CriarSessaoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarSessaoResponse, error)
+
+	CriarSessaoWithResponse(ctx context.Context, body CriarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarSessaoResponse, error)
+
+	// ObterSessaoWithResponse request
+	ObterSessaoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterSessaoResponse, error)
+
+	// AlterarSessaoWithBodyWithResponse request with any body
+	AlterarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarSessaoResponse, error)
+
+	AlterarSessaoWithResponse(ctx context.Context, id Id, body AlterarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarSessaoResponse, error)
+
+	// EncerrarSessaoWithBodyWithResponse request with any body
+	EncerrarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EncerrarSessaoResponse, error)
+
+	EncerrarSessaoWithResponse(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoResponse, error)
+
+	// RepassarSessaoWithBodyWithResponse request with any body
+	RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error)
+
+	RepassarSessaoWithResponse(ctx context.Context, id Id, body RepassarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error)
+
+	// VincularTarefaWithBodyWithResponse request with any body
+	VincularTarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularTarefaResponse, error)
+
+	VincularTarefaWithResponse(ctx context.Context, id Id, body VincularTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularTarefaResponse, error)
+
+	// ListarTarefasWithResponse request
+	ListarTarefasWithResponse(ctx context.Context, params *ListarTarefasParams, reqEditors ...RequestEditorFn) (*ListarTarefasResponse, error)
+
+	// CriarTarefaWithBodyWithResponse request with any body
+	CriarTarefaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarTarefaResponse, error)
+
+	CriarTarefaWithResponse(ctx context.Context, body CriarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarTarefaResponse, error)
+
+	// ObterTarefaWithResponse request
+	ObterTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterTarefaResponse, error)
+
+	// AlterarTarefaWithBodyWithResponse request with any body
+	AlterarTarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error)
+
+	AlterarTarefaWithResponse(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error)
+
+	// ListarSessoesDaTarefaWithResponse request
+	ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error)
+}
+
+type ListarEventosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Evento
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarEventosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarEventosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarSessoesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Sessao
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarSessoesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarSessoesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *SessaoCriada
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EncerrarSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON400      *Erro
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r EncerrarSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EncerrarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RepassarSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *SessaoCriada
+	JSON400      *Erro
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r RepassarSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RepassarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type VincularTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r VincularTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VincularTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarTarefasResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Tarefa
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarTarefasResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarTarefasResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Tarefa
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarSessoesDaTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Sessao
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarSessoesDaTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarSessoesDaTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ListarEventosWithResponse request returning *ListarEventosResponse
+func (c *ClientWithResponses) ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error) {
+	rsp, err := c.ListarEventos(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarEventosResponse(rsp)
+}
+
+// ListarSessoesWithResponse request returning *ListarSessoesResponse
+func (c *ClientWithResponses) ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error) {
+	rsp, err := c.ListarSessoes(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarSessoesResponse(rsp)
+}
+
+// CriarSessaoWithBodyWithResponse request with arbitrary body returning *CriarSessaoResponse
+func (c *ClientWithResponses) CriarSessaoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarSessaoResponse, error) {
+	rsp, err := c.CriarSessaoWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarSessaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarSessaoWithResponse(ctx context.Context, body CriarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarSessaoResponse, error) {
+	rsp, err := c.CriarSessao(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarSessaoResponse(rsp)
+}
+
+// ObterSessaoWithResponse request returning *ObterSessaoResponse
+func (c *ClientWithResponses) ObterSessaoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterSessaoResponse, error) {
+	rsp, err := c.ObterSessao(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterSessaoResponse(rsp)
+}
+
+// AlterarSessaoWithBodyWithResponse request with arbitrary body returning *AlterarSessaoResponse
+func (c *ClientWithResponses) AlterarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarSessaoResponse, error) {
+	rsp, err := c.AlterarSessaoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarSessaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarSessaoWithResponse(ctx context.Context, id Id, body AlterarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarSessaoResponse, error) {
+	rsp, err := c.AlterarSessao(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarSessaoResponse(rsp)
+}
+
+// EncerrarSessaoWithBodyWithResponse request with arbitrary body returning *EncerrarSessaoResponse
+func (c *ClientWithResponses) EncerrarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EncerrarSessaoResponse, error) {
+	rsp, err := c.EncerrarSessaoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEncerrarSessaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) EncerrarSessaoWithResponse(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoResponse, error) {
+	rsp, err := c.EncerrarSessao(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEncerrarSessaoResponse(rsp)
+}
+
+// RepassarSessaoWithBodyWithResponse request with arbitrary body returning *RepassarSessaoResponse
+func (c *ClientWithResponses) RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error) {
+	rsp, err := c.RepassarSessaoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRepassarSessaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) RepassarSessaoWithResponse(ctx context.Context, id Id, body RepassarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error) {
+	rsp, err := c.RepassarSessao(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRepassarSessaoResponse(rsp)
+}
+
+// VincularTarefaWithBodyWithResponse request with arbitrary body returning *VincularTarefaResponse
+func (c *ClientWithResponses) VincularTarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularTarefaResponse, error) {
+	rsp, err := c.VincularTarefaWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularTarefaResponse(rsp)
+}
+
+func (c *ClientWithResponses) VincularTarefaWithResponse(ctx context.Context, id Id, body VincularTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularTarefaResponse, error) {
+	rsp, err := c.VincularTarefa(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularTarefaResponse(rsp)
+}
+
+// ListarTarefasWithResponse request returning *ListarTarefasResponse
+func (c *ClientWithResponses) ListarTarefasWithResponse(ctx context.Context, params *ListarTarefasParams, reqEditors ...RequestEditorFn) (*ListarTarefasResponse, error) {
+	rsp, err := c.ListarTarefas(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarTarefasResponse(rsp)
+}
+
+// CriarTarefaWithBodyWithResponse request with arbitrary body returning *CriarTarefaResponse
+func (c *ClientWithResponses) CriarTarefaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarTarefaResponse, error) {
+	rsp, err := c.CriarTarefaWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarTarefaResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarTarefaWithResponse(ctx context.Context, body CriarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarTarefaResponse, error) {
+	rsp, err := c.CriarTarefa(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarTarefaResponse(rsp)
+}
+
+// ObterTarefaWithResponse request returning *ObterTarefaResponse
+func (c *ClientWithResponses) ObterTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterTarefaResponse, error) {
+	rsp, err := c.ObterTarefa(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterTarefaResponse(rsp)
+}
+
+// AlterarTarefaWithBodyWithResponse request with arbitrary body returning *AlterarTarefaResponse
+func (c *ClientWithResponses) AlterarTarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error) {
+	rsp, err := c.AlterarTarefaWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarTarefaResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarTarefaWithResponse(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error) {
+	rsp, err := c.AlterarTarefa(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarTarefaResponse(rsp)
+}
+
+// ListarSessoesDaTarefaWithResponse request returning *ListarSessoesDaTarefaResponse
+func (c *ClientWithResponses) ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error) {
+	rsp, err := c.ListarSessoesDaTarefa(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarSessoesDaTarefaResponse(rsp)
+}
+
+// ParseListarEventosResponse parses an HTTP response from a ListarEventosWithResponse call
+func ParseListarEventosResponse(rsp *http.Response) (*ListarEventosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarEventosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Evento
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarSessoesResponse parses an HTTP response from a ListarSessoesWithResponse call
+func ParseListarSessoesResponse(rsp *http.Response) (*ListarSessoesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarSessoesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarSessaoResponse parses an HTTP response from a CriarSessaoWithResponse call
+func ParseCriarSessaoResponse(rsp *http.Response) (*CriarSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest SessaoCriada
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterSessaoResponse parses an HTTP response from a ObterSessaoWithResponse call
+func ParseObterSessaoResponse(rsp *http.Response) (*ObterSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarSessaoResponse parses an HTTP response from a AlterarSessaoWithResponse call
+func ParseAlterarSessaoResponse(rsp *http.Response) (*AlterarSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEncerrarSessaoResponse parses an HTTP response from a EncerrarSessaoWithResponse call
+func ParseEncerrarSessaoResponse(rsp *http.Response) (*EncerrarSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EncerrarSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRepassarSessaoResponse parses an HTTP response from a RepassarSessaoWithResponse call
+func ParseRepassarSessaoResponse(rsp *http.Response) (*RepassarSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RepassarSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest SessaoCriada
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseVincularTarefaResponse parses an HTTP response from a VincularTarefaWithResponse call
+func ParseVincularTarefaResponse(rsp *http.Response) (*VincularTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VincularTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarTarefasResponse parses an HTTP response from a ListarTarefasWithResponse call
+func ParseListarTarefasResponse(rsp *http.Response) (*ListarTarefasResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarTarefasResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarTarefaResponse parses an HTTP response from a CriarTarefaWithResponse call
+func ParseCriarTarefaResponse(rsp *http.Response) (*CriarTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterTarefaResponse parses an HTTP response from a ObterTarefaWithResponse call
+func ParseObterTarefaResponse(rsp *http.Response) (*ObterTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarTarefaResponse parses an HTTP response from a AlterarTarefaWithResponse call
+func ParseAlterarTarefaResponse(rsp *http.Response) (*AlterarTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarSessoesDaTarefaResponse parses an HTTP response from a ListarSessoesDaTarefaWithResponse call
+func ParseListarSessoesDaTarefaResponse(rsp *http.Response) (*ListarSessoesDaTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarSessoesDaTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
