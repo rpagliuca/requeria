@@ -6,14 +6,29 @@ Desenho completo em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ## Estado atual
 
-Prova de conceito do backend de **Tarefas** e **Sessões de Trabalho**: API HTTP sobre SQLite, com o
-contrato em [`api/openapi.yaml`](api/openapi.yaml) e as invariantes impostas pela API e pelo banco.
+Prova de conceito de **Tarefas** e **Sessões de Trabalho**: API HTTP sobre SQLite, com o contrato em
+[`api/openapi.yaml`](api/openapi.yaml) e as invariantes impostas pela API e pelo banco, mais um
+servidor MCP para agentes de IA.
 
 ## Rodar
 
 ```bash
-go run ./cmd/requeria -banco requeria.db -endereco 127.0.0.1:8787
+go build -o requeria ./cmd/requeria
+./requeria servir -banco requeria.db -endereco 127.0.0.1:8787
 ```
+
+## Usar com um agente (MCP)
+
+O servidor MCP fala com a API e guarda, em memória, o token da sessão aberta no chat; o agente nunca
+o vê. No Claude Code:
+
+```bash
+claude mcp add requeria -- /caminho/para/requeria mcp -api http://127.0.0.1:8787
+```
+
+Ferramentas: `listar_tarefas`, `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
+`historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`,
+`encerrar_sessao`, `repassar_sessao`, `listar_eventos`.
 
 ## Desenvolver
 
