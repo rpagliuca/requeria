@@ -59,14 +59,17 @@ Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`,
 
 1. **Primeiro** ajuste o status da tarefa: `em_validacao` (pronto, falta o usuário validar),
    `concluida`, `bloqueada` (dependência externa; diga qual no resumo) ou `pausada`.
-2. **Depois** `encerrar_sessao` com o **resumo**. Ele vai para cada tarefa da sessão e é a primeira
+2. **Persista o journal**, se a pasta da sessão estiver num repositório git: commit só da pasta da
+   sessão e push (cada sessão tem a sua pasta, então não há conflito; se o push for recusado,
+   `git pull --rebase` e push de novo). Commits sem assinatura, se a máquina não tiver como assinar.
+3. **Depois** `encerrar_sessao` com o **resumo**. Ele vai para cada tarefa da sessão e é a primeira
    coisa que o próximo agente lê. Escreva para quem não viu nada desta conversa:
    - em que estado a tarefa ficou;
    - o que falta, começando pelo próximo passo concreto;
    - decisões e descobertas que o próximo não pode perder;
    - onde está o detalhe (journal, PR, arquivo).
 
-3. Escreva a mensagem final ao usuário (o que ficou feito, o que falta) e, **como última ação**, se
+4. Escreva a mensagem final ao usuário (o que ficou feito, o que falta) e, **como última ação**, se
    você roda numa sessão tmux (`$TMUX` preenchido), feche-a:
    `tmux kill-session -t "$(tmux display-message -p '#S')"`. Nada depois disso. Fora do tmux (um chat
    comum), não feche nada.
@@ -75,7 +78,7 @@ Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`,
 
 A mensagem diz que a tarefa foi movida para outro status por outra pessoa. **Não altere o status**:
 quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde parou, chame
-`encerrar_sessao` com o resumo para retomar e feche o seu tmux como no passo 3 acima.
+`encerrar_sessao` com o resumo para retomar e persista o journal e feche o seu tmux como nos passos 2 e 4 acima.
 
 ## Recusas e o que fazer
 
