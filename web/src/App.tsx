@@ -13,7 +13,7 @@ export default function App() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-4">
       <nav className="mb-6 flex items-center gap-1 border-b pb-3">
-        <span className="mr-3 font-semibold">requeria</span>
+        <span className="mr-3 font-semibold">requerial</span>
         <NavLink to="/" end className={aba}>
           Tarefas
         </NavLink>

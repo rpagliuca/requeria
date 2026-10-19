@@ -1,4 +1,4 @@
-# Arquitetura do requeria
+# Arquitetura do requerial
 
 Status: desenho inicial, ainda sem implementação.
 
@@ -8,7 +8,7 @@ Requisitos atendidos geram valor; tarefas executadas, não necessariamente. Um r
 o que se sabe é que ele estava atendido no momento em que foi verificado. A verificação precisa se
 repetir, e o requisito volta a exigir trabalho quando deixa de ser atendido.
 
-O requeria coordena o trabalho de humanos e agentes de IA em torno desses requisitos. Inspira-se na
+O requerial coordena o trabalho de humanos e agentes de IA em torno desses requisitos. Inspira-se na
 rastreabilidade de ferramentas de engenharia de requisitos (vínculos entre requisitos, mudanças,
 atividades e evidências de teste) e trata agentes de IA como trabalhadores de primeira classe.
 

@@ -1,4 +1,4 @@
-// Package ferramentas expõe a API do requeria como servidor MCP para agentes de IA.
+// Package ferramentas expõe a API do requerial como servidor MCP para agentes de IA.
 //
 // É uma camada fina sobre a API HTTP: quem escreve no banco continua sendo só o servidor.
 // Cada processo MCP corresponde a um chat do agente e guarda o token da sessão aberta nele;
@@ -18,7 +18,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requeria/api"
+	"github.com/rpagliuca/requerial/api"
 )
 
 // Ferramentas guarda o cliente da API e a sessão aberta neste processo.
@@ -44,8 +44,8 @@ func Novo(endereco string) (*Ferramentas, error) {
 
 // Servidor monta o servidor MCP com todas as ferramentas registradas.
 func (f *Ferramentas) Servidor() *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "requeria", Version: "0.1.0"}, &mcp.ServerOptions{
-		Instructions: "Tarefas e Sessões de Trabalho do requeria. Ao começar a trabalhar numa tarefa, " +
+	s := mcp.NewServer(&mcp.Implementation{Name: "requerial", Version: "0.1.0"}, &mcp.ServerOptions{
+		Instructions: "Tarefas e Sessões de Trabalho do requerial. Ao começar a trabalhar numa tarefa, " +
 			"chame iniciar_sessao; ao terminar, chame encerrar_sessao com um resumo para o próximo agente.",
 	})
 

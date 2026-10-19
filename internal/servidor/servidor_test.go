@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpagliuca/requeria/api"
-	"github.com/rpagliuca/requeria/internal/banco"
+	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/requerial/internal/banco"
 )
 
 type ambiente struct {

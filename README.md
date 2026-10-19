@@ -1,4 +1,4 @@
-# requeria
+# requerial
 
 Coordenação de humanos e agentes de IA orientada por requisitos vivos, com evidência contínua.
 
@@ -13,8 +13,8 @@ servidor MCP para agentes de IA.
 ## Rodar
 
 ```bash
-go build -o requeria ./cmd/requeria
-./requeria servir -banco requeria.db -endereco 127.0.0.1:8787
+go build -o requerial ./cmd/requerial
+./requerial servir -banco requerial.db -endereco 127.0.0.1:8787
 ```
 
 ## Usar com um agente (MCP)
@@ -23,13 +23,13 @@ O servidor MCP fala com a API e guarda, em memória, o token da sessão aberta n
 o vê. No Claude Code:
 
 ```bash
-claude mcp add requeria -- /caminho/para/requeria mcp -api http://127.0.0.1:8787
+claude mcp add requerial -- /caminho/para/requerial mcp -api http://127.0.0.1:8787
 ```
 
-Para os agentes saberem usar as ferramentas, instale a skill [`skills/requeria`](skills/requeria/SKILL.md):
+Para os agentes saberem usar as ferramentas, instale a skill [`skills/requerial`](skills/requerial/SKILL.md):
 
 ```bash
-ln -s "$PWD/skills/requeria" ~/.claude/skills/requeria
+ln -s "$PWD/skills/requerial" ~/.claude/skills/requerial
 ```
 
 Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
@@ -50,7 +50,7 @@ cd web
 npm ci
 npm run gerar   # tipos TypeScript a partir do contrato OpenAPI
 npm run build   # compila para web/dist; depois recompile o binário Go
-REQUERIA_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API encaminhada
+REQUERIAL_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API encaminhada
 ```
 
 O frontend fica em `/` e navega pelo hash da URL (`/#/tarefas/T-0001`); os caminhos `/tarefas`,

@@ -9,9 +9,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requeria/api"
-	"github.com/rpagliuca/requeria/internal/banco"
-	"github.com/rpagliuca/requeria/internal/servidor"
+	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/requerial/internal/banco"
+	"github.com/rpagliuca/requerial/internal/servidor"
 )
 
 type chat struct {
