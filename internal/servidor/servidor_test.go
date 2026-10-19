@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/rpagliuca/requeria/api"
 	"github.com/rpagliuca/requeria/internal/banco"
@@ -234,4 +235,32 @@ func TestEventosRegistramAutor(t *testing.T) {
 	if eventos[1].Tipo != "tarefa_alterada" || eventos[1].Autor != s.Sessao.Id {
 		t.Fatalf("alteração não atribuída à sessão: %+v", eventos[1])
 	}
+}
+
+func TestImportacaoPreservaDatasEHistorico(t *testing.T) {
+	a := novoAmbiente(t)
+	inicio := time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)
+	journalA, journalB := "maquina-a:/tarefas/x/CLAUDE.md", "maquina-b:/tarefas/x/CLAUDE.md"
+	var tarefa api.Tarefa
+	a.chamar("POST", "/importacao", "", api.ImportacaoTarefa{
+		Titulo: "Tarefa antiga", Organizacao: "Exemplo", Status: api.Pausada, CriadaEm: inicio, Origem: "pasta x",
+		Sessoes: []api.SessaoImportada{
+			{Agente: "Claude (modelo não registrado)", Servidor: "maquina-b", Journal: &journalB,
+				IniciadaEm: inicio, EncerradaEm: inicio.Add(72 * time.Hour), Resumo: "mais recente"},
+			{Agente: "Claude (modelo não registrado)", Servidor: "maquina-a", Journal: &journalA,
+				IniciadaEm: inicio, EncerradaEm: inicio.Add(24 * time.Hour), Resumo: "mais antigo"},
+		},
+	}, 201, &tarefa)
+	if !tarefa.CriadaEm.Equal(inicio) || tarefa.Resumo != "mais recente" || tarefa.SessaoAtiva != nil || tarefa.Status != api.Pausada {
+		t.Fatalf("tarefa importada inesperada: %+v", tarefa)
+	}
+
+	var historico []api.Sessao
+	a.chamar("GET", "/tarefas/"+tarefa.Id+"/sessoes", "", nil, 200, &historico)
+	if len(historico) != 2 || historico[0].Status != api.Encerrada {
+		t.Fatalf("histórico inesperado: %+v", historico)
+	}
+
+	// A tarefa importada fica livre para uma sessão nova.
+	a.sessao("Claude Opus 5.5 Medium", tarefa.Id)
 }
