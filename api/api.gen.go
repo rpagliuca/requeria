@@ -125,6 +125,26 @@ type NovaTarefa struct {
 	Titulo      string        `json:"titulo"`
 }
 
+// OpcoesDeLancamento defines model for OpcoesDeLancamento.
+type OpcoesDeLancamento struct {
+	EsforcoPadrao *string  `json:"esforco_padrao,omitempty"`
+	Esforcos      []string `json:"esforcos"`
+	ModeloPadrao  string   `json:"modelo_padrao"`
+	Modelos       []string `json:"modelos"`
+}
+
+// PedidoDeLancamento defines model for PedidoDeLancamento.
+type PedidoDeLancamento struct {
+	// Esforco Um dos esforços do lançador; padrão: o configurado
+	Esforco *string `json:"esforco,omitempty"`
+
+	// Instrucao Instrução adicional de reabertura, somada ao prompt padrão; o resto do contexto o agente lê da tarefa e das sessões anteriores
+	Instrucao *string `json:"instrucao,omitempty"`
+
+	// Modelo Um dos modelos do lançador; padrão: o primeiro
+	Modelo *string `json:"modelo,omitempty"`
+}
+
 // Repasse defines model for Repasse.
 type Repasse struct {
 	Agente string  `json:"agente"`
@@ -254,6 +274,9 @@ type CriarTarefaJSONRequestBody = NovaTarefa
 // AlterarTarefaJSONRequestBody defines body for AlterarTarefa for application/json ContentType.
 type AlterarTarefaJSONRequestBody = AlteracaoTarefa
 
+// LancarAgenteJSONRequestBody defines body for LancarAgente for application/json ContentType.
+type LancarAgenteJSONRequestBody = PedidoDeLancamento
+
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
@@ -335,6 +358,9 @@ type ClientInterface interface {
 
 	ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// OpcoesDoLancador request
+	OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarSessoes request
 	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -387,6 +413,11 @@ type ClientInterface interface {
 
 	AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// LancarAgenteWithBody request with any body
+	LancarAgenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	LancarAgente(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarSessoesDaTarefa request
 	ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -417,6 +448,18 @@ func (c *Client) ImportarTarefaWithBody(ctx context.Context, contentType string,
 
 func (c *Client) ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewImportarTarefaRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewOpcoesDoLancadorRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -667,6 +710,30 @@ func (c *Client) AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSO
 	return c.Client.Do(req)
 }
 
+func (c *Client) LancarAgenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLancarAgenteRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) LancarAgente(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLancarAgenteRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListarSessoesDaTarefaRequest(c.Server, id)
 	if err != nil {
@@ -764,6 +831,33 @@ func NewImportarTarefaRequestWithBody(server string, contentType string, body io
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewOpcoesDoLancadorRequest generates requests for OpcoesDoLancador
+func NewOpcoesDoLancadorRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lancador")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -1312,6 +1406,53 @@ func NewAlterarTarefaRequestWithBody(server string, id Id, contentType string, b
 	return req, nil
 }
 
+// NewLancarAgenteRequest calls the generic LancarAgente builder with application/json body
+func NewLancarAgenteRequest(server string, id Id, body LancarAgenteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewLancarAgenteRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewLancarAgenteRequestWithBody generates requests for LancarAgente with any type of body
+func NewLancarAgenteRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/lancamento", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListarSessoesDaTarefaRequest generates requests for ListarSessoesDaTarefa
 func NewListarSessoesDaTarefaRequest(server string, id Id) (*http.Request, error) {
 	var err error
@@ -1397,6 +1538,9 @@ type ClientWithResponsesInterface interface {
 
 	ImportarTarefaWithResponse(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error)
 
+	// OpcoesDoLancadorWithResponse request
+	OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error)
+
 	// ListarSessoesWithResponse request
 	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
 
@@ -1449,6 +1593,11 @@ type ClientWithResponsesInterface interface {
 
 	AlterarTarefaWithResponse(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error)
 
+	// LancarAgenteWithBodyWithResponse request with any body
+	LancarAgenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error)
+
+	LancarAgenteWithResponse(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error)
+
 	// ListarSessoesDaTarefaWithResponse request
 	ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error)
 }
@@ -1492,6 +1641,29 @@ func (r ImportarTarefaResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ImportarTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type OpcoesDoLancadorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OpcoesDeLancamento
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r OpcoesDoLancadorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r OpcoesDoLancadorResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1787,6 +1959,31 @@ func (r AlterarTarefaResponse) StatusCode() int {
 	return 0
 }
 
+type LancarAgenteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r LancarAgenteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r LancarAgenteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListarSessoesDaTarefaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1834,6 +2031,15 @@ func (c *ClientWithResponses) ImportarTarefaWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParseImportarTarefaResponse(rsp)
+}
+
+// OpcoesDoLancadorWithResponse request returning *OpcoesDoLancadorResponse
+func (c *ClientWithResponses) OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error) {
+	rsp, err := c.OpcoesDoLancador(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseOpcoesDoLancadorResponse(rsp)
 }
 
 // ListarSessoesWithResponse request returning *ListarSessoesResponse
@@ -2008,6 +2214,23 @@ func (c *ClientWithResponses) AlterarTarefaWithResponse(ctx context.Context, id 
 	return ParseAlterarTarefaResponse(rsp)
 }
 
+// LancarAgenteWithBodyWithResponse request with arbitrary body returning *LancarAgenteResponse
+func (c *ClientWithResponses) LancarAgenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error) {
+	rsp, err := c.LancarAgenteWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLancarAgenteResponse(rsp)
+}
+
+func (c *ClientWithResponses) LancarAgenteWithResponse(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error) {
+	rsp, err := c.LancarAgente(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLancarAgenteResponse(rsp)
+}
+
 // ListarSessoesDaTarefaWithResponse request returning *ListarSessoesDaTarefaResponse
 func (c *ClientWithResponses) ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error) {
 	rsp, err := c.ListarSessoesDaTarefa(ctx, id, reqEditors...)
@@ -2070,6 +2293,39 @@ func ParseImportarTarefaResponse(rsp *http.Response) (*ImportarTarefaResponse, e
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseOpcoesDoLancadorResponse parses an HTTP response from a OpcoesDoLancadorWithResponse call
+func ParseOpcoesDoLancadorResponse(rsp *http.Response) (*OpcoesDoLancadorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &OpcoesDoLancadorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OpcoesDeLancamento
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -2563,6 +2819,53 @@ func ParseAlterarTarefaResponse(rsp *http.Response) (*AlterarTarefaResponse, err
 	return response, nil
 }
 
+// ParseLancarAgenteResponse parses an HTTP response from a LancarAgenteWithResponse call
+func ParseLancarAgenteResponse(rsp *http.Response) (*LancarAgenteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LancarAgenteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListarSessoesDaTarefaResponse parses an HTTP response from a ListarSessoesDaTarefaWithResponse call
 func ParseListarSessoesDaTarefaResponse(rsp *http.Response) (*ListarSessoesDaTarefaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2605,6 +2908,9 @@ type ServerInterface interface {
 	// (POST /importacao)
 	ImportarTarefa(w http.ResponseWriter, r *http.Request)
 
+	// (GET /lancador)
+	OpcoesDoLancador(w http.ResponseWriter, r *http.Request)
+
 	// (GET /sessoes)
 	ListarSessoes(w http.ResponseWriter, r *http.Request, params ListarSessoesParams)
 
@@ -2640,6 +2946,9 @@ type ServerInterface interface {
 
 	// (PATCH /tarefas/{id})
 	AlterarTarefa(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /tarefas/{id}/lancamento)
+	LancarAgente(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (GET /tarefas/{id}/sessoes)
 	ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request, id Id)
@@ -2686,6 +2995,20 @@ func (siw *ServerInterfaceWrapper) ImportarTarefa(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ImportarTarefa(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OpcoesDoLancador operation middleware
+func (siw *ServerInterfaceWrapper) OpcoesDoLancador(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpcoesDoLancador(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3009,6 +3332,31 @@ func (siw *ServerInterfaceWrapper) AlterarTarefa(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// LancarAgente operation middleware
+func (siw *ServerInterfaceWrapper) LancarAgente(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LancarAgente(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListarSessoesDaTarefa operation middleware
 func (siw *ServerInterfaceWrapper) ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request) {
 
@@ -3156,6 +3504,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
 	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
+	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes", wrapper.CriarSessao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)
@@ -3168,6 +3517,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas", wrapper.CriarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}", wrapper.ObterTarefa)
 	m.HandleFunc("PATCH "+options.BaseURL+"/tarefas/{id}", wrapper.AlterarTarefa)
+	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/lancamento", wrapper.LancarAgente)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}/sessoes", wrapper.ListarSessoesDaTarefa)
 
 	return m

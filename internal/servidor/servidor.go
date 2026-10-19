@@ -25,6 +25,7 @@ type Servidor struct {
 	db    *sql.DB
 	agora func() time.Time
 
+	lancador         Lancador
 	aoMudarStatus    []func(MudancaDeStatus)
 	aoEncerrarSessao []func(api.Sessao)
 }
@@ -34,6 +35,21 @@ type MudancaDeStatus struct {
 	Tarefa   api.Tarefa
 	Anterior api.StatusTarefa // vazio quando a tarefa acabou de ser criada
 	Autor    string           // a sessão que mudou (S-0001) ou "local"
+	// Lancamento vem preenchido quando alguém pediu explicitamente um agente (POST
+	// /tarefas/{id}/lancamento), com as opções escolhidas.
+	Lancamento *api.PedidoDeLancamento
+}
+
+// Lancador é o que o servidor precisa saber do lançador de agentes para atender o frontend.
+type Lancador interface {
+	Opcoes() api.OpcoesDeLancamento
+	// Validar confere modelo e esforço do pedido e preenche os padrões.
+	Validar(p *api.PedidoDeLancamento) error
+}
+
+// ComLancador liga o lançador aos endpoints de lançamento.
+func (s *Servidor) ComLancador(l Lancador) {
+	s.lancador = l
 }
 
 // AoMudarStatus registra f para ser chamada depois de cada mudança de status de tarefa, fora da
@@ -63,7 +79,7 @@ func (s *Servidor) Tarefa(id string) (api.Tarefa, error) {
 }
 
 func (s *Servidor) avisarMudanca(m MudancaDeStatus) {
-	if m.Anterior == m.Tarefa.Status {
+	if m.Anterior == m.Tarefa.Status && m.Lancamento == nil {
 		return
 	}
 	for _, f := range s.aoMudarStatus {

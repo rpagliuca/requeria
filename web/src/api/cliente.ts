@@ -9,6 +9,8 @@ export type StatusTarefa = components["schemas"]["StatusTarefa"]
 export type StatusSessao = components["schemas"]["StatusSessao"]
 export type NovaTarefa = components["schemas"]["NovaTarefa"]
 export type AlteracaoTarefa = components["schemas"]["AlteracaoTarefa"]
+export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
+export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
 
 // A API fica na mesma origem do frontend; em desenvolvimento, o Vite encaminha.
 async function obter<T>(caminho: string, metodo = "GET", corpo?: unknown): Promise<T> {
@@ -61,3 +63,14 @@ export const useEncerrarSessao = (id: string) =>
 
 export const useEventos = (entidade: string) =>
   useQuery({ queryKey: ["eventos", entidade], queryFn: () => obter<Evento[]>(`/eventos?entidade=${entidade}`) })
+
+// Sem lançador configurado, a API responde 404 e o frontend só muda o status.
+export const useOpcoesDoLancador = () =>
+  useQuery({
+    queryKey: ["lancador"],
+    queryFn: () => obter<OpcoesDeLancamento>("/lancador").catch(() => null),
+    staleTime: Infinity,
+  })
+
+export const useLancarAgente = (id: string) =>
+  useEscrita((pedido: PedidoDeLancamento) => obter<Tarefa>(`/tarefas/${id}/lancamento`, "POST", pedido))

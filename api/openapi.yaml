@@ -65,6 +65,39 @@ paths:
               schema: { $ref: '#/components/schemas/Tarefa' }
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/lancamento:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: lancarAgente
+      description: |
+        Põe a tarefa em andamento e sobe um agente para ela, com instrução adicional de reabertura,
+        modelo e esforço opcionais. Exige o lançador de agentes configurado e a tarefa sem sessão ativa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PedidoDeLancamento' }
+      responses:
+        '200':
+          description: Tarefa em andamento; o agente está subindo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /lancador:
+    get:
+      operationId: opcoesDoLancador
+      description: Modelos e esforços que o lançador de agentes aceita. 404 se não há lançador.
+      responses:
+        '200':
+          description: Opções
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpcoesDeLancamento' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/sessoes:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -333,6 +366,24 @@ components:
         organizacao: { type: string }
         status: { $ref: '#/components/schemas/StatusTarefa' }
         resumo: { type: string }
+    PedidoDeLancamento:
+      type: object
+      properties:
+        instrucao: { type: string, description: 'Instrução adicional de reabertura, somada ao prompt padrão; o resto do contexto o agente lê da tarefa e das sessões anteriores' }
+        modelo: { type: string, description: 'Um dos modelos do lançador; padrão: o primeiro' }
+        esforco: { type: string, description: 'Um dos esforços do lançador; padrão: o configurado' }
+    OpcoesDeLancamento:
+      type: object
+      required: [modelos, esforcos, modelo_padrao]
+      properties:
+        modelos:
+          type: array
+          items: { type: string }
+        esforcos:
+          type: array
+          items: { type: string }
+        modelo_padrao: { type: string }
+        esforco_padrao: { type: string }
     Sessao:
       type: object
       required: [id, status, agente, tipo_agente, servidor, artefatos, tarefas, iniciada_em]

@@ -38,6 +38,44 @@ export interface paths {
         patch: operations["alterarTarefa"];
         trace?: never;
     };
+    "/tarefas/{id}/lancamento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Põe a tarefa em andamento e sobe um agente para ela, com instrução adicional de reabertura,
+         *     modelo e esforço opcionais. Exige o lançador de agentes configurado e a tarefa sem sessão ativa.
+         *      */
+        post: operations["lancarAgente"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lancador": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Modelos e esforços que o lançador de agentes aceita. 404 se não há lançador. */
+        get: operations["opcoesDoLancador"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/sessoes": {
         parameters: {
             query?: never;
@@ -250,6 +288,20 @@ export interface components {
             status?: components["schemas"]["StatusTarefa"];
             resumo?: string;
         };
+        PedidoDeLancamento: {
+            /** @description Instrução adicional de reabertura, somada ao prompt padrão; o resto do contexto o agente lê da tarefa e das sessões anteriores */
+            instrucao?: string;
+            /** @description Um dos modelos do lançador; padrão: o primeiro */
+            modelo?: string;
+            /** @description Um dos esforços do lançador; padrão: o configurado */
+            esforco?: string;
+        };
+        OpcoesDeLancamento: {
+            modelos: string[];
+            esforcos: string[];
+            modelo_padrao: string;
+            esforco_padrao?: string;
+        };
         Sessao: {
             /** @example S-0001 */
             id: string;
@@ -460,6 +512,56 @@ export interface operations {
                 };
             };
             400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    lancarAgente: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PedidoDeLancamento"];
+            };
+        };
+        responses: {
+            /** @description Tarefa em andamento; o agente está subindo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    opcoesDoLancador: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Opções */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpcoesDeLancamento"];
+                };
+            };
             404: components["responses"]["Erro"];
         };
     };

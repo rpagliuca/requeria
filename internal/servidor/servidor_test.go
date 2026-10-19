@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,9 +15,10 @@ import (
 )
 
 type ambiente struct {
-	t   *testing.T
-	db  *sql.DB
-	srv *httptest.Server
+	servidor *Servidor
+	t        *testing.T
+	db       *sql.DB
+	srv      *httptest.Server
 }
 
 func novoAmbiente(t *testing.T) *ambiente {
@@ -25,9 +27,10 @@ func novoAmbiente(t *testing.T) *ambiente {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(Novo(db).Handler())
+	s := Novo(db)
+	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(func() { srv.Close(); db.Close() })
-	return &ambiente{t: t, db: db, srv: srv}
+	return &ambiente{t: t, db: db, srv: srv, servidor: s}
 }
 
 // chamar faz a requisição, confere o status e decodifica a resposta em destino (se não for nil).
@@ -265,4 +268,50 @@ func TestImportacaoPreservaDatasEHistorico(t *testing.T) {
 
 	// A tarefa importada fica livre para uma sessão nova.
 	a.sessao("Claude Opus 5.5 Medium", tarefa.Id)
+}
+
+// lancadorFalso aceita só "Modelo A" e guarda as mudanças que recebeu.
+type lancadorFalso struct{ mudancas []MudancaDeStatus }
+
+func (l *lancadorFalso) Opcoes() api.OpcoesDeLancamento {
+	return api.OpcoesDeLancamento{Modelos: []string{"Modelo A"}, Esforcos: []string{"high"}, ModeloPadrao: "Modelo A"}
+}
+
+func (l *lancadorFalso) Validar(p *api.PedidoDeLancamento) error {
+	if p.Modelo != nil && *p.Modelo != "Modelo A" {
+		return errors.New("modelo desconhecido")
+	}
+	return nil
+}
+
+func TestLancamentoDeAgente(t *testing.T) {
+	a := novoAmbiente(t)
+	a.chamar("GET", "/lancador", "", nil, 404, nil)
+
+	l := &lancadorFalso{}
+	a.servidor.ComLancador(l)
+	a.servidor.AoMudarStatus(func(m MudancaDeStatus) { l.mudancas = append(l.mudancas, m) })
+	var opcoes api.OpcoesDeLancamento
+	a.chamar("GET", "/lancador", "", nil, 200, &opcoes)
+	if opcoes.ModeloPadrao != "Modelo A" {
+		t.Fatalf("opções inesperadas: %+v", opcoes)
+	}
+
+	tarefa := a.tarefa("Reabrir")
+	l.mudancas = nil // a criação também avisa
+	modeloRuim := "Modelo Z"
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/lancamento", "", api.PedidoDeLancamento{Modelo: &modeloRuim}, 400, nil)
+
+	instrucao := "Comece pelo teste que falhou."
+	var lancada api.Tarefa
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/lancamento", "", api.PedidoDeLancamento{Instrucao: &instrucao}, 200, &lancada)
+	if lancada.Status != api.EmAndamento || len(l.mudancas) != 1 || l.mudancas[0].Lancamento == nil ||
+		*l.mudancas[0].Lancamento.Instrucao != instrucao {
+		t.Fatalf("lançamento não avisado como esperado: %+v %+v", lancada, l.mudancas)
+	}
+
+	// Já em andamento e sem sessão: pode relançar. Com sessão ativa, não.
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/lancamento", "", api.PedidoDeLancamento{}, 200, nil)
+	a.sessao("Claude Opus 5.5 Medium", tarefa.Id)
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/lancamento", "", api.PedidoDeLancamento{}, 409, nil)
 }
