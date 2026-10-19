@@ -26,6 +26,12 @@ o vê. No Claude Code:
 claude mcp add requeria -- /caminho/para/requeria mcp -api http://127.0.0.1:8787
 ```
 
+Para os agentes saberem usar as ferramentas, instale a skill [`skills/requeria`](skills/requeria/SKILL.md):
+
+```bash
+ln -s "$PWD/skills/requeria" ~/.claude/skills/requeria
+```
+
 Ferramentas: `listar_tarefas`, `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`,
 `encerrar_sessao`, `repassar_sessao`, `listar_eventos`.
