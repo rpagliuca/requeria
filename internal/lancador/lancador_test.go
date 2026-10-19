@@ -1,0 +1,159 @@
+package lancador
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/requerial/internal/servidor"
+)
+
+// tmuxFalso simula as sessões tmux: nome → tarefa do ambiente.
+type tmuxFalso struct {
+	sessoes  map[string]string
+	chamadas []string
+}
+
+func (f *tmuxFalso) executar(args ...string) (string, error) {
+	f.chamadas = append(f.chamadas, strings.Join(args, " "))
+	alvo := func() string {
+		for i, a := range args {
+			if a == "-t" {
+				return strings.TrimSuffix(strings.TrimPrefix(args[i+1], "="), ":")
+			}
+		}
+		return ""
+	}
+	switch args[0] {
+	case "list-sessions":
+		var nomes []string
+		for n := range f.sessoes {
+			nomes = append(nomes, n)
+		}
+		return strings.Join(nomes, "\n"), nil
+	case "show-environment":
+		if t, ok := f.sessoes[alvo()]; ok && t != "" {
+			return VariavelTarefa + "=" + t, nil
+		}
+		return "", errFalso
+	case "has-session":
+		if _, ok := f.sessoes[alvo()]; ok {
+			return "", nil
+		}
+		return "", errFalso
+	case "new-session":
+		nome, tarefa := "", ""
+		for i, a := range args {
+			if a == "-s" {
+				nome = args[i+1]
+			}
+			if a == "-e" {
+				tarefa = strings.TrimPrefix(args[i+1], VariavelTarefa+"=")
+			}
+		}
+		f.sessoes[nome] = tarefa
+	case "kill-session":
+		delete(f.sessoes, alvo())
+	}
+	return "", nil
+}
+
+type erroFalso struct{}
+
+func (erroFalso) Error() string { return "falso" }
+
+var errFalso = erroFalso{}
+
+func novoLancador(t *testing.T, tarefas map[string]api.Tarefa) (*Lancador, *tmuxFalso) {
+	t.Helper()
+	l, err := Novo(Config{Diretorio: "/journals", Comando: []string{"agente", "--nome", "{nome}"}},
+		func(id string) (api.Tarefa, error) { return tarefas[id], nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &tmuxFalso{sessoes: map[string]string{"outra": ""}}
+	l.executar = f.executar
+	l.depois = func(time.Duration, func()) {}
+	return l, f
+}
+
+func ptr(s string) *string { return &s }
+
+func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
+	l, f := novoLancador(t, nil)
+	tarefa := api.Tarefa{Id: "T-0007", Titulo: "Revisão do backup de fotos", Status: api.EmAndamento}
+
+	// Uma sessão que põe a própria tarefa em andamento não ganha outro agente.
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Pausada, Autor: "S-0001"})
+	if len(f.sessoes) != 1 {
+		t.Fatalf("subiu agente para mudança feita por sessão: %v", f.chamadas)
+	}
+
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Pausada, Autor: "local"})
+	if f.sessoes["revisao-backup-fotos"] != "T-0007" {
+		t.Fatalf("agente não subiu como esperado: %v", f.sessoes)
+	}
+	ultima := f.chamadas[len(f.chamadas)-1]
+	if !strings.Contains(ultima, "-c /journals") || !strings.Contains(ultima, "agente --nome revisao-backup-fotos") ||
+		!strings.Contains(ultima, "tarefa T-0007") {
+		t.Fatalf("comando inesperado: %s", ultima)
+	}
+
+	// Com sessão ativa, não sobe outro.
+	tarefa.SessaoAtiva = ptr("S-0002")
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.AFazer, Autor: "local"})
+	if len(f.sessoes) != 2 {
+		t.Fatalf("subiu agente para tarefa com sessão ativa: %v", f.sessoes)
+	}
+}
+
+func TestAvisaAgenteAoSairDeAndamentoEFechaDepois(t *testing.T) {
+	tarefas := map[string]api.Tarefa{}
+	l, f := novoLancador(t, tarefas)
+	f.sessoes["backup"] = "T-0007"
+	tarefa := api.Tarefa{Id: "T-0007", Titulo: "Backup", Status: api.Pausada, SessaoAtiva: ptr("S-0002")}
+
+	// A própria sessão mudando o status: nada a avisar.
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "S-0002"})
+	for _, c := range f.chamadas {
+		if strings.HasPrefix(c, "send-keys") {
+			t.Fatalf("avisou o agente da própria mudança: %v", f.chamadas)
+		}
+	}
+
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "local"})
+	avisos := 0
+	for _, c := range f.chamadas {
+		if strings.HasPrefix(c, "send-keys -t =backup: -l") && strings.Contains(c, "pausada") {
+			avisos++
+		}
+	}
+	if avisos != 1 {
+		t.Fatalf("aviso não enviado: %v", f.chamadas)
+	}
+
+	// Encerrada a sessão, o tmux é fechado depois da espera.
+	var agendado func()
+	l.depois = func(_ time.Duration, g func()) { agendado = g }
+	tarefa.SessaoAtiva = nil
+	tarefas["T-0007"] = tarefa
+	l.SessaoEncerrada(api.Sessao{Id: "S-0002", Tarefas: []string{"T-0007"}})
+	agendado()
+	if _, ok := f.sessoes["backup"]; ok {
+		t.Fatalf("tmux não foi fechado: %v", f.chamadas)
+	}
+}
+
+func TestNomeCurto(t *testing.T) {
+	casos := map[string]string{
+		"Revisão do backup de fotos":    "revisao-backup-fotos",
+		"Usina — causa raiz das perdas": "usina-causa-raiz",
+		"AD":                            "tarefa",
+	}
+	for titulo, esperado := range casos {
+		if obtido := nomeCurto(titulo); obtido != esperado {
+			t.Errorf("nomeCurto(%q) = %q, esperado %q", titulo, obtido, esperado)
+		}
+	}
+}

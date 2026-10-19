@@ -16,6 +16,7 @@ import (
 
 	"github.com/rpagliuca/requerial/internal/banco"
 	"github.com/rpagliuca/requerial/internal/ferramentas"
+	"github.com/rpagliuca/requerial/internal/lancador"
 	"github.com/rpagliuca/requerial/internal/servidor"
 	"github.com/rpagliuca/requerial/web"
 )
@@ -42,6 +43,7 @@ func servir(args []string) {
 	opcoes := flag.NewFlagSet("servir", flag.ExitOnError)
 	caminho := opcoes.String("banco", "requerial.db", "arquivo do SQLite")
 	endereco := opcoes.String("endereco", enderecoPadrao, "endereço HTTP (só local, até a integração com Tailscale)")
+	configLancador := opcoes.String("lancador", "", "arquivo JSON do lançador de agentes (opcional)")
 	opcoes.Parse(args)
 
 	db, err := banco.Abrir(*caminho)
@@ -50,8 +52,18 @@ func servir(args []string) {
 	}
 	defer db.Close()
 
+	s := servidor.Novo(db)
+	if *configLancador != "" {
+		l, err := lancador.Carregar(*configLancador, s.Tarefa)
+		if err != nil {
+			log.Fatalf("lançador: %v", err)
+		}
+		l.Conectar(s)
+		log.Printf("lançador de agentes ativo (%s)", *configLancador)
+	}
+
 	log.Printf("requerial ouvindo em http://%s (banco %s)", *endereco, *caminho)
-	log.Fatal(http.ListenAndServe(*endereco, rotas(servidor.Novo(db).Handler())))
+	log.Fatal(http.ListenAndServe(*endereco, rotas(s.Handler())))
 }
 
 // rotas junta a API e o frontend no mesmo endereço: os recursos da API têm caminho próprio e o
@@ -69,12 +81,14 @@ func rotas(apiHandler http.Handler) http.Handler {
 func servirMCP(args []string) {
 	opcoes := flag.NewFlagSet("mcp", flag.ExitOnError)
 	endereco := opcoes.String("api", "http://"+enderecoPadrao, "endereço da API do requerial")
+	journals := opcoes.String("journals", "", "raiz dos journals: cada sessão ganha <raiz>/<S-0001>/journal.md (opcional)")
 	opcoes.Parse(args)
 
 	f, err := ferramentas.Novo(*endereco)
 	if err != nil {
 		log.Fatalf("cliente da API: %v", err)
 	}
+	f.ComJournals(*journals)
 	// stdout é o canal do protocolo; logs vão para stderr.
 	log.SetOutput(os.Stderr)
 	if err := f.Servidor().Run(context.Background(), &mcp.StdioTransport{}); err != nil {

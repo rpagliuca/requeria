@@ -129,6 +129,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessoes/{id}/encerramento-manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Encerramento feito por um humano (pelo frontend), sem o token da sessão, para quando o agente
+         *     não está mais vivo para encerrar. Grava o resumo como no encerramento normal.
+         *      */
+        post: operations["encerrarSessaoManualmente"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessoes/{id}/repasse": {
         parameters: {
             query?: never;
@@ -621,6 +642,35 @@ export interface operations {
             };
             400: components["responses"]["Erro"];
             401: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    encerrarSessaoManualmente: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Encerramento"];
+            };
+        };
+        responses: {
+            /** @description Sessão encerrada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sessao"];
+                };
+            };
+            400: components["responses"]["Erro"];
             404: components["responses"]["Erro"];
             409: components["responses"]["Erro"];
         };

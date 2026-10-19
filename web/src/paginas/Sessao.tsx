@@ -7,6 +7,7 @@ import { Eventos } from "@/componentes/Eventos"
 import { StatusDaTarefa } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Texto } from "@/componentes/Texto"
+import { TituloDasTarefas } from "@/componentes/TituloDasTarefas"
 
 export function Sessao() {
   const { id = "" } = useParams()
@@ -21,7 +22,10 @@ export function Sessao() {
       <Link to="/sessoes" className="text-muted-foreground text-sm hover:underline">
         ← Sessões
       </Link>
-      <CartaoSessao sessao={s} comResumo={false} />
+      <h1 className="font-semibold text-xl">
+        <TituloDasTarefas ids={s.tarefas} link={false} />
+      </h1>
+      <CartaoSessao sessao={s} comResumo={false} comTarefa={false} />
 
       <Secao titulo="Tarefas">
         <ul className="divide-y rounded-md border">

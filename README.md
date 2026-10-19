@@ -36,6 +36,27 @@ Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`,
 `encerrar_sessao`, `repassar_sessao`, `listar_eventos`.
 
+## Lançador de agentes (opcional)
+
+Com `requerial servir -lancador lancador.json`, uma tarefa que entra em `em_andamento` (pelo frontend
+ou por quem não é uma sessão) ganha um agente numa sessão tmux; uma tarefa que sai de `em_andamento`
+por mão de outro faz o agente vivo encerrar a sessão com resumo. Depois do encerramento, o tmux é
+fechado.
+
+```json
+{
+  "diretorio": "/caminho/dos/journals",
+  "comando": ["claude", "--remote-control", "{nome}"],
+  "espera_para_fechar": "2m"
+}
+```
+
+`prompt_iniciar` e `prompt_encerrar` são opcionais e aceitam `{tarefa}`, `{titulo}` e `{status}`.
+No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux dos agentes.
+
+O MCP, com `requerial mcp -journals /caminho/dos/journals`, cria a pasta de cada sessão
+(`S-0001/journal.md`) ao iniciá-la e registra o localizador.
+
 ## Desenvolver
 
 ```bash

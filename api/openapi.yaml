@@ -186,6 +186,28 @@ paths:
         '401': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/encerramento-manual:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: encerrarSessaoManualmente
+      description: |
+        Encerramento feito por um humano (pelo frontend), sem o token da sessão, para quando o agente
+        não está mais vivo para encerrar. Grava o resumo como no encerramento normal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Encerramento' }
+      responses:
+        '200':
+          description: Sessão encerrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
   /sessoes/{id}/repasse:
     parameters:
       - $ref: '#/components/parameters/Id'

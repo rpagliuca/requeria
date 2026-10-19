@@ -239,6 +239,9 @@ type AlterarSessaoJSONRequestBody = AlteracaoSessao
 // EncerrarSessaoJSONRequestBody defines body for EncerrarSessao for application/json ContentType.
 type EncerrarSessaoJSONRequestBody = Encerramento
 
+// EncerrarSessaoManualmenteJSONRequestBody defines body for EncerrarSessaoManualmente for application/json ContentType.
+type EncerrarSessaoManualmenteJSONRequestBody = Encerramento
+
 // RepassarSessaoJSONRequestBody defines body for RepassarSessao for application/json ContentType.
 type RepassarSessaoJSONRequestBody = Repasse
 
@@ -352,6 +355,11 @@ type ClientInterface interface {
 	EncerrarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EncerrarSessao(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EncerrarSessaoManualmenteWithBody request with any body
+	EncerrarSessaoManualmenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EncerrarSessaoManualmente(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RepassarSessaoWithBody request with any body
 	RepassarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -505,6 +513,30 @@ func (c *Client) EncerrarSessaoWithBody(ctx context.Context, id Id, contentType 
 
 func (c *Client) EncerrarSessao(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEncerrarSessaoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EncerrarSessaoManualmenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEncerrarSessaoManualmenteRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EncerrarSessaoManualmente(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEncerrarSessaoManualmenteRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -953,6 +985,53 @@ func NewEncerrarSessaoRequestWithBody(server string, id Id, contentType string, 
 	return req, nil
 }
 
+// NewEncerrarSessaoManualmenteRequest calls the generic EncerrarSessaoManualmente builder with application/json body
+func NewEncerrarSessaoManualmenteRequest(server string, id Id, body EncerrarSessaoManualmenteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEncerrarSessaoManualmenteRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewEncerrarSessaoManualmenteRequestWithBody generates requests for EncerrarSessaoManualmente with any type of body
+func NewEncerrarSessaoManualmenteRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/encerramento-manual", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRepassarSessaoRequest calls the generic RepassarSessao builder with application/json body
 func NewRepassarSessaoRequest(server string, id Id, body RepassarSessaoJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1339,6 +1418,11 @@ type ClientWithResponsesInterface interface {
 
 	EncerrarSessaoWithResponse(ctx context.Context, id Id, body EncerrarSessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoResponse, error)
 
+	// EncerrarSessaoManualmenteWithBodyWithResponse request with any body
+	EncerrarSessaoManualmenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error)
+
+	EncerrarSessaoManualmenteWithResponse(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error)
+
 	// RepassarSessaoWithBodyWithResponse request with any body
 	RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error)
 
@@ -1529,6 +1613,31 @@ func (r EncerrarSessaoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EncerrarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EncerrarSessaoManualmenteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r EncerrarSessaoManualmenteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EncerrarSessaoManualmenteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1794,6 +1903,23 @@ func (c *ClientWithResponses) EncerrarSessaoWithResponse(ctx context.Context, id
 		return nil, err
 	}
 	return ParseEncerrarSessaoResponse(rsp)
+}
+
+// EncerrarSessaoManualmenteWithBodyWithResponse request with arbitrary body returning *EncerrarSessaoManualmenteResponse
+func (c *ClientWithResponses) EncerrarSessaoManualmenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error) {
+	rsp, err := c.EncerrarSessaoManualmenteWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEncerrarSessaoManualmenteResponse(rsp)
+}
+
+func (c *ClientWithResponses) EncerrarSessaoManualmenteWithResponse(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error) {
+	rsp, err := c.EncerrarSessaoManualmente(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEncerrarSessaoManualmenteResponse(rsp)
 }
 
 // RepassarSessaoWithBodyWithResponse request with arbitrary body returning *RepassarSessaoResponse
@@ -2157,6 +2283,53 @@ func ParseEncerrarSessaoResponse(rsp *http.Response) (*EncerrarSessaoResponse, e
 	return response, nil
 }
 
+// ParseEncerrarSessaoManualmenteResponse parses an HTTP response from a EncerrarSessaoManualmenteWithResponse call
+func ParseEncerrarSessaoManualmenteResponse(rsp *http.Response) (*EncerrarSessaoManualmenteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EncerrarSessaoManualmenteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRepassarSessaoResponse parses an HTTP response from a RepassarSessaoWithResponse call
 func ParseRepassarSessaoResponse(rsp *http.Response) (*RepassarSessaoResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2447,6 +2620,9 @@ type ServerInterface interface {
 	// (POST /sessoes/{id}/encerramento)
 	EncerrarSessao(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (POST /sessoes/{id}/encerramento-manual)
+	EncerrarSessaoManualmente(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (POST /sessoes/{id}/repasse)
 	RepassarSessao(w http.ResponseWriter, r *http.Request, id Id)
 
@@ -2638,6 +2814,31 @@ func (siw *ServerInterfaceWrapper) EncerrarSessao(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.EncerrarSessao(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EncerrarSessaoManualmente operation middleware
+func (siw *ServerInterfaceWrapper) EncerrarSessaoManualmente(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EncerrarSessaoManualmente(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2960,6 +3161,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)
 	m.HandleFunc("PATCH "+options.BaseURL+"/sessoes/{id}", wrapper.AlterarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/encerramento", wrapper.EncerrarSessao)
+	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/encerramento-manual", wrapper.EncerrarSessaoManualmente)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/repasse", wrapper.RepassarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/tarefas", wrapper.VincularTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas", wrapper.ListarTarefas)

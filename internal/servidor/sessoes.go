@@ -205,9 +205,6 @@ func (s *Servidor) CriarSessao(w http.ResponseWriter, r *http.Request) {
 		if vazio(nova.Servidor) {
 			return falha(http.StatusBadRequest, "o servidor é obrigatório")
 		}
-		if len(nova.Tarefas) == 0 {
-			return falha(http.StatusBadRequest, "a sessão precisa de pelo menos uma tarefa")
-		}
 		tarefas := make([]int64, len(nova.Tarefas))
 		for i, id := range nova.Tarefas {
 			t, err := numero(id, "T")
@@ -276,6 +273,9 @@ func (s *Servidor) operarSessao(w http.ResponseWriter, r *http.Request, id api.I
 		responderErro(w, err)
 		return
 	}
+	if x.Status != api.Ativa {
+		s.avisarEncerramento(x)
+	}
 	responder(w, http.StatusOK, x)
 }
 
@@ -323,43 +323,89 @@ func (s *Servidor) VincularTarefa(w http.ResponseWriter, r *http.Request, id api
 func (s *Servidor) EncerrarSessao(w http.ResponseWriter, r *http.Request, id api.Id) {
 	var enc api.Encerramento
 	s.operarSessao(w, r, id, &enc, func(tx *sql.Tx, n int64) error {
-		if vazio(enc.Resumo) {
-			return falha(http.StatusBadRequest, "o resumo é obrigatório: é ele que o próximo agente recebe")
-		}
-		if enc.Journal != nil {
-			if _, err := tx.Exec(`UPDATE sessoes SET journal = ? WHERE id = ?`, *enc.Journal, n); err != nil {
-				return err
-			}
-		}
-		if enc.Artefatos != nil {
-			texto, err := json.Marshal(*enc.Artefatos)
-			if err != nil {
-				return err
-			}
-			if _, err := tx.Exec(`UPDATE sessoes SET artefatos = ? WHERE id = ?`, string(texto), n); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.Exec(`UPDATE sessoes SET resumo = ? WHERE id = ?`, enc.Resumo, n); err != nil {
-			return err
-		}
-		tarefas, err := tarefasDaSessao(tx, n, true)
+		return s.encerrarComResumo(tx, n, enc, idSessao(n))
+	})
+}
+
+// EncerrarSessaoManualmente encerra sem o token: é o humano, pelo frontend, fechando a sessão de um
+// agente que não está mais vivo para encerrá-la.
+func (s *Servidor) EncerrarSessaoManualmente(w http.ResponseWriter, r *http.Request, id api.Id) {
+	n, err := numero(id, "S")
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	var enc api.Encerramento
+	if err := ler(r, &enc); err != nil {
+		responderErro(w, err)
+		return
+	}
+	var x api.Sessao
+	err = s.emTransacao(func(tx *sql.Tx) error {
+		atual, err := carregarSessao(tx, n)
 		if err != nil {
 			return err
 		}
-		for _, t := range tarefas {
-			if _, err := tx.Exec(`UPDATE tarefas SET resumo = ?, atualizada_em = ? WHERE id = ?`, enc.Resumo, s.momento(), t); err != nil {
-				return err
-			}
-			if err := s.registrarEvento(tx, idSessao(n), idTarefa(t), "resumo_sincronizado", map[string]any{"sessao": idSessao(n)}); err != nil {
-				return err
-			}
+		if atual.Status != api.Ativa {
+			return falha(http.StatusConflict, "a sessão %s já foi encerrada", atual.Id)
 		}
-		if err := s.encerrar(tx, n, api.Encerrada, api.FimDoTrabalho); err != nil {
+		if err := s.encerrarComResumo(tx, n, enc, autorManual); err != nil {
 			return err
 		}
-		return s.registrarEvento(tx, idSessao(n), idSessao(n), "sessao_encerrada", map[string]any{"motivo": api.FimDoTrabalho})
+		x, err = carregarSessao(tx, n)
+		return err
 	})
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	if x.Status != api.Ativa {
+		s.avisarEncerramento(x)
+	}
+	responder(w, http.StatusOK, x)
+}
+
+// autorManual é o autor dos eventos feitos por um humano sem sessão, pelo frontend.
+const autorManual = "local"
+
+// encerrarComResumo grava o resumo na sessão e em cada tarefa dela, libera as tarefas e encerra.
+func (s *Servidor) encerrarComResumo(tx *sql.Tx, n int64, enc api.Encerramento, quem string) error {
+	if vazio(enc.Resumo) {
+		return falha(http.StatusBadRequest, "o resumo é obrigatório: é ele que o próximo agente recebe")
+	}
+	if enc.Journal != nil {
+		if _, err := tx.Exec(`UPDATE sessoes SET journal = ? WHERE id = ?`, *enc.Journal, n); err != nil {
+			return err
+		}
+	}
+	if enc.Artefatos != nil {
+		texto, err := json.Marshal(*enc.Artefatos)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE sessoes SET artefatos = ? WHERE id = ?`, string(texto), n); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE sessoes SET resumo = ? WHERE id = ?`, enc.Resumo, n); err != nil {
+		return err
+	}
+	tarefas, err := tarefasDaSessao(tx, n, true)
+	if err != nil {
+		return err
+	}
+	for _, t := range tarefas {
+		if _, err := tx.Exec(`UPDATE tarefas SET resumo = ?, atualizada_em = ? WHERE id = ?`, enc.Resumo, s.momento(), t); err != nil {
+			return err
+		}
+		if err := s.registrarEvento(tx, quem, idTarefa(t), "resumo_sincronizado", map[string]any{"sessao": idSessao(n)}); err != nil {
+			return err
+		}
+	}
+	if err := s.encerrar(tx, n, api.Encerrada, api.FimDoTrabalho); err != nil {
+		return err
+	}
+	return s.registrarEvento(tx, quem, idSessao(n), "sessao_encerrada", map[string]any{"motivo": api.FimDoTrabalho})
 }
 
 func (s *Servidor) RepassarSessao(w http.ResponseWriter, r *http.Request, id api.Id) {
