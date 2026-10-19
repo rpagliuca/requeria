@@ -27,6 +27,9 @@ func novoChat(t *testing.T, endereco string) *chat {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.ambiente = func(nome string) string {
+		return map[string]string{"CLAUDE_EFFORT": "medium", "CLAUDE_CODE_SESSION_ID": "chat-de-teste"}[nome]
+	}
 	ladoServidor, ladoCliente := mcp.NewInMemoryTransports()
 	ctx := context.Background()
 	if _, err := f.Servidor().Connect(ctx, ladoServidor, nil); err != nil {
@@ -96,21 +99,22 @@ func TestCicloDeSessaoPeloMCP(t *testing.T) {
 
 	var sessao api.Sessao
 	c.chamar("iniciar_sessao", map[string]any{
-		"agente": "Claude Opus 5.5 Medium", "tipo_agente": "ia", "servidor": "maquina-local", "tarefas": []string{tarefa.Id},
+		"modelo": "Claude Opus 5.5", "servidor": "maquina-local", "tarefas": []string{tarefa.Id},
 	}, &sessao)
-	if sessao.Id != "S-0001" || sessao.Status != api.Ativa {
+	if sessao.Id != "S-0001" || sessao.Status != api.Ativa || sessao.Agente != "Claude Opus 5.5 Medium" ||
+		sessao.Chat == nil || *sessao.Chat != "chat-de-teste" {
 		t.Fatalf("sessão inesperada: %+v", sessao)
 	}
 
 	// Um segundo iniciar no mesmo chat é recusado.
 	c.chamar("iniciar_sessao", map[string]any{
-		"agente": "Claude Opus 5.5 Medium", "tipo_agente": "ia", "tarefas": []string{tarefa.Id},
+		"modelo": "Claude Opus 5.5", "tarefas": []string{tarefa.Id},
 	}, nil)
 
 	// Outro chat não consegue abrir sessão na mesma tarefa.
 	outro := novoChat(t, endereco)
 	if msg := outro.chamar("iniciar_sessao", map[string]any{
-		"agente": "Claude Fable 5.1 High", "tipo_agente": "ia", "tarefas": []string{tarefa.Id},
+		"modelo": "Claude Fable 5.1", "esforco": "high", "tarefas": []string{tarefa.Id},
 	}, nil); !strings.Contains(msg, "S-0001") {
 		t.Fatalf("a recusa deveria citar a sessão ativa: %q", msg)
 	}
@@ -133,7 +137,7 @@ func TestCicloDeSessaoPeloMCP(t *testing.T) {
 
 	// Depois de encerrar, o chat pode abrir uma sessão nova.
 	c.chamar("iniciar_sessao", map[string]any{
-		"agente": "Claude Opus 5.5 Medium", "tipo_agente": "ia", "tarefas": []string{tarefa.Id},
+		"modelo": "Claude Opus 5.5", "tarefas": []string{tarefa.Id},
 	}, &sessao)
 
 	for _, texto := range c.brutas {
@@ -149,11 +153,12 @@ func TestRepassePeloMCP(t *testing.T) {
 	c.chamar("criar_tarefa", map[string]any{"titulo": "Configurar backup", "organizacao": "Exemplo"}, &tarefa)
 	var sessao api.Sessao
 	c.chamar("iniciar_sessao", map[string]any{
-		"agente": "Claude Opus 5.5 Medium", "tipo_agente": "ia", "tarefas": []string{tarefa.Id},
+		"modelo": "Claude Opus 5.5", "tarefas": []string{tarefa.Id},
 	}, &sessao)
 
 	var nova api.Sessao
-	c.chamar("repassar_sessao", map[string]any{"agente": "Claude Fable 5.1 High", "tipo_agente": "ia"}, &nova)
+	c.chamar("repassar_sessao", map[string]any{"modelo": "Claude Fable 5.1"}, nil)
+	c.chamar("repassar_sessao", map[string]any{"modelo": "Claude Fable 5.1", "esforco": "xhigh"}, &nova)
 	if nova.Anterior == nil || *nova.Anterior != sessao.Id {
 		t.Fatalf("repasse sem anterior: %+v", nova)
 	}
@@ -161,7 +166,7 @@ func TestRepassePeloMCP(t *testing.T) {
 	// O chat passa a operar a sessão nova.
 	var atual api.Sessao
 	c.chamar("sessao_atual", map[string]any{}, &atual)
-	if atual.Id != nova.Id || atual.Agente != "Claude Fable 5.1 High" {
+	if atual.Id != nova.Id || atual.Agente != "Claude Fable 5.1 XHigh" {
 		t.Fatalf("o chat não passou para a sessão nova: %+v", atual)
 	}
 }
