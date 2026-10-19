@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -42,7 +43,7 @@ func main() {
 func servir(args []string) {
 	opcoes := flag.NewFlagSet("servir", flag.ExitOnError)
 	caminho := opcoes.String("banco", "requerial.db", "arquivo do SQLite")
-	endereco := opcoes.String("endereco", enderecoPadrao, "endereço HTTP (só local, até a integração com Tailscale)")
+	endereco := opcoes.String("endereco", enderecoPadrao, "endereços HTTP separados por vírgula (ex.: o local e o IP do Tailscale)")
 	configLancador := opcoes.String("lancador", "", "arquivo JSON do lançador de agentes (opcional)")
 	opcoes.Parse(args)
 
@@ -62,8 +63,15 @@ func servir(args []string) {
 		log.Printf("lançador de agentes ativo (%s)", *configLancador)
 	}
 
-	log.Printf("requerial ouvindo em http://%s (banco %s)", *endereco, *caminho)
-	log.Fatal(http.ListenAndServe(*endereco, rotas(s.Handler())))
+	handler := rotas(s.Handler())
+	enderecos := strings.Split(*endereco, ",")
+	falhou := make(chan error, len(enderecos))
+	for _, e := range enderecos {
+		e := strings.TrimSpace(e)
+		log.Printf("requerial ouvindo em http://%s (banco %s)", e, *caminho)
+		go func() { falhou <- http.ListenAndServe(e, handler) }()
+	}
+	log.Fatal(<-falhou)
 }
 
 // rotas junta a API e o frontend no mesmo endereço: os recursos da API têm caminho próprio e o
