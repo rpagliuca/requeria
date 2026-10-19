@@ -3,8 +3,9 @@
 // Quando uma tarefa entra em em_andamento sem sessão ativa, por alguém que não é uma sessão (um
 // humano no frontend, ou um agente que só coordena), o lançador abre uma sessão tmux com o agente
 // configurado e um prompt que o manda trabalhar na tarefa. Quando a tarefa sai de em_andamento por
-// mão de outro, o lançador pede ao agente vivo que escreva o resumo e encerre a sessão; depois do
-// encerramento, fecha o tmux.
+// mão de outro, o lançador pede ao agente vivo que escreva o resumo e encerre a sessão. Depois do
+// encerramento, o próprio agente fecha o seu tmux (skill requerial); um tmux que sobrar é fechado
+// quando a tarefa ganhar um agente novo.
 //
 // A sessão tmux carrega REQUERIAL_TAREFA no ambiente: é assim que o lançador a reencontra, sem
 // guardar estado, e que o agente e o servidor MCP sabem em que tarefa estão.
@@ -39,9 +40,6 @@ type Config struct {
 	// PromptIniciar e PromptEncerrar aceitam {tarefa}, {titulo} e {status}.
 	PromptIniciar  string `json:"prompt_iniciar"`
 	PromptEncerrar string `json:"prompt_encerrar"`
-	// EsperaParaFechar é quanto esperar, depois do encerramento, antes de fechar o tmux, para o
-	// agente terminar a última resposta. Padrão: "2m".
-	EsperaParaFechar string `json:"espera_para_fechar"`
 }
 
 const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do requerial ({titulo}). " +
@@ -53,17 +51,13 @@ const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por out
 
 // Lancador reage às mudanças do servidor.
 type Lancador struct {
-	cfg    Config
-	espera time.Duration
-	tarefa func(id string) (api.Tarefa, error)
+	cfg Config
 	// executar roda o tmux; substituível nos testes.
 	executar func(args ...string) (string, error)
-	// depois agenda f; substituível nos testes.
-	depois func(d time.Duration, f func())
 }
 
 // Carregar lê a configuração do arquivo.
-func Carregar(caminho string, tarefa func(id string) (api.Tarefa, error)) (*Lancador, error) {
+func Carregar(caminho string) (*Lancador, error) {
 	conteudo, err := os.ReadFile(caminho)
 	if err != nil {
 		return nil, err
@@ -72,11 +66,11 @@ func Carregar(caminho string, tarefa func(id string) (api.Tarefa, error)) (*Lanc
 	if err := json.Unmarshal(conteudo, &cfg); err != nil {
 		return nil, fmt.Errorf("configuração do lançador: %w", err)
 	}
-	return Novo(cfg, tarefa)
+	return Novo(cfg)
 }
 
 // Novo valida a configuração e preenche os padrões.
-func Novo(cfg Config, tarefa func(id string) (api.Tarefa, error)) (*Lancador, error) {
+func Novo(cfg Config) (*Lancador, error) {
 	if cfg.Diretorio == "" || len(cfg.Comando) == 0 {
 		return nil, errors.New("configuração do lançador: diretorio e comando são obrigatórios")
 	}
@@ -89,14 +83,7 @@ func Novo(cfg Config, tarefa func(id string) (api.Tarefa, error)) (*Lancador, er
 	if cfg.PromptEncerrar == "" {
 		cfg.PromptEncerrar = promptEncerrarPadrao
 	}
-	if cfg.EsperaParaFechar == "" {
-		cfg.EsperaParaFechar = "2m"
-	}
-	espera, err := time.ParseDuration(cfg.EsperaParaFechar)
-	if err != nil {
-		return nil, fmt.Errorf("configuração do lançador: espera_para_fechar: %w", err)
-	}
-	l := &Lancador{cfg: cfg, espera: espera, tarefa: tarefa, depois: func(d time.Duration, f func()) { time.AfterFunc(d, f) }}
+	l := &Lancador{cfg: cfg}
 	l.executar = func(args ...string) (string, error) {
 		saida, err := exec.Command(l.cfg.Tmux, args...).CombinedOutput()
 		return strings.TrimSpace(string(saida)), err
@@ -107,7 +94,6 @@ func Novo(cfg Config, tarefa func(id string) (api.Tarefa, error)) (*Lancador, er
 // Conectar registra o lançador nos avisos do servidor.
 func (l *Lancador) Conectar(s *servidor.Servidor) {
 	s.AoMudarStatus(l.MudouStatus)
-	s.AoEncerrarSessao(l.SessaoEncerrada)
 }
 
 // MudouStatus decide se sobe ou avisa um agente.
@@ -120,32 +106,6 @@ func (l *Lancador) MudouStatus(m servidor.MudancaDeStatus) {
 		l.registrar(l.iniciar(t))
 	case m.Anterior == api.EmAndamento && t.Status != api.EmAndamento && t.SessaoAtiva != nil && m.Autor != *t.SessaoAtiva:
 		l.registrar(l.avisar(t))
-	}
-}
-
-// SessaoEncerrada fecha, depois da espera, o tmux das tarefas da sessão que não estão mais em andamento.
-func (l *Lancador) SessaoEncerrada(x api.Sessao) {
-	for _, id := range x.Tarefas {
-		l.depois(l.espera, func() {
-			t, err := l.tarefa(id)
-			if err != nil {
-				l.registrar(err)
-				return
-			}
-			if t.Status == api.EmAndamento || t.SessaoAtiva != nil {
-				return
-			}
-			nome, err := l.encontrar(id)
-			if err != nil || nome == "" {
-				l.registrar(err)
-				return
-			}
-			_, err = l.executar("kill-session", "-t", "="+nome)
-			l.registrar(err)
-			if err == nil {
-				log.Printf("lançador: tmux %s fechado (%s encerrada, tarefa %s em %s)", nome, x.Id, id, t.Status)
-			}
-		})
 	}
 }
 

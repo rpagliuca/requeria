@@ -3,7 +3,6 @@ package lancador
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rpagliuca/requerial/api"
 	"github.com/rpagliuca/requerial/internal/servidor"
@@ -65,23 +64,21 @@ func (erroFalso) Error() string { return "falso" }
 
 var errFalso = erroFalso{}
 
-func novoLancador(t *testing.T, tarefas map[string]api.Tarefa) (*Lancador, *tmuxFalso) {
+func novoLancador(t *testing.T) (*Lancador, *tmuxFalso) {
 	t.Helper()
-	l, err := Novo(Config{Diretorio: "/journals", Comando: []string{"agente", "--nome", "{nome}"}},
-		func(id string) (api.Tarefa, error) { return tarefas[id], nil })
+	l, err := Novo(Config{Diretorio: "/journals", Comando: []string{"agente", "--nome", "{nome}"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	f := &tmuxFalso{sessoes: map[string]string{"outra": ""}}
 	l.executar = f.executar
-	l.depois = func(time.Duration, func()) {}
 	return l, f
 }
 
 func ptr(s string) *string { return &s }
 
 func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
-	l, f := novoLancador(t, nil)
+	l, f := novoLancador(t)
 	tarefa := api.Tarefa{Id: "T-0007", Titulo: "Revisão do backup de fotos", Status: api.EmAndamento}
 
 	// Uma sessão que põe a própria tarefa em andamento não ganha outro agente.
@@ -100,6 +97,13 @@ func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
 		t.Fatalf("comando inesperado: %s", ultima)
 	}
 
+	// Um tmux que sobrou da tarefa é fechado antes de subir o agente novo.
+	tarefa.SessaoAtiva = nil
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Concluida, Autor: "local"})
+	if len(f.sessoes) != 2 || f.sessoes["revisao-backup-fotos"] != "T-0007" {
+		t.Fatalf("tmux antigo não foi substituído: %v", f.sessoes)
+	}
+
 	// Com sessão ativa, não sobe outro.
 	tarefa.SessaoAtiva = ptr("S-0002")
 	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.AFazer, Autor: "local"})
@@ -108,9 +112,8 @@ func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
 	}
 }
 
-func TestAvisaAgenteAoSairDeAndamentoEFechaDepois(t *testing.T) {
-	tarefas := map[string]api.Tarefa{}
-	l, f := novoLancador(t, tarefas)
+func TestAvisaAgenteAoSairDeAndamento(t *testing.T) {
+	l, f := novoLancador(t)
 	f.sessoes["backup"] = "T-0007"
 	tarefa := api.Tarefa{Id: "T-0007", Titulo: "Backup", Status: api.Pausada, SessaoAtiva: ptr("S-0002")}
 
@@ -133,16 +136,6 @@ func TestAvisaAgenteAoSairDeAndamentoEFechaDepois(t *testing.T) {
 		t.Fatalf("aviso não enviado: %v", f.chamadas)
 	}
 
-	// Encerrada a sessão, o tmux é fechado depois da espera.
-	var agendado func()
-	l.depois = func(_ time.Duration, g func()) { agendado = g }
-	tarefa.SessaoAtiva = nil
-	tarefas["T-0007"] = tarefa
-	l.SessaoEncerrada(api.Sessao{Id: "S-0002", Tarefas: []string{"T-0007"}})
-	agendado()
-	if _, ok := f.sessoes["backup"]; ok {
-		t.Fatalf("tmux não foi fechado: %v", f.chamadas)
-	}
 }
 
 func TestNomeCurto(t *testing.T) {

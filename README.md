@@ -26,10 +26,13 @@ o vê. No Claude Code:
 claude mcp add requerial -- /caminho/para/requerial mcp -api http://127.0.0.1:8787
 ```
 
-Para os agentes saberem usar as ferramentas, instale a skill [`skills/requerial`](skills/requerial/SKILL.md):
+Para os agentes saberem usar as ferramentas, instale as skills de [`skills/`](skills):
+[`requerial`](skills/requerial/SKILL.md) (o agente trabalhando numa tarefa) e
+[`requerial-coordenacao`](skills/requerial-coordenacao/SKILL.md) (criar tarefas, subir, pausar e
+retomar agentes):
 
 ```bash
-ln -s "$PWD/skills/requerial" ~/.claude/skills/requerial
+for skill in skills/*/; do ln -sfn "$PWD/$skill" ~/.claude/skills/"$(basename "$skill")"; done
 ```
 
 Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
@@ -40,14 +43,13 @@ Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 
 Com `requerial servir -lancador lancador.json`, uma tarefa que entra em `em_andamento` (pelo frontend
 ou por quem não é uma sessão) ganha um agente numa sessão tmux; uma tarefa que sai de `em_andamento`
-por mão de outro faz o agente vivo encerrar a sessão com resumo. Depois do encerramento, o tmux é
-fechado.
+por mão de outro faz o agente vivo encerrar a sessão com resumo. Depois de encerrar, o próprio
+agente fecha o seu tmux (skill `requerial`).
 
 ```json
 {
   "diretorio": "/caminho/dos/journals",
-  "comando": ["claude", "--remote-control", "{nome}"],
-  "espera_para_fechar": "2m"
+  "comando": ["claude", "--remote-control", "{nome}"]
 }
 ```
 
