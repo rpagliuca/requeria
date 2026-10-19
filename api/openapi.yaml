@@ -335,6 +335,7 @@ components:
           items: { type: string }
         iniciada_em: { type: string, format: date-time }
         encerrada_em: { type: string, format: date-time }
+        resumo: { type: string, description: Resumo gravado no encerramento desta sessão }
     NovaSessao:
       type: object
       required: [agente, tipo_agente, servidor, tarefas]

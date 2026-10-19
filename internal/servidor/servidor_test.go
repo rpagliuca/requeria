@@ -138,7 +138,8 @@ func TestEncerramentoExigeTokenESincronizaResumo(t *testing.T) {
 	journal := "github.com/exemplo/journals@abc123:2026/s-0001.md"
 	var encerrada api.Sessao
 	a.chamar("POST", caminho, s.Token, api.Encerramento{Resumo: "Segundo destino configurado; falta testar a restauração.", Journal: &journal}, 200, &encerrada)
-	if encerrada.Status != api.Encerrada || encerrada.EncerradaEm == nil || *encerrada.Journal != journal {
+	if encerrada.Status != api.Encerrada || encerrada.EncerradaEm == nil || *encerrada.Journal != journal ||
+		encerrada.Resumo == nil || *encerrada.Resumo != "Segundo destino configurado; falta testar a restauração." {
 		t.Fatalf("sessão não encerrada corretamente: %+v", encerrada)
 	}
 
@@ -257,7 +258,8 @@ func TestImportacaoPreservaDatasEHistorico(t *testing.T) {
 
 	var historico []api.Sessao
 	a.chamar("GET", "/tarefas/"+tarefa.Id+"/sessoes", "", nil, 200, &historico)
-	if len(historico) != 2 || historico[0].Status != api.Encerrada {
+	if len(historico) != 2 || historico[0].Status != api.Encerrada ||
+		*historico[0].Resumo != "mais recente" || *historico[1].Resumo != "mais antigo" {
 		t.Fatalf("histórico inesperado: %+v", historico)
 	}
 

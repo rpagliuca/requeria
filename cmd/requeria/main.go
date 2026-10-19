@@ -17,6 +17,7 @@ import (
 	"github.com/rpagliuca/requeria/internal/banco"
 	"github.com/rpagliuca/requeria/internal/ferramentas"
 	"github.com/rpagliuca/requeria/internal/servidor"
+	"github.com/rpagliuca/requeria/web"
 )
 
 const enderecoPadrao = "127.0.0.1:8787"
@@ -50,7 +51,19 @@ func servir(args []string) {
 	defer db.Close()
 
 	log.Printf("requeria ouvindo em http://%s (banco %s)", *endereco, *caminho)
-	log.Fatal(http.ListenAndServe(*endereco, servidor.Novo(db).Handler()))
+	log.Fatal(http.ListenAndServe(*endereco, rotas(servidor.Novo(db).Handler())))
+}
+
+// rotas junta a API e o frontend no mesmo endereço: os recursos da API têm caminho próprio e o
+// resto é o frontend, que navega pelo hash da URL.
+func rotas(apiHandler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	for _, recurso := range []string{"/tarefas", "/sessoes", "/eventos", "/importacao"} {
+		mux.Handle(recurso, apiHandler)
+		mux.Handle(recurso+"/", apiHandler)
+	}
+	mux.Handle("/", web.Handler())
+	return mux
 }
 
 func servirMCP(args []string) {

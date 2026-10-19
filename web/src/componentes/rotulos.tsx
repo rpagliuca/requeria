@@ -1,0 +1,49 @@
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+
+import type { StatusSessao, StatusTarefa } from "@/api/cliente"
+
+export const nomesStatusTarefa: Record<StatusTarefa, string> = {
+  a_fazer: "A fazer",
+  em_andamento: "Em andamento",
+  pausada: "Pausada",
+  bloqueada: "Bloqueada",
+  em_validacao: "Em validação",
+  concluida: "Concluída",
+}
+
+const coresStatusTarefa: Record<StatusTarefa, string> = {
+  a_fazer: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  em_andamento: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  pausada: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  bloqueada: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  em_validacao: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  concluida: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+}
+
+export function StatusDaTarefa({ status }: { status: StatusTarefa }) {
+  return (
+    <Badge variant="outline" className={cn("border-transparent", coresStatusTarefa[status])}>
+      {nomesStatusTarefa[status]}
+    </Badge>
+  )
+}
+
+export const nomesStatusSessao: Record<StatusSessao, string> = {
+  ativa: "Ativa",
+  encerrada: "Encerrada",
+  substituida: "Substituída",
+}
+
+export function StatusDaSessao({ status }: { status: StatusSessao }) {
+  return (
+    <Badge variant={status === "ativa" ? "default" : "secondary"}>{nomesStatusSessao[status]}</Badge>
+  )
+}
+
+const formatoData = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" })
+
+export function Data({ valor }: { valor?: string }) {
+  if (!valor) return <span className="text-muted-foreground">—</span>
+  return <time dateTime={valor}>{formatoData.format(new Date(valor))}</time>
+}

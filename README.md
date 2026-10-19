@@ -42,3 +42,16 @@ Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 go generate ./api   # regenera api/api.gen.go a partir do contrato OpenAPI
 go test ./...
 ```
+
+Frontend (React + Vite + TypeScript + Tailwind + shadcn/ui), embutido no binário a partir de `web/dist`:
+
+```bash
+cd web
+npm ci
+npm run gerar   # tipos TypeScript a partir do contrato OpenAPI
+npm run build   # compila para web/dist; depois recompile o binário Go
+REQUERIA_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API encaminhada
+```
+
+O frontend fica em `/` e navega pelo hash da URL (`/#/tarefas/T-0001`); os caminhos `/tarefas`,
+`/sessoes`, `/eventos` e `/importacao` são da API.
