@@ -28,13 +28,15 @@ tente falar com a API por `curl` nem editar o banco.
    você; comece por ele. Se precisar de mais contexto, `historico_da_tarefa(id)` lista as sessões
    anteriores com o journal de cada uma.
 2. **Abra a sessão**: `iniciar_sessao` com:
-   - `agente`: provider, modelo e esforço, exatamente como você é: `Claude Opus 5.5 Medium`,
-     `Claude Fable 5.1 High`. O modelo está no seu prompt de sistema; o esforço, na variável
-     `$CLAUDE_EFFORT` (`echo $CLAUDE_EFFORT`). Não invente: se não souber o esforço, pergunte.
-   - `tipo_agente`: `ia`.
+   - `modelo`: provider e modelo, exatamente como você é, sem o esforço: `Claude Opus 5.5`,
+     `Claude Fable 5.1`. O modelo está no seu prompt de sistema.
    - `tarefas`: as tarefas em que vai trabalhar.
    - `journal`: o localizador do arquivo, `<maquina>:<caminho-absoluto>`, se já souber onde vai
      escrever.
+
+   O esforço e o identificador do chat vêm do cliente do agente; não os informe. O nome registrado
+   fica como `Claude Opus 5.5 Medium`. Só se a ferramenta disser que o esforço não foi fornecido,
+   pergunte ao usuário e passe em `esforco`.
 3. **Marque o andamento**, se fizer sentido: `alterar_tarefa(id, status: "em_andamento")`.
 
 Uma sessão por chat. Se precisar de mais uma tarefa no meio do trabalho, use `vincular_tarefa`, não
@@ -56,8 +58,9 @@ coisa que o próximo agente lê. Escreva para quem não viu nada desta conversa:
 - decisões e descobertas que o próximo não pode perder;
 - onde está o detalhe (journal, PR, arquivo).
 
-Curto e factual; o detalhe fica no journal. Depois de encerrar, ajuste o status da tarefa se mudou
-(`em_validacao`, `concluida`, `bloqueada`...).
+Curto e factual; o detalhe fica no journal. **Antes** de encerrar, ajuste o status da tarefa se mudou
+(`em_validacao`, `concluida`, `bloqueada`...): depois do encerramento, a alteração não é mais
+atribuída à sua sessão.
 
 Persista o journal no git antes de encerrar e passe o localizador definitivo no próprio
 `encerrar_sessao`: `github.com/<dono>/<repo>@<commit>:<caminho>`.
@@ -74,7 +77,7 @@ Persista o journal no git antes de encerrar e passe o localizador definitivo no 
 ## Troca de agente
 
 Se o usuário trocar o modelo ou o esforço no meio do chat, você deixou de ser o agente registrado
-na sessão. Chame `repassar_sessao` com o agente novo: a sessão atual termina como substituída e
+na sessão. Chame `repassar_sessao` com o `modelo` e o `esforco` novos (aqui o esforço é obrigatório): a sessão atual termina como substituída e
 outra começa com as mesmas tarefas. Não faça isso por iniciativa própria; só quando a troca
 aconteceu.
 

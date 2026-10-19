@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,6 +24,9 @@ import (
 // Ferramentas guarda o cliente da API e a sessão aberta neste processo.
 type Ferramentas struct {
 	cliente *api.Client
+	// ambiente lê as variáveis que o cliente do agente passa ao processo MCP, como
+	// CLAUDE_EFFORT e CLAUDE_CODE_SESSION_ID. Substituível nos testes.
+	ambiente func(string) string
 
 	mu     sync.Mutex
 	sessao string
@@ -35,7 +39,7 @@ func Novo(endereco string) (*Ferramentas, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Ferramentas{cliente: cliente}, nil
+	return &Ferramentas{cliente: cliente, ambiente: os.Getenv}, nil
 }
 
 // Servidor monta o servidor MCP com todas as ferramentas registradas.
@@ -125,12 +129,57 @@ type AlteracaoTarefa struct {
 }
 
 type NovaSessao struct {
-	Agente     string         `json:"agente" jsonschema:"provider, modelo e esforço, como 'Claude Opus 5.5 Medium'; imutável"`
-	TipoAgente api.TipoAgente `json:"tipo_agente" jsonschema:"ia ou humano"`
-	Chat       *string        `json:"chat,omitempty" jsonschema:"identificador do chat do agente"`
-	Servidor   *string        `json:"servidor,omitempty" jsonschema:"máquina onde a sessão roda; padrão: o nome desta máquina"`
-	Journal    *string        `json:"journal,omitempty" jsonschema:"localizador do journal: <maquina>:<caminho>"`
-	Tarefas    []string       `json:"tarefas" jsonschema:"tarefas em que a sessão vai trabalhar"`
+	Modelo   string   `json:"modelo" jsonschema:"provider e modelo, sem o esforço, como 'Claude Opus 5.5'"`
+	Esforco  *string  `json:"esforco,omitempty" jsonschema:"esforço de raciocínio (low, medium, high, xhigh, max); padrão: o informado pelo cliente do agente"`
+	Chat     *string  `json:"chat,omitempty" jsonschema:"identificador do chat; padrão: o informado pelo cliente do agente"`
+	Servidor *string  `json:"servidor,omitempty" jsonschema:"máquina onde a sessão roda; padrão: o nome desta máquina"`
+	Journal  *string  `json:"journal,omitempty" jsonschema:"localizador do journal: <maquina>:<caminho>"`
+	Tarefas  []string `json:"tarefas" jsonschema:"tarefas em que a sessão vai trabalhar"`
+}
+
+type Repasse struct {
+	Modelo   string  `json:"modelo" jsonschema:"provider e modelo do agente novo, como 'Claude Fable 5.1'"`
+	Esforco  string  `json:"esforco" jsonschema:"esforço do agente novo (low, medium, high, xhigh, max)"`
+	Servidor *string `json:"servidor,omitempty" jsonschema:"padrão: o da sessão anterior"`
+}
+
+// nomesDeEsforco escreve os níveis de esforço como aparecem no nome do agente.
+var nomesDeEsforco = map[string]string{
+	"low": "Low", "medium": "Medium", "high": "High", "xhigh": "XHigh", "max": "Max",
+}
+
+// agente monta o nome imutável do agente: provider, modelo e esforço, como "Claude Opus 5.5 Medium".
+// Sem esforço explícito, usa o que o cliente do agente informou ao processo MCP.
+func (f *Ferramentas) agente(modelo string, esforco *string) (string, error) {
+	modelo = strings.TrimSpace(modelo)
+	if modelo == "" {
+		return "", errors.New("informe o modelo, com o provider na frente, como 'Claude Opus 5.5'")
+	}
+	nivel := ""
+	if esforco != nil {
+		nivel = strings.TrimSpace(*esforco)
+	}
+	if nivel == "" {
+		nivel = f.ambiente("CLAUDE_EFFORT")
+	}
+	if nivel == "" {
+		return "", errors.New("o esforço não foi informado e o cliente do agente não o forneceu; pergunte ao usuário e passe em 'esforco'")
+	}
+	nome, ok := nomesDeEsforco[strings.ToLower(nivel)]
+	if !ok {
+		nome = strings.ToUpper(nivel[:1]) + nivel[1:]
+	}
+	return modelo + " " + nome, nil
+}
+
+func (f *Ferramentas) chatAtual(informado *string) *string {
+	if informado != nil && *informado != "" {
+		return informado
+	}
+	if id := f.ambiente("CLAUDE_CODE_SESSION_ID"); id != "" {
+		return &id
+	}
+	return nil
 }
 
 type Vazio struct{}
@@ -177,13 +226,17 @@ func (f *Ferramentas) iniciarSessao(ctx context.Context, _ *mcp.CallToolRequest,
 	if atual, err := f.sessaoAberta(); err == nil {
 		return nil, api.Sessao{}, fmt.Errorf("este chat já tem a sessão %s aberta; use vincular_tarefa ou encerre-a antes", atual)
 	}
+	agente, err := f.agente(in.Modelo, in.Esforco)
+	if err != nil {
+		return nil, api.Sessao{}, err
+	}
 	servidor, _ := os.Hostname()
 	if in.Servidor != nil && *in.Servidor != "" {
 		servidor = *in.Servidor
 	}
 	var criada api.SessaoCriada
 	resp, err := f.cliente.CriarSessao(ctx, api.NovaSessao{
-		Agente: in.Agente, TipoAgente: in.TipoAgente, Chat: in.Chat, Servidor: servidor, Journal: in.Journal, Tarefas: in.Tarefas,
+		Agente: agente, TipoAgente: api.Ia, Chat: f.chatAtual(in.Chat), Servidor: servidor, Journal: in.Journal, Tarefas: in.Tarefas,
 	})
 	if err := decodificar(resp, err, &criada); err != nil {
 		return nil, api.Sessao{}, err
@@ -236,13 +289,21 @@ func (f *Ferramentas) encerrarSessao(ctx context.Context, _ *mcp.CallToolRequest
 	return nil, out, nil
 }
 
-func (f *Ferramentas) repassarSessao(ctx context.Context, _ *mcp.CallToolRequest, in api.Repasse) (*mcp.CallToolResult, api.Sessao, error) {
+func (f *Ferramentas) repassarSessao(ctx context.Context, _ *mcp.CallToolRequest, in Repasse) (*mcp.CallToolResult, api.Sessao, error) {
 	id, err := f.sessaoAberta()
 	if err != nil {
 		return nil, api.Sessao{}, err
 	}
+	// O esforço é obrigatório aqui: o do ambiente é o do início do chat e pode estar desatualizado.
+	if strings.TrimSpace(in.Esforco) == "" {
+		return nil, api.Sessao{}, errors.New("informe o esforço do agente novo em 'esforco'")
+	}
+	agente, err := f.agente(in.Modelo, &in.Esforco)
+	if err != nil {
+		return nil, api.Sessao{}, err
+	}
 	var criada api.SessaoCriada
-	resp, err := f.cliente.RepassarSessao(ctx, id, in, f.autorizar)
+	resp, err := f.cliente.RepassarSessao(ctx, id, api.Repasse{Agente: agente, TipoAgente: api.Ia, Servidor: in.Servidor}, f.autorizar)
 	if err := decodificar(resp, err, &criada); err != nil {
 		return nil, api.Sessao{}, err
 	}
