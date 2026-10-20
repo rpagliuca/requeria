@@ -65,5 +65,5 @@ um tom existente; um tom novo só entra se nenhum dos seis servir, e com matiz d
 - Desenho em grade de 32×32, traço de 2,6, pontas arredondadas, em uma cor só (`currentColor`).
 - Componente: `web/src/componentes/Logotipo.tsx`. Favicon: `web/public/favicon.svg`, com a mesma
   geometria e cor que acompanha o tema do sistema.
-- Ao lado do símbolo, o nome em minúsculas e peso semibold: **requerial**.
+- Ao lado do símbolo, o nome com inicial maiúscula e peso semibold: **Requerial**.
 - Não colorir o símbolo com um tom semântico, não preencher o nó vazado, não usar abaixo de 16px.
