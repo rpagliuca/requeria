@@ -2,8 +2,8 @@ import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 
-import type { Requisito } from "@/api/cliente"
-import { EstadoDoRequisito } from "@/componentes/rotulos"
+import { type Requisito, type Tarefa, useTarefas } from "@/api/cliente"
+import { EstadoDoRequisito, StatusDaTarefa } from "@/componentes/rotulos"
 import { descendentes } from "@/componentes/trilhas"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +22,8 @@ export function recortar(porId: Map<string, Requisito>, casa: (r: Requisito) => 
   return { casam, visiveis }
 }
 
-// Navegação pelo grafo, sempre colapsado de início: clicar num requisito abre os que derivam dele.
+// Navegação pelo grafo, sempre colapsado de início: clicar num requisito abre as tarefas dele (abertas
+// primeiro) e os que derivam dele.
 // Com recorte, só aparecem os do recorte. Um requisito com vários pais aparece sob cada um; a chave
 // do nó é o caminho até ele.
 export function GrafoDeRequisitos({
@@ -35,6 +36,8 @@ export function GrafoDeRequisitos({
   recorte?: Recorte
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(() => new Set())
+  const tarefas = useTarefas()
+  const tarefasPorId = new Map((tarefas.data ?? []).map((t) => [t.id, t]))
   const alternar = (chave: string) =>
     setAbertos((atual) => {
       const novo = new Set(atual)
@@ -48,16 +51,19 @@ export function GrafoDeRequisitos({
   return (
     <ul className="space-y-0.5">
       {mostradas.map((id) => (
-        <No key={id} id={id} chave={id} porId={porId} aberto={aberto} alternar={alternar} recorte={recorte} />
+        <No key={id} id={id} chave={id} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
       ))}
     </ul>
   )
 }
 
+const abertaPrimeiro = (t?: Tarefa) => (t?.status === "concluida" ? 1 : 0)
+
 function No({
   id,
   chave,
   porId,
+  tarefasPorId,
   aberto,
   alternar,
   recorte,
@@ -65,6 +71,7 @@ function No({
   id: string
   chave: string
   porId: Map<string, Requisito>
+  tarefasPorId: Map<string, Tarefa>
   aberto: (chave: string) => boolean
   alternar: (chave: string) => void
   recorte?: Recorte
@@ -73,6 +80,8 @@ function No({
   if (!r) return null
   const filhos = recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados
   const estaAberto = aberto(chave)
+  const tarefas = [...r.tarefas].sort((a, b) => abertaPrimeiro(tarefasPorId.get(a)) - abertaPrimeiro(tarefasPorId.get(b)))
+  const abre = filhos.length > 0 || tarefas.length > 0
   const abaixo = r.derivados.length > 0 ? descendentes(id, porId) : new Set<string>()
   const emTrabalhoAbaixo = [...abaixo].filter((x) => porId.get(x)?.estado === "em_trabalho").length
   const atencaoAbaixo = [...abaixo].filter((x) => (porId.get(x)?.atencao.length ?? 0) > 0).length
@@ -84,11 +93,11 @@ function No({
         <button
           type="button"
           className={cn("flex flex-1 items-start gap-1.5 px-1.5 py-1.5 text-left text-sm disabled:cursor-default", soCaminho && "opacity-60")}
-          onClick={() => filhos.length > 0 && alternar(chave)}
-          disabled={filhos.length === 0}
+          onClick={() => abre && alternar(chave)}
+          disabled={!abre}
         >
           <span className="mt-0.5 w-4 shrink-0 text-muted-foreground">
-            {filhos.length > 0 && (estaAberto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />)}
+            {abre && (estaAberto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />)}
           </span>
           <span className="flex-1">
             <span>{r.titulo}</span>
@@ -115,10 +124,27 @@ function No({
           <ExternalLink className="size-4" />
         </Link>
       </div>
-      {estaAberto && filhos.length > 0 && (
+      {estaAberto && abre && (
         <ul className="ml-3.5 space-y-0.5 border-l pl-1.5">
+          {tarefas.map((tid) => {
+            const t = tarefasPorId.get(tid)
+            return (
+              <li key={tid}>
+                <Link
+                  to={`/tarefas/${tid}`}
+                  className={cn("flex items-start gap-2 rounded-md px-1.5 py-1 pl-6 text-sm hover:bg-muted/60", t?.status === "concluida" && "opacity-60")}
+                >
+                  <span className="flex-1">
+                    <span className="mr-1.5 font-mono text-muted-foreground text-xs">{tid}</span>
+                    {t?.titulo}
+                  </span>
+                  {t && <StatusDaTarefa status={t.status} />}
+                </Link>
+              </li>
+            )
+          })}
           {filhos.map((f) => (
-            <No key={f} id={f} chave={`${chave}>${f}`} porId={porId} aberto={aberto} alternar={alternar} recorte={recorte} />
+            <No key={f} id={f} chave={`${chave}>${f}`} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
           ))}
         </ul>
       )}
