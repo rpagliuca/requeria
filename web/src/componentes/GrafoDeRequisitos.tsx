@@ -22,30 +22,27 @@ export function recortar(porId: Map<string, Requisito>, casa: (r: Requisito) => 
   return { casam, visiveis }
 }
 
-// Navegação pelo grafo: sem recorte, clicar num requisito abre os que derivam dele; com recorte, o
-// caminho até cada um que casa já vem aberto e só os do recorte aparecem. Um requisito com vários
-// pais aparece sob cada um; a chave do nó é o caminho até ele.
+// Navegação pelo grafo, sempre colapsado de início: clicar num requisito abre os que derivam dele.
+// Com recorte, só aparecem os do recorte. Um requisito com vários pais aparece sob cada um; a chave
+// do nó é o caminho até ele.
 export function GrafoDeRequisitos({
   raizes,
   porId,
   recorte,
-  abertosNoInicio = [],
 }: {
   raizes: string[]
   porId: Map<string, Requisito>
   recorte?: Recorte
-  abertosNoInicio?: string[]
 }) {
-  // Sem recorte, guarda os nós abertos; com recorte, os fechados.
-  const [marcados, setMarcados] = useState<Set<string>>(() => new Set(recorte ? [] : abertosNoInicio))
+  const [abertos, setAbertos] = useState<Set<string>>(() => new Set())
   const alternar = (chave: string) =>
-    setMarcados((atual) => {
+    setAbertos((atual) => {
       const novo = new Set(atual)
       if (novo.has(chave)) novo.delete(chave)
       else novo.add(chave)
       return novo
     })
-  const aberto = (chave: string) => (recorte ? !marcados.has(chave) : marcados.has(chave))
+  const aberto = (chave: string) => abertos.has(chave)
   const mostradas = recorte ? raizes.filter((id) => recorte.visiveis.has(id)) : raizes
   if (mostradas.length === 0) return <p className="text-muted-foreground text-sm">Nenhum.</p>
   return (
@@ -97,7 +94,7 @@ function No({
             <span>{r.titulo}</span>
             <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
               <EstadoDoRequisito estado={r.estado} className="h-5 px-1.5 text-[11px]" />
-              {!recorte && r.derivados.length > 0 && <span>{abaixo.size} abaixo</span>}
+              {filhos.length > 0 && <span>{recorte ? [...abaixo].filter((x) => recorte.casam.has(x)).length : abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
               {!recorte && emTrabalhoAbaixo > 0 && <span className="text-blue-600 dark:text-blue-400">● {emTrabalhoAbaixo} em trabalho abaixo</span>}
               {r.atencao.length > 0 && (
