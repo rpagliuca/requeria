@@ -55,3 +55,16 @@ export const nomesMotivoDeAtencao: Record<string, string> = {
   sem_tarefa: "Ninguém trabalhando nele",
   trabalho_parado: "Trabalho parado",
 }
+
+// Estado de atendimento calculado: tarefa aberta (no requisito ou abaixo) ⇒ não atendido.
+export function EstadoDoRequisito({ estado }: { estado: "nao_atendido" | "nao_verificado" }) {
+  return estado === "nao_atendido" ? (
+    <Badge variant="outline" className="border-transparent bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">
+      Não atendido
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="border-transparent bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+      Não verificado
+    </Badge>
+  )
+}

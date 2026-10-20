@@ -414,3 +414,35 @@ func TestLimiteDeFilhosEAtencao(t *testing.T) {
 		}
 	}
 }
+
+func TestAtendimentoPelasTarefas(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var zero, meio, folha api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &zero)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Meio"}, 201, &meio)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Folha", DerivaDe: &[]string{meio.Id}}, 201, &folha)
+	tarefa := a.tarefa("Atender a folha")
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: folha.Id}, 200, nil)
+
+	// Tarefa aberta na folha: ela e tudo acima dela não estão atendidos.
+	for _, id := range []string{folha.Id, meio.Id, zero.Id} {
+		var r api.Requisito
+		a.chamar("GET", "/requisitos/"+id, "", nil, 200, &r)
+		if r.Atendimento.Estado != api.NaoAtendido {
+			t.Fatalf("%s devia estar não atendido: %+v", id, r.Atendimento)
+		}
+	}
+	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
+	if len(zero.Atendimento.AbaixoNaoAtendidos) != 1 || zero.Atendimento.AbaixoNaoAtendidos[0] != folha.Id {
+		t.Fatalf("o zero devia apontar a folha: %+v", zero.Atendimento)
+	}
+
+	// Concluída a tarefa, nada prova o atendimento: não verificado.
+	concluida := api.Concluida
+	a.chamar("PATCH", "/tarefas/"+tarefa.Id, "", api.AlteracaoTarefa{Status: &concluida}, 200, nil)
+	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
+	if zero.Atendimento.Estado != api.NaoVerificado {
+		t.Fatalf("sem tarefa aberta, devia ficar não verificado: %+v", zero.Atendimento)
+	}
+}

@@ -474,11 +474,25 @@ export interface components {
             tarefas: string[];
             /** @description Motivos pelos quais o requisito não está bem cuidado (vazio se está) */
             atencao: components["schemas"]["Atencao"][];
+            atendimento: components["schemas"]["Atendimento"];
             /** Format: date-time */
             criado_em: string;
             /** Format: date-time */
             atualizado_em: string;
         };
+        /** @description Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
+         *     indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
+         *     verificação, ele fica não verificado.
+         *      */
+        Atendimento: {
+            estado: components["schemas"]["EstadoDeAtendimento"];
+            /** @description Tarefas ligadas a este requisito que não estão concluídas */
+            tarefas_abertas: string[];
+            /** @description Requisitos abaixo dele, na cadeia, com tarefa aberta */
+            abaixo_nao_atendidos: string[];
+        };
+        /** @enum {string} */
+        EstadoDeAtendimento: "nao_atendido" | "nao_verificado";
         Atencao: {
             motivo: components["schemas"]["MotivoDeAtencao"];
             detalhe: string;

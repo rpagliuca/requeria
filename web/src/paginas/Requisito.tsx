@@ -14,7 +14,7 @@ import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { EscolherOrigem } from "@/componentes/EscolherOrigem"
 import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
-import { Data, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
+import { Data, EstadoDoRequisito, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 import { Texto } from "@/componentes/Texto"
@@ -48,6 +48,7 @@ export function Requisito() {
         </div>
         <h1 className="font-semibold text-xl">{r.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
+          <EstadoDoRequisito estado={r.atendimento.estado} />
           <span className="font-mono">{r.id}</span>
           <span>{r.organizacao}</span>
           {origem && (
@@ -73,6 +74,39 @@ export function Requisito() {
             ))}
           </ul>
         </div>
+      )}
+
+      {r.atendimento.estado === "nao_atendido" && (
+        <Secao titulo="Por que não está atendido">
+          <ul className="space-y-1 text-sm">
+            {r.atendimento.tarefas_abertas.map((tid) => (
+              <li key={tid}>
+                Tarefa aberta:{" "}
+                <Link to={`/tarefas/${tid}`} className="hover:underline">
+                  <span className="font-mono text-muted-foreground text-xs">{tid}</span> {tarefasPorId.get(tid)?.titulo}
+                </Link>
+                {tarefasPorId.get(tid) && (
+                  <span className="ml-2">
+                    <StatusDaTarefa status={tarefasPorId.get(tid)!.status} />
+                  </span>
+                )}
+              </li>
+            ))}
+            {r.atendimento.abaixo_nao_atendidos.map((rid) => (
+              <li key={rid}>
+                Requisito abaixo não atendido:{" "}
+                <Link to={`/requisitos/${rid}`} className="hover:underline">
+                  <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Secao>
+      )}
+      {r.atendimento.estado === "nao_verificado" && (
+        <p className="text-muted-foreground text-sm">
+          Nenhuma tarefa aberta aqui nem abaixo. Isso não prova que está atendido: só uma verificação prova.
+        </p>
       )}
 
       <Secao titulo="Descrição">

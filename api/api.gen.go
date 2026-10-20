@@ -23,6 +23,12 @@ const (
 	TokenDaSessaoScopes = "tokenDaSessao.Scopes"
 )
 
+// Defines values for EstadoDeAtendimento.
+const (
+	NaoAtendido   EstadoDeAtendimento = "nao_atendido"
+	NaoVerificado EstadoDeAtendimento = "nao_verificado"
+)
+
 // Defines values for MotivoDeAtencao.
 const (
 	MuitosFilhos   MotivoDeAtencao = "muitos_filhos"
@@ -105,6 +111,18 @@ type Atencao struct {
 	Motivo  MotivoDeAtencao `json:"motivo"`
 }
 
+// Atendimento Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
+// indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
+// verificação, ele fica não verificado.
+type Atendimento struct {
+	// AbaixoNaoAtendidos Requisitos abaixo dele, na cadeia, com tarefa aberta
+	AbaixoNaoAtendidos []string            `json:"abaixo_nao_atendidos"`
+	Estado             EstadoDeAtendimento `json:"estado"`
+
+	// TarefasAbertas Tarefas ligadas a este requisito que não estão concluídas
+	TarefasAbertas []string `json:"tarefas_abertas"`
+}
+
 // Derivacao defines model for Derivacao.
 type Derivacao struct {
 	// Pai Requisito do qual este deriva
@@ -124,6 +142,9 @@ type Encerramento struct {
 type Erro struct {
 	Mensagem string `json:"mensagem"`
 }
+
+// EstadoDeAtendimento defines model for EstadoDeAtendimento.
+type EstadoDeAtendimento string
 
 // Evento defines model for Evento.
 type Evento struct {
@@ -235,9 +256,14 @@ type Repasse struct {
 // Requisito defines model for Requisito.
 type Requisito struct {
 	// Atencao Motivos pelos quais o requisito não está bem cuidado (vazio se está)
-	Atencao      []Atencao `json:"atencao"`
-	AtualizadoEm time.Time `json:"atualizado_em"`
-	CriadoEm     time.Time `json:"criado_em"`
+	Atencao []Atencao `json:"atencao"`
+
+	// Atendimento Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
+	// indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
+	// verificação, ele fica não verificado.
+	Atendimento  Atendimento `json:"atendimento"`
+	AtualizadoEm time.Time   `json:"atualizado_em"`
+	CriadoEm     time.Time   `json:"criado_em"`
 
 	// DerivaDe Requisitos dos quais este deriva (acima na cadeia)
 	DerivaDe []string `json:"deriva_de"`
