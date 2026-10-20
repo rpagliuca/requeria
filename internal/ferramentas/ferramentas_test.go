@@ -260,3 +260,26 @@ func TestAgenteLancadoAdotaASessaoDoLancador(t *testing.T) {
 		t.Fatalf("sessão adotada não encerrou: %+v", sessao)
 	}
 }
+
+func TestRequisitosPeloMCP(t *testing.T) {
+	c := novoChat(t, novaAPI(t))
+	var origem api.Origem
+	c.chamar("criar_origem", map[string]any{"nome": "Lei de dados", "tipo": "documento"}, &origem)
+	var origens Origens
+	c.chamar("listar_origens", map[string]any{}, &origens)
+	if len(origens.Origens) != 1 {
+		t.Fatalf("origens: %+v", origens)
+	}
+	var pai, filho api.Requisito
+	c.chamar("criar_requisito", map[string]any{"titulo": "Cumprir a lei", "organizacao": "Exemplo", "origem": origem.Id}, &pai)
+	c.chamar("criar_requisito", map[string]any{"titulo": "Backup fora do ambiente"}, nil)
+	c.chamar("criar_requisito", map[string]any{"titulo": "Backup fora do ambiente", "deriva_de": []string{pai.Id}}, &filho)
+	c.chamar("derivar_requisito", map[string]any{"id": pai.Id, "pai": filho.Id}, nil)
+	var tarefa api.Tarefa
+	c.chamar("criar_tarefa", map[string]any{"titulo": "Configurar backup", "organizacao": "Exemplo"}, &tarefa)
+	c.chamar("vincular_requisito", map[string]any{"tarefa": tarefa.Id, "requisito": filho.Id}, &tarefa)
+	c.chamar("obter_requisito", map[string]any{"id": filho.Id}, &filho)
+	if len(filho.DerivaDe) != 1 || len(filho.Tarefas) != 1 || filho.Organizacao != "Exemplo" {
+		t.Fatalf("requisito pelo MCP: %+v", filho)
+	}
+}

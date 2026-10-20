@@ -52,6 +52,29 @@ const (
 	Ia     TipoAgente = "ia"
 )
 
+// Defines values for TipoOrigem.
+const (
+	Documento TipoOrigem = "documento"
+	Pessoa    TipoOrigem = "pessoa"
+)
+
+// AlteracaoOrigem defines model for AlteracaoOrigem.
+type AlteracaoOrigem struct {
+	Descricao *string     `json:"descricao,omitempty"`
+	Nome      *string     `json:"nome,omitempty"`
+	Tipo      *TipoOrigem `json:"tipo,omitempty"`
+}
+
+// AlteracaoRequisito defines model for AlteracaoRequisito.
+type AlteracaoRequisito struct {
+	Descricao   *string `json:"descricao,omitempty"`
+	Organizacao *string `json:"organizacao,omitempty"`
+
+	// Origem Vazio remove a origem
+	Origem *string `json:"origem,omitempty"`
+	Titulo *string `json:"titulo,omitempty"`
+}
+
 // AlteracaoSessao defines model for AlteracaoSessao.
 type AlteracaoSessao struct {
 	Artefatos *[]string `json:"artefatos,omitempty"`
@@ -65,6 +88,12 @@ type AlteracaoTarefa struct {
 	Resumo      *string       `json:"resumo,omitempty"`
 	Status      *StatusTarefa `json:"status,omitempty"`
 	Titulo      *string       `json:"titulo,omitempty"`
+}
+
+// Derivacao defines model for Derivacao.
+type Derivacao struct {
+	// Pai Requisito do qual este deriva
+	Pai string `json:"pai"`
 }
 
 // Encerramento defines model for Encerramento.
@@ -107,6 +136,13 @@ type ImportacaoTarefa struct {
 // MotivoEncerramento defines model for MotivoEncerramento.
 type MotivoEncerramento string
 
+// NovaOrigem defines model for NovaOrigem.
+type NovaOrigem struct {
+	Descricao *string    `json:"descricao,omitempty"`
+	Nome      string     `json:"nome"`
+	Tipo      TipoOrigem `json:"tipo"`
+}
+
 // NovaSessao defines model for NovaSessao.
 type NovaSessao struct {
 	Agente     string     `json:"agente"`
@@ -125,12 +161,34 @@ type NovaTarefa struct {
 	Titulo      string        `json:"titulo"`
 }
 
+// NovoRequisito defines model for NovoRequisito.
+type NovoRequisito struct {
+	DerivaDe  *[]string `json:"deriva_de,omitempty"`
+	Descricao *string   `json:"descricao,omitempty"`
+
+	// Organizacao Padrão: a do primeiro requisito em deriva_de
+	Organizacao *string `json:"organizacao,omitempty"`
+	Origem      *string `json:"origem,omitempty"`
+	Titulo      string  `json:"titulo"`
+}
+
 // OpcoesDeLancamento defines model for OpcoesDeLancamento.
 type OpcoesDeLancamento struct {
 	EsforcoPadrao *string  `json:"esforco_padrao,omitempty"`
 	Esforcos      []string `json:"esforcos"`
 	ModeloPadrao  string   `json:"modelo_padrao"`
 	Modelos       []string `json:"modelos"`
+}
+
+// Origem defines model for Origem.
+type Origem struct {
+	CriadaEm  time.Time `json:"criada_em"`
+	Descricao string    `json:"descricao"`
+	Id        string    `json:"id"`
+
+	// Nome Pessoa (quem pede) ou documento (lei, norma, contrato)
+	Nome string     `json:"nome"`
+	Tipo TipoOrigem `json:"tipo"`
 }
 
 // PedidoDeLancamento defines model for PedidoDeLancamento.
@@ -153,6 +211,26 @@ type Repasse struct {
 	// Servidor Se omitido
 	Servidor   *string    `json:"servidor,omitempty"`
 	TipoAgente TipoAgente `json:"tipo_agente"`
+}
+
+// Requisito defines model for Requisito.
+type Requisito struct {
+	AtualizadoEm time.Time `json:"atualizado_em"`
+	CriadoEm     time.Time `json:"criado_em"`
+
+	// DerivaDe Requisitos dos quais este deriva (acima na cadeia)
+	DerivaDe []string `json:"deriva_de"`
+
+	// Derivados Requisitos que derivam deste (abaixo na cadeia)
+	Derivados   []string `json:"derivados"`
+	Descricao   string   `json:"descricao"`
+	Id          string   `json:"id"`
+	Organizacao string   `json:"organizacao"`
+	Origem      *string  `json:"origem,omitempty"`
+
+	// Tarefas Tarefas que tentam atender este requisito
+	Tarefas []string `json:"tarefas"`
+	Titulo  string   `json:"titulo"`
 }
 
 // Sessao defines model for Sessao.
@@ -212,6 +290,9 @@ type Tarefa struct {
 	Id           string    `json:"id"`
 	Organizacao  string    `json:"organizacao"`
 
+	// Requisitos Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
+	Requisitos *[]string `json:"requisitos,omitempty"`
+
 	// Resumo Estado para retomar, gravado no encerramento de cada sessão
 	Resumo      string       `json:"resumo"`
 	SessaoAtiva *string      `json:"sessao_ativa,omitempty"`
@@ -222,9 +303,17 @@ type Tarefa struct {
 // TipoAgente defines model for TipoAgente.
 type TipoAgente string
 
+// TipoOrigem defines model for TipoOrigem.
+type TipoOrigem string
+
 // Vinculo defines model for Vinculo.
 type Vinculo struct {
 	Tarefa string `json:"tarefa"`
+}
+
+// VinculoRequisito defines model for VinculoRequisito.
+type VinculoRequisito struct {
+	Requisito string `json:"requisito"`
 }
 
 // Id defines model for Id.
@@ -234,6 +323,12 @@ type Id = string
 type ListarEventosParams struct {
 	// Entidade Identificador da entidade, como T-0001 ou S-0001
 	Entidade *string `form:"entidade,omitempty" json:"entidade,omitempty"`
+}
+
+// ListarRequisitosParams defines parameters for ListarRequisitos.
+type ListarRequisitosParams struct {
+	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+	Origem      *string `form:"origem,omitempty" json:"origem,omitempty"`
 }
 
 // ListarSessoesParams defines parameters for ListarSessoes.
@@ -249,6 +344,21 @@ type ListarTarefasParams struct {
 
 // ImportarTarefaJSONRequestBody defines body for ImportarTarefa for application/json ContentType.
 type ImportarTarefaJSONRequestBody = ImportacaoTarefa
+
+// CriarOrigemJSONRequestBody defines body for CriarOrigem for application/json ContentType.
+type CriarOrigemJSONRequestBody = NovaOrigem
+
+// AlterarOrigemJSONRequestBody defines body for AlterarOrigem for application/json ContentType.
+type AlterarOrigemJSONRequestBody = AlteracaoOrigem
+
+// CriarRequisitoJSONRequestBody defines body for CriarRequisito for application/json ContentType.
+type CriarRequisitoJSONRequestBody = NovoRequisito
+
+// AlterarRequisitoJSONRequestBody defines body for AlterarRequisito for application/json ContentType.
+type AlterarRequisitoJSONRequestBody = AlteracaoRequisito
+
+// DerivarRequisitoJSONRequestBody defines body for DerivarRequisito for application/json ContentType.
+type DerivarRequisitoJSONRequestBody = Derivacao
 
 // CriarSessaoJSONRequestBody defines body for CriarSessao for application/json ContentType.
 type CriarSessaoJSONRequestBody = NovaSessao
@@ -276,6 +386,9 @@ type AlterarTarefaJSONRequestBody = AlteracaoTarefa
 
 // LancarAgenteJSONRequestBody defines body for LancarAgente for application/json ContentType.
 type LancarAgenteJSONRequestBody = PedidoDeLancamento
+
+// VincularRequisitoJSONRequestBody defines body for VincularRequisito for application/json ContentType.
+type VincularRequisitoJSONRequestBody = VinculoRequisito
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -361,6 +474,46 @@ type ClientInterface interface {
 	// OpcoesDoLancador request
 	OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListarOrigens request
+	ListarOrigens(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarOrigemWithBody request with any body
+	CriarOrigemWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarOrigem(ctx context.Context, body CriarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterOrigem request
+	ObterOrigem(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarOrigemWithBody request with any body
+	AlterarOrigemWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarOrigem(ctx context.Context, id Id, body AlterarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarRequisitos request
+	ListarRequisitos(ctx context.Context, params *ListarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarRequisitoWithBody request with any body
+	CriarRequisitoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarRequisito(ctx context.Context, body CriarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterRequisito request
+	ObterRequisito(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarRequisitoWithBody request with any body
+	AlterarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarRequisito(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DerivarRequisitoWithBody request with any body
+	DerivarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DerivarRequisito(ctx context.Context, id Id, body DerivarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DesfazerDerivacao request
+	DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarSessoes request
 	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -418,6 +571,14 @@ type ClientInterface interface {
 
 	LancarAgente(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// VincularRequisitoWithBody request with any body
+	VincularRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	VincularRequisito(ctx context.Context, id Id, body VincularRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DesvincularRequisito request
+	DesvincularRequisito(ctx context.Context, id Id, requisito string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarSessoesDaTarefa request
 	ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -460,6 +621,186 @@ func (c *Client) ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequ
 
 func (c *Client) OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewOpcoesDoLancadorRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarOrigens(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarOrigensRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarOrigemWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarOrigemRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarOrigem(ctx context.Context, body CriarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarOrigemRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterOrigem(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterOrigemRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarOrigemWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarOrigemRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarOrigem(ctx context.Context, id Id, body AlterarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarOrigemRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarRequisitos(ctx context.Context, params *ListarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarRequisitosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarRequisitoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarRequisitoRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarRequisito(ctx context.Context, body CriarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarRequisitoRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterRequisito(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterRequisitoRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarRequisitoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarRequisito(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarRequisitoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DerivarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDerivarRequisitoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DerivarRequisito(ctx context.Context, id Id, body DerivarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDerivarRequisitoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDesfazerDerivacaoRequest(c.Server, id, pai)
 	if err != nil {
 		return nil, err
 	}
@@ -734,6 +1075,42 @@ func (c *Client) LancarAgente(ctx context.Context, id Id, body LancarAgenteJSONR
 	return c.Client.Do(req)
 }
 
+func (c *Client) VincularRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularRequisitoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularRequisito(ctx context.Context, id Id, body VincularRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularRequisitoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DesvincularRequisito(ctx context.Context, id Id, requisito string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDesvincularRequisitoRequest(c.Server, id, requisito)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListarSessoesDaTarefaRequest(c.Server, id)
 	if err != nil {
@@ -855,6 +1232,428 @@ func NewOpcoesDoLancadorRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListarOrigensRequest generates requests for ListarOrigens
+func NewListarOrigensRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/origens")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarOrigemRequest calls the generic CriarOrigem builder with application/json body
+func NewCriarOrigemRequest(server string, body CriarOrigemJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarOrigemRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarOrigemRequestWithBody generates requests for CriarOrigem with any type of body
+func NewCriarOrigemRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/origens")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterOrigemRequest generates requests for ObterOrigem
+func NewObterOrigemRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/origens/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarOrigemRequest calls the generic AlterarOrigem builder with application/json body
+func NewAlterarOrigemRequest(server string, id Id, body AlterarOrigemJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarOrigemRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarOrigemRequestWithBody generates requests for AlterarOrigem with any type of body
+func NewAlterarOrigemRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/origens/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListarRequisitosRequest generates requests for ListarRequisitos
+func NewListarRequisitosRequest(server string, params *ListarRequisitosParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Origem != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "origem", runtime.ParamLocationQuery, *params.Origem); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarRequisitoRequest calls the generic CriarRequisito builder with application/json body
+func NewCriarRequisitoRequest(server string, body CriarRequisitoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarRequisitoRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarRequisitoRequestWithBody generates requests for CriarRequisito with any type of body
+func NewCriarRequisitoRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterRequisitoRequest generates requests for ObterRequisito
+func NewObterRequisitoRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarRequisitoRequest calls the generic AlterarRequisito builder with application/json body
+func NewAlterarRequisitoRequest(server string, id Id, body AlterarRequisitoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarRequisitoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarRequisitoRequestWithBody generates requests for AlterarRequisito with any type of body
+func NewAlterarRequisitoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDerivarRequisitoRequest calls the generic DerivarRequisito builder with application/json body
+func NewDerivarRequisitoRequest(server string, id Id, body DerivarRequisitoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDerivarRequisitoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewDerivarRequisitoRequestWithBody generates requests for DerivarRequisito with any type of body
+func NewDerivarRequisitoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/derivacoes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDesfazerDerivacaoRequest generates requests for DesfazerDerivacao
+func NewDesfazerDerivacaoRequest(server string, id Id, pai string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "pai", runtime.ParamLocationPath, pai)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/derivacoes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1453,6 +2252,94 @@ func NewLancarAgenteRequestWithBody(server string, id Id, contentType string, bo
 	return req, nil
 }
 
+// NewVincularRequisitoRequest calls the generic VincularRequisito builder with application/json body
+func NewVincularRequisitoRequest(server string, id Id, body VincularRequisitoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewVincularRequisitoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewVincularRequisitoRequestWithBody generates requests for VincularRequisito with any type of body
+func NewVincularRequisitoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/requisitos", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDesvincularRequisitoRequest generates requests for DesvincularRequisito
+func NewDesvincularRequisitoRequest(server string, id Id, requisito string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "requisito", runtime.ParamLocationPath, requisito)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/requisitos/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListarSessoesDaTarefaRequest generates requests for ListarSessoesDaTarefa
 func NewListarSessoesDaTarefaRequest(server string, id Id) (*http.Request, error) {
 	var err error
@@ -1541,6 +2428,46 @@ type ClientWithResponsesInterface interface {
 	// OpcoesDoLancadorWithResponse request
 	OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error)
 
+	// ListarOrigensWithResponse request
+	ListarOrigensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrigensResponse, error)
+
+	// CriarOrigemWithBodyWithResponse request with any body
+	CriarOrigemWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarOrigemResponse, error)
+
+	CriarOrigemWithResponse(ctx context.Context, body CriarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarOrigemResponse, error)
+
+	// ObterOrigemWithResponse request
+	ObterOrigemWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterOrigemResponse, error)
+
+	// AlterarOrigemWithBodyWithResponse request with any body
+	AlterarOrigemWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarOrigemResponse, error)
+
+	AlterarOrigemWithResponse(ctx context.Context, id Id, body AlterarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarOrigemResponse, error)
+
+	// ListarRequisitosWithResponse request
+	ListarRequisitosWithResponse(ctx context.Context, params *ListarRequisitosParams, reqEditors ...RequestEditorFn) (*ListarRequisitosResponse, error)
+
+	// CriarRequisitoWithBodyWithResponse request with any body
+	CriarRequisitoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarRequisitoResponse, error)
+
+	CriarRequisitoWithResponse(ctx context.Context, body CriarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarRequisitoResponse, error)
+
+	// ObterRequisitoWithResponse request
+	ObterRequisitoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterRequisitoResponse, error)
+
+	// AlterarRequisitoWithBodyWithResponse request with any body
+	AlterarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error)
+
+	AlterarRequisitoWithResponse(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error)
+
+	// DerivarRequisitoWithBodyWithResponse request with any body
+	DerivarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DerivarRequisitoResponse, error)
+
+	DerivarRequisitoWithResponse(ctx context.Context, id Id, body DerivarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*DerivarRequisitoResponse, error)
+
+	// DesfazerDerivacaoWithResponse request
+	DesfazerDerivacaoWithResponse(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*DesfazerDerivacaoResponse, error)
+
 	// ListarSessoesWithResponse request
 	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
 
@@ -1597,6 +2524,14 @@ type ClientWithResponsesInterface interface {
 	LancarAgenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error)
 
 	LancarAgenteWithResponse(ctx context.Context, id Id, body LancarAgenteJSONRequestBody, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error)
+
+	// VincularRequisitoWithBodyWithResponse request with any body
+	VincularRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularRequisitoResponse, error)
+
+	VincularRequisitoWithResponse(ctx context.Context, id Id, body VincularRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularRequisitoResponse, error)
+
+	// DesvincularRequisitoWithResponse request
+	DesvincularRequisitoWithResponse(ctx context.Context, id Id, requisito string, reqEditors ...RequestEditorFn) (*DesvincularRequisitoResponse, error)
 
 	// ListarSessoesDaTarefaWithResponse request
 	ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error)
@@ -1664,6 +2599,241 @@ func (r OpcoesDoLancadorResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r OpcoesDoLancadorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarOrigensResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Origem
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarOrigensResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarOrigensResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarOrigemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Origem
+	JSON400      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarOrigemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarOrigemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterOrigemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Origem
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterOrigemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterOrigemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarOrigemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Origem
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarOrigemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarOrigemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarRequisitosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Requisito
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarRequisitosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarRequisitosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Requisito
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DerivarRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DerivarRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DerivarRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DesfazerDerivacaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DesfazerDerivacaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DesfazerDerivacaoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1984,6 +3154,52 @@ func (r LancarAgenteResponse) StatusCode() int {
 	return 0
 }
 
+type VincularRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r VincularRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VincularRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DesvincularRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DesvincularRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DesvincularRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListarSessoesDaTarefaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2040,6 +3256,136 @@ func (c *ClientWithResponses) OpcoesDoLancadorWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseOpcoesDoLancadorResponse(rsp)
+}
+
+// ListarOrigensWithResponse request returning *ListarOrigensResponse
+func (c *ClientWithResponses) ListarOrigensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrigensResponse, error) {
+	rsp, err := c.ListarOrigens(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarOrigensResponse(rsp)
+}
+
+// CriarOrigemWithBodyWithResponse request with arbitrary body returning *CriarOrigemResponse
+func (c *ClientWithResponses) CriarOrigemWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarOrigemResponse, error) {
+	rsp, err := c.CriarOrigemWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarOrigemResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarOrigemWithResponse(ctx context.Context, body CriarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarOrigemResponse, error) {
+	rsp, err := c.CriarOrigem(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarOrigemResponse(rsp)
+}
+
+// ObterOrigemWithResponse request returning *ObterOrigemResponse
+func (c *ClientWithResponses) ObterOrigemWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterOrigemResponse, error) {
+	rsp, err := c.ObterOrigem(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterOrigemResponse(rsp)
+}
+
+// AlterarOrigemWithBodyWithResponse request with arbitrary body returning *AlterarOrigemResponse
+func (c *ClientWithResponses) AlterarOrigemWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarOrigemResponse, error) {
+	rsp, err := c.AlterarOrigemWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarOrigemResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarOrigemWithResponse(ctx context.Context, id Id, body AlterarOrigemJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarOrigemResponse, error) {
+	rsp, err := c.AlterarOrigem(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarOrigemResponse(rsp)
+}
+
+// ListarRequisitosWithResponse request returning *ListarRequisitosResponse
+func (c *ClientWithResponses) ListarRequisitosWithResponse(ctx context.Context, params *ListarRequisitosParams, reqEditors ...RequestEditorFn) (*ListarRequisitosResponse, error) {
+	rsp, err := c.ListarRequisitos(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarRequisitosResponse(rsp)
+}
+
+// CriarRequisitoWithBodyWithResponse request with arbitrary body returning *CriarRequisitoResponse
+func (c *ClientWithResponses) CriarRequisitoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarRequisitoResponse, error) {
+	rsp, err := c.CriarRequisitoWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarRequisitoResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarRequisitoWithResponse(ctx context.Context, body CriarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarRequisitoResponse, error) {
+	rsp, err := c.CriarRequisito(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarRequisitoResponse(rsp)
+}
+
+// ObterRequisitoWithResponse request returning *ObterRequisitoResponse
+func (c *ClientWithResponses) ObterRequisitoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterRequisitoResponse, error) {
+	rsp, err := c.ObterRequisito(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterRequisitoResponse(rsp)
+}
+
+// AlterarRequisitoWithBodyWithResponse request with arbitrary body returning *AlterarRequisitoResponse
+func (c *ClientWithResponses) AlterarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error) {
+	rsp, err := c.AlterarRequisitoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarRequisitoResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarRequisitoWithResponse(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error) {
+	rsp, err := c.AlterarRequisito(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarRequisitoResponse(rsp)
+}
+
+// DerivarRequisitoWithBodyWithResponse request with arbitrary body returning *DerivarRequisitoResponse
+func (c *ClientWithResponses) DerivarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DerivarRequisitoResponse, error) {
+	rsp, err := c.DerivarRequisitoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDerivarRequisitoResponse(rsp)
+}
+
+func (c *ClientWithResponses) DerivarRequisitoWithResponse(ctx context.Context, id Id, body DerivarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*DerivarRequisitoResponse, error) {
+	rsp, err := c.DerivarRequisito(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDerivarRequisitoResponse(rsp)
+}
+
+// DesfazerDerivacaoWithResponse request returning *DesfazerDerivacaoResponse
+func (c *ClientWithResponses) DesfazerDerivacaoWithResponse(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*DesfazerDerivacaoResponse, error) {
+	rsp, err := c.DesfazerDerivacao(ctx, id, pai, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDesfazerDerivacaoResponse(rsp)
 }
 
 // ListarSessoesWithResponse request returning *ListarSessoesResponse
@@ -2231,6 +3577,32 @@ func (c *ClientWithResponses) LancarAgenteWithResponse(ctx context.Context, id I
 	return ParseLancarAgenteResponse(rsp)
 }
 
+// VincularRequisitoWithBodyWithResponse request with arbitrary body returning *VincularRequisitoResponse
+func (c *ClientWithResponses) VincularRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularRequisitoResponse, error) {
+	rsp, err := c.VincularRequisitoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularRequisitoResponse(rsp)
+}
+
+func (c *ClientWithResponses) VincularRequisitoWithResponse(ctx context.Context, id Id, body VincularRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularRequisitoResponse, error) {
+	rsp, err := c.VincularRequisito(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularRequisitoResponse(rsp)
+}
+
+// DesvincularRequisitoWithResponse request returning *DesvincularRequisitoResponse
+func (c *ClientWithResponses) DesvincularRequisitoWithResponse(ctx context.Context, id Id, requisito string, reqEditors ...RequestEditorFn) (*DesvincularRequisitoResponse, error) {
+	rsp, err := c.DesvincularRequisito(ctx, id, requisito, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDesvincularRequisitoResponse(rsp)
+}
+
 // ListarSessoesDaTarefaWithResponse request returning *ListarSessoesDaTarefaResponse
 func (c *ClientWithResponses) ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error) {
 	rsp, err := c.ListarSessoesDaTarefa(ctx, id, reqEditors...)
@@ -2315,6 +3687,371 @@ func ParseOpcoesDoLancadorResponse(rsp *http.Response) (*OpcoesDoLancadorRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest OpcoesDeLancamento
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarOrigensResponse parses an HTTP response from a ListarOrigensWithResponse call
+func ParseListarOrigensResponse(rsp *http.Response) (*ListarOrigensResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarOrigensResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Origem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarOrigemResponse parses an HTTP response from a CriarOrigemWithResponse call
+func ParseCriarOrigemResponse(rsp *http.Response) (*CriarOrigemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarOrigemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Origem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterOrigemResponse parses an HTTP response from a ObterOrigemWithResponse call
+func ParseObterOrigemResponse(rsp *http.Response) (*ObterOrigemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterOrigemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Origem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarOrigemResponse parses an HTTP response from a AlterarOrigemWithResponse call
+func ParseAlterarOrigemResponse(rsp *http.Response) (*AlterarOrigemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarOrigemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Origem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarRequisitosResponse parses an HTTP response from a ListarRequisitosWithResponse call
+func ParseListarRequisitosResponse(rsp *http.Response) (*ListarRequisitosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarRequisitosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarRequisitoResponse parses an HTTP response from a CriarRequisitoWithResponse call
+func ParseCriarRequisitoResponse(rsp *http.Response) (*CriarRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterRequisitoResponse parses an HTTP response from a ObterRequisitoWithResponse call
+func ParseObterRequisitoResponse(rsp *http.Response) (*ObterRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarRequisitoResponse parses an HTTP response from a AlterarRequisitoWithResponse call
+func ParseAlterarRequisitoResponse(rsp *http.Response) (*AlterarRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDerivarRequisitoResponse parses an HTTP response from a DerivarRequisitoWithResponse call
+func ParseDerivarRequisitoResponse(rsp *http.Response) (*DerivarRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DerivarRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDesfazerDerivacaoResponse parses an HTTP response from a DesfazerDerivacaoWithResponse call
+func ParseDesfazerDerivacaoResponse(rsp *http.Response) (*DesfazerDerivacaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DesfazerDerivacaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2866,6 +4603,72 @@ func ParseLancarAgenteResponse(rsp *http.Response) (*LancarAgenteResponse, error
 	return response, nil
 }
 
+// ParseVincularRequisitoResponse parses an HTTP response from a VincularRequisitoWithResponse call
+func ParseVincularRequisitoResponse(rsp *http.Response) (*VincularRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VincularRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDesvincularRequisitoResponse parses an HTTP response from a DesvincularRequisitoWithResponse call
+func ParseDesvincularRequisitoResponse(rsp *http.Response) (*DesvincularRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DesvincularRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListarSessoesDaTarefaResponse parses an HTTP response from a ListarSessoesDaTarefaWithResponse call
 func ParseListarSessoesDaTarefaResponse(rsp *http.Response) (*ListarSessoesDaTarefaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2911,6 +4714,36 @@ type ServerInterface interface {
 	// (GET /lancador)
 	OpcoesDoLancador(w http.ResponseWriter, r *http.Request)
 
+	// (GET /origens)
+	ListarOrigens(w http.ResponseWriter, r *http.Request)
+
+	// (POST /origens)
+	CriarOrigem(w http.ResponseWriter, r *http.Request)
+
+	// (GET /origens/{id})
+	ObterOrigem(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PATCH /origens/{id})
+	AlterarOrigem(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /requisitos)
+	ListarRequisitos(w http.ResponseWriter, r *http.Request, params ListarRequisitosParams)
+
+	// (POST /requisitos)
+	CriarRequisito(w http.ResponseWriter, r *http.Request)
+
+	// (GET /requisitos/{id})
+	ObterRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PATCH /requisitos/{id})
+	AlterarRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /requisitos/{id}/derivacoes)
+	DerivarRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (DELETE /requisitos/{id}/derivacoes/{pai})
+	DesfazerDerivacao(w http.ResponseWriter, r *http.Request, id Id, pai string)
+
 	// (GET /sessoes)
 	ListarSessoes(w http.ResponseWriter, r *http.Request, params ListarSessoesParams)
 
@@ -2949,6 +4782,12 @@ type ServerInterface interface {
 
 	// (POST /tarefas/{id}/lancamento)
 	LancarAgente(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /tarefas/{id}/requisitos)
+	VincularRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (DELETE /tarefas/{id}/requisitos/{requisito})
+	DesvincularRequisito(w http.ResponseWriter, r *http.Request, id Id, requisito string)
 
 	// (GET /tarefas/{id}/sessoes)
 	ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request, id Id)
@@ -3009,6 +4848,242 @@ func (siw *ServerInterfaceWrapper) OpcoesDoLancador(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpcoesDoLancador(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListarOrigens operation middleware
+func (siw *ServerInterfaceWrapper) ListarOrigens(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarOrigens(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CriarOrigem operation middleware
+func (siw *ServerInterfaceWrapper) CriarOrigem(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CriarOrigem(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ObterOrigem operation middleware
+func (siw *ServerInterfaceWrapper) ObterOrigem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterOrigem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AlterarOrigem operation middleware
+func (siw *ServerInterfaceWrapper) AlterarOrigem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AlterarOrigem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListarRequisitos operation middleware
+func (siw *ServerInterfaceWrapper) ListarRequisitos(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListarRequisitosParams
+
+	// ------------- Optional query parameter "organizacao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "organizacao", r.URL.Query(), &params.Organizacao)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizacao", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "origem" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "origem", r.URL.Query(), &params.Origem)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "origem", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarRequisitos(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CriarRequisito operation middleware
+func (siw *ServerInterfaceWrapper) CriarRequisito(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CriarRequisito(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ObterRequisito operation middleware
+func (siw *ServerInterfaceWrapper) ObterRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AlterarRequisito operation middleware
+func (siw *ServerInterfaceWrapper) AlterarRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AlterarRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DerivarRequisito operation middleware
+func (siw *ServerInterfaceWrapper) DerivarRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DerivarRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DesfazerDerivacao operation middleware
+func (siw *ServerInterfaceWrapper) DesfazerDerivacao(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "pai" -------------
+	var pai string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pai", r.PathValue("pai"), &pai, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pai", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DesfazerDerivacao(w, r, id, pai)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3357,6 +5432,65 @@ func (siw *ServerInterfaceWrapper) LancarAgente(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// VincularRequisito operation middleware
+func (siw *ServerInterfaceWrapper) VincularRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VincularRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DesvincularRequisito operation middleware
+func (siw *ServerInterfaceWrapper) DesvincularRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "requisito" -------------
+	var requisito string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "requisito", r.PathValue("requisito"), &requisito, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "requisito", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DesvincularRequisito(w, r, id, requisito)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListarSessoesDaTarefa operation middleware
 func (siw *ServerInterfaceWrapper) ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request) {
 
@@ -3505,6 +5639,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
 	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
+	m.HandleFunc("GET "+options.BaseURL+"/origens", wrapper.ListarOrigens)
+	m.HandleFunc("POST "+options.BaseURL+"/origens", wrapper.CriarOrigem)
+	m.HandleFunc("GET "+options.BaseURL+"/origens/{id}", wrapper.ObterOrigem)
+	m.HandleFunc("PATCH "+options.BaseURL+"/origens/{id}", wrapper.AlterarOrigem)
+	m.HandleFunc("GET "+options.BaseURL+"/requisitos", wrapper.ListarRequisitos)
+	m.HandleFunc("POST "+options.BaseURL+"/requisitos", wrapper.CriarRequisito)
+	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}", wrapper.ObterRequisito)
+	m.HandleFunc("PATCH "+options.BaseURL+"/requisitos/{id}", wrapper.AlterarRequisito)
+	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/derivacoes", wrapper.DerivarRequisito)
+	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DesfazerDerivacao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes", wrapper.CriarSessao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)
@@ -3518,6 +5662,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}", wrapper.ObterTarefa)
 	m.HandleFunc("PATCH "+options.BaseURL+"/tarefas/{id}", wrapper.AlterarTarefa)
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/lancamento", wrapper.LancarAgente)
+	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/requisitos", wrapper.VincularRequisito)
+	m.HandleFunc("DELETE "+options.BaseURL+"/tarefas/{id}/requisitos/{requisito}", wrapper.DesvincularRequisito)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}/sessoes", wrapper.ListarSessoesDaTarefa)
 
 	return m

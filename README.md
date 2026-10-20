@@ -37,7 +37,8 @@ for skill in skills/*/; do ln -sfn "$PWD/$skill" ~/.claude/skills/"$(basename "$
 
 Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`,
-`encerrar_sessao`, `repassar_sessao`, `listar_eventos`.
+`encerrar_sessao`, `repassar_sessao`, `listar_eventos`, `obter_requisito`, `criar_requisito`,
+`alterar_requisito`, `derivar_requisito`, `vincular_requisito`, `listar_origens`, `criar_origem`.
 
 ## Lançador de agentes (opcional)
 

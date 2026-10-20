@@ -76,6 +76,13 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "atualizar_journal", Description: "Atualiza os localizadores do journal e dos artefatos da sessão deste chat."}, f.atualizarJournal)
 	mcp.AddTool(s, &mcp.Tool{Name: "encerrar_sessao", Description: "Encerra a sessão deste chat e grava o resumo em cada tarefa dela."}, f.encerrarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "repassar_sessao", Description: "Troca de agente: encerra a sessão deste chat e abre outra com o agente novo, nas mesmas tarefas."}, f.repassarSessao)
+	mcp.AddTool(s, &mcp.Tool{Name: "obter_requisito", Description: "Obtém um requisito: origem, cadeia (deriva_de acima, derivados abaixo) e tarefas que tentam atendê-lo."}, f.obterRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "criar_requisito", Description: "Cria um requisito, com origem e os requisitos dos quais deriva (a organização vem do primeiro, se omitida)."}, f.criarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização ou origem de um requisito."}, f.alterarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos."}, f.derivarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "vincular_requisito", Description: "Registra que uma tarefa tenta atender um requisito."}, f.vincularRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "listar_origens", Description: "Lista as origens de requisitos (pessoas e documentos), para reaproveitar em vez de duplicar."}, f.listarOrigens)
+	mcp.AddTool(s, &mcp.Tool{Name: "criar_origem", Description: "Cria uma origem de requisitos: uma pessoa (quem pede) ou um documento (lei, norma, contrato)."}, f.criarOrigem)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
 }
@@ -381,4 +388,65 @@ func (f *Ferramentas) listarEventos(ctx context.Context, _ *mcp.CallToolRequest,
 	var out Eventos
 	resp, err := f.cliente.ListarEventos(ctx, &api.ListarEventosParams{Entidade: in.Entidade})
 	return nil, out, decodificar(resp, err, &out.Eventos)
+}
+
+type AlteracaoRequisito struct {
+	Id string `json:"id" jsonschema:"identificador do requisito, como R-0001"`
+	api.AlteracaoRequisito
+}
+
+type Derivacao struct {
+	Id  string `json:"id" jsonschema:"requisito que deriva, como R-0002"`
+	Pai string `json:"pai" jsonschema:"requisito do qual ele deriva, como R-0001"`
+}
+
+type VinculoRequisito struct {
+	Tarefa    string `json:"tarefa" jsonschema:"tarefa, como T-0001"`
+	Requisito string `json:"requisito" jsonschema:"requisito que a tarefa tenta atender, como R-0001"`
+}
+
+type Origens struct {
+	Origens []api.Origem `json:"origens"`
+}
+
+func (f *Ferramentas) obterRequisito(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	resp, err := f.cliente.ObterRequisito(ctx, in.Id)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) criarRequisito(ctx context.Context, _ *mcp.CallToolRequest, in api.NovoRequisito) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	resp, err := f.cliente.CriarRequisito(ctx, in, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) alterarRequisito(ctx context.Context, _ *mcp.CallToolRequest, in AlteracaoRequisito) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	resp, err := f.cliente.AlterarRequisito(ctx, in.Id, in.AlteracaoRequisito, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) derivarRequisito(ctx context.Context, _ *mcp.CallToolRequest, in Derivacao) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	resp, err := f.cliente.DerivarRequisito(ctx, in.Id, api.Derivacao{Pai: in.Pai}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) vincularRequisito(ctx context.Context, _ *mcp.CallToolRequest, in VinculoRequisito) (*mcp.CallToolResult, api.Tarefa, error) {
+	var out api.Tarefa
+	resp, err := f.cliente.VincularRequisito(ctx, in.Tarefa, api.VinculoRequisito{Requisito: in.Requisito}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) listarOrigens(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, Origens, error) {
+	var out Origens
+	resp, err := f.cliente.ListarOrigens(ctx)
+	return nil, out, decodificar(resp, err, &out.Origens)
+}
+
+func (f *Ferramentas) criarOrigem(ctx context.Context, _ *mcp.CallToolRequest, in api.NovaOrigem) (*mcp.CallToolResult, api.Origem, error) {
+	var out api.Origem
+	resp, err := f.cliente.CriarOrigem(ctx, in, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
 }

@@ -157,8 +157,9 @@ func lerMomento(texto string) time.Time {
 
 // Identificadores públicos: T-0001 para tarefas, S-0001 para sessões.
 
-func idTarefa(n int64) string { return fmt.Sprintf("T-%04d", n) }
-func idSessao(n int64) string { return fmt.Sprintf("S-%04d", n) }
+func idCom(prefixo string, n int64) string { return fmt.Sprintf("%s-%04d", prefixo, n) }
+func idTarefa(n int64) string              { return idCom("T", n) }
+func idSessao(n int64) string              { return idCom("S", n) }
 
 func numero(id, prefixo string) (int64, error) {
 	resto, ok := strings.CutPrefix(id, prefixo+"-")
