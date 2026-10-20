@@ -5,6 +5,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"flag"
 	"fmt"
@@ -63,7 +64,7 @@ func servir(args []string) {
 		log.Printf("lançador de agentes ativo (%s)", *configLancador)
 	}
 
-	handler := rotas(s.Handler())
+	handler := comGzip(rotas(s.Handler()))
 	enderecos := strings.Split(*endereco, ",")
 	falhou := make(chan error, len(enderecos))
 	for _, e := range enderecos {
@@ -102,4 +103,33 @@ func servirMCP(args []string) {
 	if err := f.Servidor().Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// comGzip comprime as respostas para quem aceita gzip: listas JSON e o JavaScript do frontend
+// caem a uma fração do tamanho, o que pesa no celular.
+func comGzip(proximo http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			proximo.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Add("Vary", "Accept-Encoding")
+		z := gzip.NewWriter(w)
+		defer z.Close()
+		proximo.ServeHTTP(&escritorGzip{ResponseWriter: w, z: z}, r)
+	})
+}
+
+type escritorGzip struct {
+	http.ResponseWriter
+	z *gzip.Writer
+}
+
+func (e *escritorGzip) Write(b []byte) (int, error) { return e.z.Write(b) }
+
+// WriteHeader descarta o Content-Length calculado sobre o corpo sem compressão.
+func (e *escritorGzip) WriteHeader(status int) {
+	e.Header().Del("Content-Length")
+	e.ResponseWriter.WriteHeader(status)
 }

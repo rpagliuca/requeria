@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -51,6 +52,9 @@ type Config struct {
 	// RemoverDoAmbiente lista variáveis que o agente não pode herdar do servidor tmux (por exemplo,
 	// as de um agente que abriu o tmux), para que o agente novo defina as suas.
 	RemoverDoAmbiente []string `json:"remover_do_ambiente"`
+	// Ambiente define variáveis para o agente; os valores aceitam {modelo} e {esforco}. Uma
+	// variável cujo valor fica vazio (ex.: sem esforço escolhido) não é definida.
+	Ambiente map[string]string `json:"ambiente"`
 }
 
 // Modelo é uma opção de modelo do agente.
@@ -203,11 +207,13 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 		return err
 	}
 	args := []string{"new-session", "-d", "-s", nome, "-c", l.cfg.Diretorio, "-e", VariavelTarefa + "=" + t.Id}
-	if len(l.cfg.RemoverDoAmbiente) > 0 {
+	definir := l.ambiente(pedido)
+	if len(l.cfg.RemoverDoAmbiente) > 0 || len(definir) > 0 {
 		args = append(args, "env")
 		for _, v := range l.cfg.RemoverDoAmbiente {
 			args = append(args, "-u", v)
 		}
+		args = append(args, definir...)
 	}
 	for _, parte := range l.cfg.Comando {
 		args = append(args, strings.ReplaceAll(parte, "{nome}", nome))
@@ -233,6 +239,29 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 	}
 	log.Printf("lançador: agente da tarefa %s subiu no tmux %s", t.Id, nome)
 	return nil
+}
+
+// ambiente devolve as atribuições NOME=valor do pedido, em ordem estável.
+func (l *Lancador) ambiente(pedido api.PedidoDeLancamento) []string {
+	valor := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	troca := strings.NewReplacer("{modelo}", valor(pedido.Modelo), "{esforco}", valor(pedido.Esforco))
+	var nomes []string
+	for nome := range l.cfg.Ambiente {
+		nomes = append(nomes, nome)
+	}
+	sort.Strings(nomes)
+	var atribuicoes []string
+	for _, nome := range nomes {
+		if v := troca.Replace(l.cfg.Ambiente[nome]); v != "" {
+			atribuicoes = append(atribuicoes, nome+"="+v)
+		}
+	}
+	return atribuicoes
 }
 
 func (l *Lancador) avisar(t api.Tarefa) error {
