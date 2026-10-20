@@ -1,6 +1,6 @@
 ---
 name: requerial
-description: "Ciclo de trabalho de um agente de IA no Requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, encerrar com resumo e atender ao pedido de encerramento do lançador. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, Requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
+description: "Ciclo de trabalho de um agente de IA no Requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, entregar e esperar (nunca se encerrar sem pedido claro do Rafael ou do lançador), encerrar com resumo. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, Requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
 user-invocable: true
 ---
 
@@ -79,30 +79,47 @@ Na dúvida, não ligue: tarefa sem requisito aparece para o Rafael na triagem. L
 - Ao criar artefatos fora da pasta da sessão, registre-os com `atualizar_journal`.
 - Toda alteração que você fizer pelas ferramentas fica atribuída à sua sessão no log de eventos.
 
-## Ao terminar o trabalho
+## Ao terminar o trabalho: entregue e espere
 
-1. **Primeiro** ajuste o status da tarefa: `em_validacao` (pronto, falta o usuário validar),
+**Você não encerra a sessão por conta própria.** Terminar a entrega, ficar bloqueado, precisar de
+uma aprovação ou de uma resposta do Rafael **não** são motivos para encerrar: ele acompanha pelo
+remote-control e pode querer continuar, corrigir ou aprovar algo. Um agente parado esperando não
+custa nada; um agente que se encerrou sozinho obriga a subir outro e reler tudo.
+
+1. Escreva no journal e persista-o (commit só da pasta da sessão e push; se o push for recusado,
+   `git pull --rebase` e push de novo; commits sem assinatura, se a máquina não tiver como assinar).
+2. Mande ao Rafael a entrega ou o bloqueio, curto: o que ficou feito, o que falta e o que precisa
+   dele (perguntas numeradas, alternativas em letras). Se uma ferramenta pediu aprovação e não havia
+   quem respondesse, diga exatamente o que ele precisa fazer.
+3. **Espere.** A tarefa fica em `em_andamento` e a sessão aberta.
+
+Encerre **só** quando o desejo de encerrar for claro:
+
+- **O Rafael pediu**, com palavras que não deixam dúvida ("pode encerrar", "fecha a sessão", "terminou,
+  pode concluir"). "Ok", "valeu" ou silêncio não são pedido de encerramento. Na dúvida, pergunte.
+- **O lançador pediu** (a tarefa foi movida por outra pessoa): ver a seção seguinte.
+
+Para encerrar, a pedido:
+
+1. Ajuste o status, se o Rafael não disse outro: `em_validacao` (pronto, falta ele validar),
    `concluida`, `bloqueada` (dependência externa; diga qual no resumo) ou `pausada`.
-2. **Persista o journal**, se a pasta da sessão estiver num repositório git: commit só da pasta da
-   sessão e push (cada sessão tem a sua pasta, então não há conflito; se o push for recusado,
-   `git pull --rebase` e push de novo). Commits sem assinatura, se a máquina não tiver como assinar.
-3. **Depois** `encerrar_sessao` com o **resumo**. Ele vai para cada tarefa da sessão e é a primeira
-   coisa que o próximo agente lê. Escreva para quem não viu nada desta conversa:
+2. Persista o journal (como acima).
+3. `encerrar_sessao` com o **resumo**. Ele vai para cada tarefa da sessão e é a primeira coisa que o
+   próximo agente lê. Escreva para quem não viu nada desta conversa:
    - em que estado a tarefa ficou;
    - o que falta, começando pelo próximo passo concreto;
    - decisões e descobertas que o próximo não pode perder;
    - onde está o detalhe (journal, PR, arquivo).
-
-4. Escreva a mensagem final ao usuário (o que ficou feito, o que falta) e, **como última ação**, se
-   você roda numa sessão tmux (`$TMUX` preenchido), feche-a:
-   `tmux kill-session -t "$(tmux display-message -p '#S')"`. Nada depois disso. Fora do tmux (um chat
-   comum), não feche nada.
+4. Mensagem final curta e, **como última ação**, se você roda numa sessão tmux (`$TMUX` preenchido),
+   feche-a: `tmux kill-session -t "$(tmux display-message -p '#S')"`. Nada depois disso. Fora do
+   tmux (um chat comum), não feche nada.
 
 ## Quando o lançador pede para encerrar
 
 A mensagem diz que a tarefa foi movida para outro status por outra pessoa. **Não altere o status**:
 quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde parou, chame
-`encerrar_sessao` com o resumo para retomar e persista o journal e feche o seu tmux como nos passos 2 e 4 acima.
+`encerrar_sessao` com o resumo para retomar, persista o journal e feche o seu tmux como nos passos 2 a
+4 acima. Esse é o único caso em que você encerra sem o Rafael pedir no chat.
 
 ## Recusas e o que fazer
 
