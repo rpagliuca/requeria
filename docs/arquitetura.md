@@ -92,7 +92,7 @@ quando e a validade em dias. Para mudar o estado, registra-se uma nova execuçã
 No backlog: execução que falha (**Falhado**) e **Suspeito** (um commit tocou um componente do
 requisito depois da última execução).
 
-**Templates** são tarefas que sempre precisam ser executadas, sob demanda ou a cada N dias. Nada
+**Tarefas pré-moldadas** (templates) são tarefas que sempre precisam ser executadas, sob demanda ou a cada N dias. Nada
 roda sozinho: instanciar um template cria uma tarefa a fazer, com as instruções e os requisitos dele.
 Um periódico cuja última instância é mais antiga que a periodicidade (ou que nunca foi instanciado), e
 sem instância aberta, aparece como devido.

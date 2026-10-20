@@ -28,12 +28,12 @@ export function Template() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Voltar para="/templates" rotulo="Templates" />
+        <Voltar para="/templates" rotulo="Tarefas Pré-moldadas" />
         <h1 className="font-semibold text-xl">{t.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           {t.devido && (
             <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              Devido agora
+              Devida agora
             </Badge>
           )}
           <span className="font-mono">{t.id}</span>
@@ -59,7 +59,7 @@ export function Template() {
 
       <Secao titulo="Requisitos que cada instância atende">
         {t.requisitos.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nenhum. Edite o template para ligar.</p>
+          <p className="text-muted-foreground text-sm">Nenhum. Edite a pré-moldada para ligar.</p>
         ) : (
           <ul className="space-y-1 text-sm">
             {t.requisitos.map((rid) => (
@@ -159,14 +159,14 @@ function Instanciar({ id, titulo }: { id: string; titulo: string }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Nova tarefa a partir de {id}</DialogTitle>
+            <DialogTitle>Nova tarefa a partir da pré-moldada {id}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="inst-titulo">Título</Label>
             <Input id="inst-titulo" placeholder={padrao} value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
           <p className="text-muted-foreground text-sm">
-            A tarefa nasce a fazer, com as instruções e os requisitos do template. Para pôr um agente nela, use Alterar status.
+            A tarefa nasce a fazer, com as instruções e os requisitos da pré-moldada. Para pôr um agente nela, use Alterar status.
           </p>
           {instanciar.error && <p className="text-destructive text-sm">{instanciar.error.message}</p>}
           <DialogFooter>

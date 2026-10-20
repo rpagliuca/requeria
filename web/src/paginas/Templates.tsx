@@ -13,13 +13,13 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
 const tipos = [
-  { valor: "devido", rotulo: "Devidos agora" },
-  { valor: "periodico", rotulo: "Periódicos em dia" },
+  { valor: "devido", rotulo: "Devidas agora" },
+  { valor: "periodico", rotulo: "Periódicas em dia" },
   { valor: "sob_demanda", rotulo: "Sob demanda" },
 ]
 const tipoDe = (t: Template) => (t.devido ? "devido" : t.periodicidade_dias ? "periodico" : "sob_demanda")
 
-// Tarefas que sempre precisam ser executadas. Nada é instanciado sozinho: a periodicidade só destaca
+// Tarefas pré-moldadas (templates): sempre precisam ser executadas. Nada é instanciado sozinho: a periodicidade só destaca
 // os que já deveriam ter virado tarefa.
 export function Templates() {
   const { data, isLoading, error } = useTemplates()
@@ -54,7 +54,7 @@ export function Templates() {
           opcoes={tipos.map((t) => ({ ...t, contagem: (data ?? []).filter((x) => tipoDe(x) === t.valor).length }))}
           selecionados={sel}
           alterar={(v) => alterar("tipo", v.length === todosOsTipos.length ? null : v.join(","))}
-          atalhos={[{ rotulo: "Todos", valores: todosOsTipos }]}
+          atalhos={[{ rotulo: "Todas", valores: todosOsTipos }]}
         />
         <SelecaoMultipla
           rotulo="Organização"
@@ -67,7 +67,7 @@ export function Templates() {
         <NovoTemplate />
       </div>
       <p className="text-muted-foreground text-xs">
-        {filtrados.length} de {data?.length ?? 0} templates ·{" "}
+        {filtrados.length} de {data?.length ?? 0} tarefas pré-moldadas ·{" "}
         <button type="button" className="underline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
           limpar filtros
         </button>
@@ -83,7 +83,7 @@ export function Templates() {
                   <span className="font-medium">{t.titulo}</span>
                   {t.devido && (
                     <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                      Devido agora
+                      Devida agora
                     </Badge>
                   )}
                 </div>
@@ -112,12 +112,12 @@ function NovoTemplate() {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button variant="outline">Novo template</Button>
+        <Button variant="outline">Nova pré-moldada</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         {aberto && (
           <FormularioDeTemplate
-            titulo="Novo template"
+            titulo="Nova tarefa pré-moldada"
             fechar={() => setAberto(false)}
             pendente={criar.isPending}
             erro={criar.error}

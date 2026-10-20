@@ -35,7 +35,7 @@ export function Tarefa() {
           </span>
           {t.template && (
             <Link to={`/templates/${t.template}`} className="hover:underline">
-              instância de {t.template}
+              instância da pré-moldada {t.template}
             </Link>
           )}
           {t.sessao_ativa && (
