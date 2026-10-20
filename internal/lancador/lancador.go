@@ -68,7 +68,8 @@ type Modelo struct {
 
 const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do Requerial ({titulo}). " +
 	"A sua sessão de trabalho já foi aberta pelo lançador. Carregue a skill requerial e siga o ciclo dela: " +
-	"leia a tarefa e as sessões anteriores, confira a sessão com sessao_atual e trabalhe."
+	"leia a tarefa e as sessões anteriores, confira a sessão com sessao_atual e trabalhe. " +
+	"Ao terminar, ou se ficar bloqueado, entregue ao usuário e espere: não encerre a sessão sem pedido claro dele."
 
 const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por outra pessoa. " +
 	"Pare o que está fazendo, atualize o journal e encerre a sessão de trabalho com um resumo para retomar " +
