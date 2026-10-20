@@ -496,3 +496,44 @@ func TestEstadoDoRequisito(t *testing.T) {
 		t.Fatalf("execuções da mais recente para a mais antiga: %+v", lista)
 	}
 }
+
+func TestTemplates(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var zero api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &zero)
+	sete := 7
+	var revisao, sobDemanda api.Template
+	a.chamar("POST", "/templates", "", api.NovoTemplate{Titulo: "Revisar a fila", Organizacao: org, Descricao: ptr("Passos"),
+		PeriodicidadeDias: &sete, Requisitos: &[]string{zero.Id}}, 201, &revisao)
+	a.chamar("POST", "/templates", "", api.NovoTemplate{Titulo: "Restaurar backup", Organizacao: org}, 201, &sobDemanda)
+	if !revisao.Devido || revisao.Id != "TP-0001" || sobDemanda.Devido {
+		t.Fatalf("periódico nunca instanciado está devido; sob demanda nunca: %+v %+v", revisao, sobDemanda)
+	}
+
+	var tarefa api.Tarefa
+	a.chamar("POST", "/templates/"+revisao.Id+"/instancias", "", api.PedidoDeInstancia{}, 201, &tarefa)
+	if tarefa.Template == nil || *tarefa.Template != revisao.Id || tarefa.Descricao != "Passos" || len(*tarefa.Requisitos) != 1 || tarefa.Status != api.AFazer {
+		t.Fatalf("instância: %+v", tarefa)
+	}
+	a.chamar("GET", "/templates/"+revisao.Id, "", nil, 200, &revisao)
+	if revisao.Devido || revisao.InstanciaAberta == nil || len(revisao.Instancias) != 1 {
+		t.Fatalf("com instância recente e aberta, não está devido: %+v", revisao)
+	}
+
+	// Concluída a instância, só volta a ser devido depois da periodicidade.
+	concluida := api.Concluida
+	a.chamar("PATCH", "/tarefas/"+tarefa.Id, "", api.AlteracaoTarefa{Status: &concluida}, 200, nil)
+	var depois, sob api.Template
+	a.chamar("GET", "/templates/"+revisao.Id, "", nil, 200, &depois)
+	if depois.Devido || depois.ProximaEm == nil || depois.InstanciaAberta != nil {
+		t.Fatalf("instanciado hoje, a cada 7 dias: %+v", depois)
+	}
+	zeroDias := 0
+	a.chamar("PATCH", "/templates/"+revisao.Id, "", api.AlteracaoTemplate{PeriodicidadeDias: &zeroDias}, 200, &sob)
+	if sob.PeriodicidadeDias != nil || sob.Devido {
+		t.Fatalf("0 torna sob demanda: %+v", sob)
+	}
+	a.chamar("POST", "/templates", "", api.NovoTemplate{Titulo: "x", Organizacao: org, Requisitos: &[]string{"R-0099"}}, 404, nil)
+}
+func ptr(s string) *string { return &s }

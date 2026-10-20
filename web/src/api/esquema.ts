@@ -187,6 +187,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Templates de tarefa, com a última instância e se estão devidos agora. */
+        get: operations["listarTemplates"];
+        put?: never;
+        post: operations["criarTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["obterTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["alterarTemplate"];
+        trace?: never;
+    };
+    "/templates/{id}/instancias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cria uma tarefa a partir do template (a fazer), ligada aos mesmos requisitos. */
+        post: operations["instanciarTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/requisitos": {
         parameters: {
             query?: never;
@@ -436,12 +490,69 @@ export interface components {
             resumo: string;
             /** @example S-0001 */
             sessao_ativa?: string;
+            /**
+             * @description Template do qual a tarefa foi instanciada
+             * @example TP-0001
+             */
+            template?: string;
             /** @description Requisitos que a tarefa tenta atender (só na leitura de uma tarefa) */
             requisitos?: string[];
             /** Format: date-time */
             criada_em: string;
             /** Format: date-time */
             atualizada_em: string;
+        };
+        /** @description Tarefa que sempre precisa ser executada, sob demanda (sem periodicidade) ou periódica. Nada é
+         *     instanciado automaticamente: periódico com a última instância mais antiga que a periodicidade
+         *     (ou nunca instanciado), e sem instância aberta, está devido.
+         *      */
+        Template: {
+            /** @example TP-0001 */
+            id: string;
+            titulo: string;
+            /** @description Instruções; vira a descrição de cada instância */
+            descricao: string;
+            organizacao: string;
+            /** @description Sem ele, sob demanda */
+            periodicidade_dias?: number;
+            /** @description Requisitos aos quais cada instância é ligada */
+            requisitos: string[];
+            /** @description Tarefas instanciadas, da mais recente para a mais antiga */
+            instancias: string[];
+            /** Format: date-time */
+            ultima_instancia_em?: string;
+            /** @description Instância ainda não concluída, se houver */
+            instancia_aberta?: string;
+            /**
+             * Format: date-time
+             * @description Quando a próxima instância é devida (periódicos)
+             */
+            proxima_em?: string;
+            devido: boolean;
+            /** Format: date-time */
+            criado_em: string;
+            /** Format: date-time */
+            atualizado_em: string;
+        };
+        NovoTemplate: {
+            titulo: string;
+            descricao?: string;
+            organizacao: string;
+            periodicidade_dias?: number;
+            requisitos?: string[];
+        };
+        AlteracaoTemplate: {
+            titulo?: string;
+            descricao?: string;
+            organizacao?: string;
+            /** @description 0 torna sob demanda */
+            periodicidade_dias?: number;
+            /** @description Substitui a lista inteira */
+            requisitos?: string[];
+        };
+        PedidoDeInstancia: {
+            /** @description Padrão: o título do template com a data */
+            titulo?: string;
         };
         NovaTarefa: {
             titulo: string;
@@ -1126,6 +1237,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Execucao"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    listarTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"][];
+                };
+            };
+        };
+    };
+    criarTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovoTemplate"];
+            };
+        };
+        responses: {
+            /** @description Template criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    obterTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    alterarTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlteracaoTemplate"];
+            };
+        };
+        responses: {
+            /** @description Template alterado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    instanciarTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PedidoDeInstancia"];
+            };
+        };
+        responses: {
+            /** @description Tarefa criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
                 };
             };
             400: components["responses"]["Erro"];

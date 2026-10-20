@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 
 // Os filtros vivem na URL; esta lista também os lembra, para que voltar a ela (pelo menu, pelo
-// "← Tarefas" ou por outro link sem parâmetros) reabra a mesma visão.
+// link da lista ou por outro link sem parâmetros) reabra a mesma visão.
 // Sem nada lembrado, vale o padrão.
 export function useFiltrosLembrados(chave: string, padrao = "") {
   const [params, setParams] = useSearchParams()

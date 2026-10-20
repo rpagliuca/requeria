@@ -93,7 +93,7 @@ export function Requisito() {
       </Secao>
 
       <Secao titulo="O que deriva dele">
-        <GrafoDeRequisitos key={r.id} raizes={r.derivados} porId={porId} />
+        <GrafoDeRequisitos key={r.id} memoria={r.id} raizes={r.derivados} porId={porId} />
         <Button asChild size="sm" variant="outline">
           <Link to={`/requisitos/novo?deriva_de=${r.id}`}>Derivar novo requisito</Link>
         </Button>

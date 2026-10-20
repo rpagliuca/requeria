@@ -4,6 +4,7 @@ import { useSessoesDaTarefa, useTarefa } from "@/api/cliente"
 import { AlterarStatus } from "@/componentes/AlterarStatus"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
+import { Voltar } from "@/componentes/Voltar"
 import { Eventos } from "@/componentes/Eventos"
 import { Data } from "@/componentes/rotulos"
 import { RequisitosDaTarefa } from "@/componentes/RequisitosDaTarefa"
@@ -20,9 +21,7 @@ export function Tarefa() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link to="/tarefas" className="text-muted-foreground text-sm hover:underline">
-          ← Tarefas
-        </Link>
+        <Voltar para="/tarefas" rotulo="Tarefas" />
         <h1 className="font-semibold text-xl">{t.titulo}</h1>
         <AlterarStatus tarefa={t} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
@@ -34,6 +33,11 @@ export function Tarefa() {
           <span>
             atualizada <Data valor={t.atualizada_em} />
           </span>
+          {t.template && (
+            <Link to={`/templates/${t.template}`} className="hover:underline">
+              instância de {t.template}
+            </Link>
+          )}
           {t.sessao_ativa && (
             <Link to={`/sessoes/${t.sessao_ativa}`} className="text-blue-600 hover:underline dark:text-blue-400">
               ● sessão ativa {t.sessao_ativa}

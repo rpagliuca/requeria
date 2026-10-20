@@ -14,7 +14,7 @@ type consultor interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-const colunasTarefa = `t.id, t.titulo, t.descricao, t.organizacao, t.status, t.resumo, t.criada_em, t.atualizada_em,
+const colunasTarefa = `t.id, t.titulo, t.descricao, t.organizacao, t.status, t.resumo, t.criada_em, t.atualizada_em, t.template_id,
 	(SELECT st.sessao_id FROM sessao_tarefa st WHERE st.tarefa_id = t.id AND st.ativa = 1)`
 
 type varredor interface{ Scan(dest ...any) error }
@@ -23,8 +23,8 @@ func lerTarefa(linha varredor) (api.Tarefa, error) {
 	var t api.Tarefa
 	var n int64
 	var status, criada, atualizada string
-	var sessao sql.NullInt64
-	if err := linha.Scan(&n, &t.Titulo, &t.Descricao, &t.Organizacao, &status, &t.Resumo, &criada, &atualizada, &sessao); err != nil {
+	var sessao, template sql.NullInt64
+	if err := linha.Scan(&n, &t.Titulo, &t.Descricao, &t.Organizacao, &status, &t.Resumo, &criada, &atualizada, &template, &sessao); err != nil {
 		return t, err
 	}
 	t.Id = idTarefa(n)
@@ -34,6 +34,10 @@ func lerTarefa(linha varredor) (api.Tarefa, error) {
 	if sessao.Valid {
 		id := idSessao(sessao.Int64)
 		t.SessaoAtiva = &id
+	}
+	if template.Valid {
+		id := idTemplate(template.Int64)
+		t.Template = &id
 	}
 	return t, nil
 }
@@ -124,22 +128,8 @@ func (s *Servidor) CriarTarefa(w http.ResponseWriter, r *http.Request) {
 		if nova.Descricao != nil {
 			descricao = *nova.Descricao
 		}
-		agora := s.momento()
-		res, err := tx.Exec(`INSERT INTO tarefas (titulo, descricao, organizacao, status, criada_em, atualizada_em)
-			VALUES (?, ?, ?, ?, ?, ?)`, nova.Titulo, descricao, nova.Organizacao, string(status), agora, agora)
-		if err != nil {
-			return err
-		}
-		n, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		if criada, err = carregarTarefa(tx, n); err != nil {
-			return err
-		}
-		return s.registrarEvento(tx, quem, criada.Id, "tarefa_criada", map[string]any{
-			"titulo": criada.Titulo, "organizacao": criada.Organizacao, "status": criada.Status,
-		})
+		criada, err = s.inserirTarefa(tx, quem, nova.Titulo, descricao, nova.Organizacao, status, nil)
+		return err
 	})
 	if err != nil {
 		responderErro(w, err)
@@ -147,6 +137,29 @@ func (s *Servidor) CriarTarefa(w http.ResponseWriter, r *http.Request) {
 	}
 	s.avisarMudanca(MudancaDeStatus{Tarefa: criada, Autor: quem})
 	responder(w, http.StatusCreated, criada)
+}
+
+// inserirTarefa grava a tarefa e o evento de criação; template é o número do template ou nil.
+func (s *Servidor) inserirTarefa(tx *sql.Tx, quem, titulo, descricao, organizacao string, status api.StatusTarefa, template any) (api.Tarefa, error) {
+	agora := s.momento()
+	res, err := tx.Exec(`INSERT INTO tarefas (titulo, descricao, organizacao, status, criada_em, atualizada_em, template_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, titulo, descricao, organizacao, string(status), agora, agora, template)
+	if err != nil {
+		return api.Tarefa{}, err
+	}
+	n, err := res.LastInsertId()
+	if err != nil {
+		return api.Tarefa{}, err
+	}
+	criada, err := carregarTarefa(tx, n)
+	if err != nil {
+		return criada, err
+	}
+	dados := map[string]any{"titulo": criada.Titulo, "organizacao": criada.Organizacao, "status": criada.Status}
+	if criada.Template != nil {
+		dados["template"] = *criada.Template
+	}
+	return criada, s.registrarEvento(tx, quem, criada.Id, "tarefa_criada", dados)
 }
 
 func (s *Servidor) ObterTarefa(w http.ResponseWriter, r *http.Request, id api.Id) {
