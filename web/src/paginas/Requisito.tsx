@@ -10,7 +10,7 @@ import {
   useRequisitos,
   useTarefas,
 } from "@/api/cliente"
-import { ArvoreDeRequisitos } from "@/componentes/ArvoreDeRequisitos"
+import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { EscolherOrigem } from "@/componentes/EscolherOrigem"
 import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
@@ -71,7 +71,7 @@ export function Requisito() {
       </Secao>
 
       <Secao titulo="O que deriva dele">
-        <ArvoreDeRequisitos raizes={r.derivados} porId={porId} sentido="abaixo" />
+        <GrafoDeRequisitos key={r.id} raizes={r.derivados} porId={porId} />
         <Button asChild size="sm" variant="outline">
           <Link to={`/requisitos/novo?deriva_de=${r.id}`}>Derivar novo requisito</Link>
         </Button>
