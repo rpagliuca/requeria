@@ -80,7 +80,7 @@ export function Requisito() {
       )}
 
       <Secao titulo="Estado">
-        <PorQue requisito={r} tarefasPorId={tarefasPorId} />
+        <PorQue requisito={r} tarefasPorId={tarefasPorId} porId={porId} />
         <Execucoes requisito={r} />
       </Secao>
 
@@ -239,45 +239,72 @@ function FormularioDeEdicao({ requisito, fechar }: { requisito: TipoRequisito; f
   )
 }
 
-// O que define o estado: as tarefas abertas ou, sem elas, a última execução.
-function PorQue({ requisito: r, tarefasPorId }: { requisito: TipoRequisito; tarefasPorId: Map<string, Tarefa> }) {
-  if (r.tarefas_abertas.length > 0)
-    return (
-      <ul className="space-y-1 text-sm">
-        {r.tarefas_abertas.map((tid) => (
-          <li key={tid}>
-            Tarefa aberta:{" "}
-            <Link to={`/tarefas/${tid}`} className="hover:underline">
-              <span className="font-mono text-muted-foreground text-xs">{tid}</span> {tarefasPorId.get(tid)?.titulo}
-            </Link>
-            {tarefasPorId.get(tid) && (
-              <span className="ml-2">
-                <StatusDaTarefa status={tarefasPorId.get(tid)!.status} />
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    )
+// O que define o estado: os requisitos abaixo que o limitam, as tarefas abertas e a última execução.
+function PorQue({
+  requisito: r,
+  tarefasPorId,
+  porId,
+}: {
+  requisito: TipoRequisito
+  tarefasPorId: Map<string, Tarefa>
+  porId: Map<string, TipoRequisito>
+}) {
   const e = r.ultima_execucao
-  if (!e)
-    return (
-      <p className="text-muted-foreground text-sm">
-        Nenhuma tarefa aberta, mas nenhuma execução registrada: tarefas concluídas não provam que o requisito está atendido.
-      </p>
-    )
   return (
-    <p className="text-sm">
-      Última execução em <Data valor={e.realizada_em} />
-      {e.valida_ate ? (
-        <>
-          , {r.estado === "validacao_expirada" ? "expirou em" : "válida até"} <Data valor={e.valida_ate} />
-        </>
-      ) : (
-        ", sem prazo de validade"
+    <div className="space-y-2 text-sm">
+      {r.limitado_por.length > 0 && (
+        <div className="space-y-1">
+          <p>
+            Limitado pelo que está abaixo (o estado próprio seria <EstadoDoRequisito estado={r.estado_proprio} />):
+          </p>
+          <ul className="space-y-1 pl-4">
+            {r.limitado_por.map((rid) => (
+              <li key={rid}>
+                <Link to={`/requisitos/${rid}`} className="hover:underline">
+                  <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
+                </Link>
+                {porId.get(rid) && <EstadoDoRequisito estado={porId.get(rid)!.estado} className="ml-2" />}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
-      .
-    </p>
+      {r.tarefas_abertas.length > 0 && (
+        <ul className="space-y-1">
+          {r.tarefas_abertas.map((tid) => (
+            <li key={tid}>
+              Tarefa aberta:{" "}
+              <Link to={`/tarefas/${tid}`} className="hover:underline">
+                <span className="font-mono text-muted-foreground text-xs">{tid}</span> {tarefasPorId.get(tid)?.titulo}
+              </Link>
+              {tarefasPorId.get(tid) && (
+                <span className="ml-2">
+                  <StatusDaTarefa status={tarefasPorId.get(tid)!.status} />
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {r.tarefas_abertas.length === 0 &&
+        (!e ? (
+          <p className="text-muted-foreground">
+            Nenhuma tarefa aberta nele, mas nenhuma execução registrada: tarefas concluídas não provam que o requisito está atendido.
+          </p>
+        ) : (
+          <p>
+            Última execução em <Data valor={e.realizada_em} />
+            {e.valida_ate ? (
+              <>
+                , {e.valida_ate < new Date().toISOString() ? "expirou em" : "válida até"} <Data valor={e.valida_ate} />
+              </>
+            ) : (
+              ", sem prazo de validade"
+            )}
+            .
+          </p>
+        ))}
+    </div>
   )
 }
 

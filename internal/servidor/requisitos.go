@@ -192,6 +192,9 @@ type ligacoes struct {
 	// abertas: tarefas não concluídas de cada requisito; ultimas: a execução mais recente de cada um.
 	abertas map[int64][]string
 	ultimas map[int64]api.Execucao
+	// filhosN: derivados por número; estados: memória do estado (herdado) de cada um.
+	filhosN map[int64][]int64
+	estados map[int64]api.EstadoDoRequisito
 }
 
 type tarefaLigada struct {
@@ -209,7 +212,8 @@ const diasParado = 14
 func carregarLigacoes(c consultor) (ligacoes, error) {
 	l := ligacoes{pais: map[int64][]string{}, filhos: map[int64][]string{}, tarefas: map[int64][]string{},
 		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC(),
-		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{}}
+		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{},
+		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{}}
 	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
 	if err != nil {
 		return l, err
@@ -222,6 +226,7 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		}
 		l.pais[filho] = append(l.pais[filho], idRequisito(pai))
 		l.filhos[pai] = append(l.filhos[pai], idRequisito(filho))
+		l.filhosN[pai] = append(l.filhosN[pai], filho)
 	}
 	if err := linhas.Close(); err != nil {
 		return l, err
@@ -290,29 +295,71 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	if e, ok := l.ultimas[n]; ok {
 		x.UltimaExecucao = &e
 	}
-	x.Estado = estado(l.trabalho[n], x.UltimaExecucao, l.agora)
+	x.EstadoProprio = l.estadoProprio(n)
+	x.Estado = l.estado(n)
+	x.LimitadoPor = []string{}
+	if maturidade[x.Estado] < maturidade[x.EstadoProprio] {
+		for _, f := range l.filhosN[n] {
+			if l.estado(f) == x.Estado {
+				x.LimitadoPor = append(x.LimitadoPor, idRequisito(f))
+			}
+		}
+	}
 	return x, nil
 }
 
-// estado é só do próprio requisito: tarefa em andamento ⇒ em trabalho; outra tarefa aberta ⇒ não
-// atendido. Tarefas concluídas não provam nada: sem tarefa aberta, quem decide é a última execução.
-func estado(trabalho []tarefaLigada, ultima *api.Execucao, agora time.Time) api.EstadoDoRequisito {
-	aberta := false
-	for _, t := range trabalho {
-		if t.status == api.EmAndamento {
-			return api.EmTrabalho
-		}
-		aberta = aberta || t.status != api.Concluida
+// maturidade ordena os estados, do menos ao mais maduro.
+var maturidade = map[api.EstadoDoRequisito]int{
+	api.NaoAtendido: 0, api.EmTrabalho: 1, api.NaoValidado: 2, api.ValidacaoExpirada: 3, api.Validado: 4,
+}
+
+func menosMaduro(a, b api.EstadoDoRequisito) api.EstadoDoRequisito {
+	if maturidade[b] < maturidade[a] {
+		return b
 	}
+	return a
+}
+
+// estadoProprio vem só das tarefas ligadas e da última execução. A tarefa menos madura manda:
+// aberta fora de andamento ⇒ não atendido; em andamento ⇒ em trabalho. Tarefas concluídas não provam
+// nada: sem tarefa aberta, quem decide é a última execução.
+func (l ligacoes) estadoProprio(n int64) api.EstadoDoRequisito {
+	e := api.Validado
+	aberta := false
+	for _, t := range l.trabalho[n] {
+		switch t.status {
+		case api.Concluida:
+		case api.EmAndamento:
+			aberta, e = true, menosMaduro(e, api.EmTrabalho)
+		default:
+			aberta, e = true, api.NaoAtendido
+		}
+	}
+	if aberta {
+		return e
+	}
+	ultima, ok := l.ultimas[n]
 	switch {
-	case aberta:
-		return api.NaoAtendido
-	case ultima == nil:
+	case !ok:
 		return api.NaoValidado
-	case ultima.ValidaAte != nil && !ultima.ValidaAte.After(agora):
+	case ultima.ValidaAte != nil && !ultima.ValidaAte.After(l.agora):
 		return api.ValidacaoExpirada
 	}
 	return api.Validado
+}
+
+// estado é limitado pelo menos maduro abaixo dele: o próprio e o de cada derivado, recursivamente.
+func (l ligacoes) estado(n int64) api.EstadoDoRequisito {
+	if e, ok := l.estados[n]; ok {
+		return e
+	}
+	e := l.estadoProprio(n)
+	l.estados[n] = e // a derivação não tem ciclo; isto só protege de dados inconsistentes
+	for _, f := range l.filhosN[n] {
+		e = menosMaduro(e, l.estado(f))
+	}
+	l.estados[n] = e
+	return e
 }
 
 // atencao lista o que falta para o requisito estar bem cuidado.

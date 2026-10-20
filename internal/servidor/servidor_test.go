@@ -437,9 +437,10 @@ func TestEstadoDoRequisito(t *testing.T) {
 	if e := estado(folha.Id); e != api.NaoAtendido {
 		t.Fatalf("com tarefa a fazer: %s", e)
 	}
-	// O estado é só do próprio requisito: o zero não herda o da folha.
-	if e := estado(zero.Id); e != api.NaoValidado {
-		t.Fatalf("o zero não tem tarefa: %s", e)
+	// O zero é limitado pela folha, menos madura que ele.
+	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
+	if zero.Estado != api.NaoAtendido || zero.EstadoProprio != api.NaoValidado || len(zero.LimitadoPor) != 1 || zero.LimitadoPor[0] != folha.Id {
+		t.Fatalf("o zero devia herdar o estado da folha: %+v", zero)
 	}
 	mudar(tarefa.Id, api.Pausada)
 	mudar(tarefa.Id, api.Concluida)
@@ -465,7 +466,7 @@ func TestEstadoDoRequisito(t *testing.T) {
 	um := 1
 	a.chamar("POST", "/requisitos/"+zero.Id+"/execucoes", "", api.NovaExecucao{Evidencia: "velha", RealizadaEm: &antiga, ValidadeDias: &um}, 201, nil)
 	if got := estado(zero.Id); got != api.ValidacaoExpirada {
-		t.Fatalf("com o prazo vencido: %s", got)
+		t.Fatalf("com o prazo vencido (e a folha validada): %s", got)
 	}
 	a.chamar("POST", "/requisitos/"+zero.Id+"/execucoes", "", api.NovaExecucao{Evidencia: " "}, 400, nil)
 
@@ -475,8 +476,14 @@ func TestEstadoDoRequisito(t *testing.T) {
 		t.Fatalf("tarefa aberta vence a execução: %s", got)
 	}
 	mudar(tarefa.Id, api.EmAndamento)
-	if got := estado(folha.Id); got != api.EmTrabalho {
-		t.Fatalf("tarefa em andamento: %s", got)
+	if got, doZero := estado(folha.Id), estado(zero.Id); got != api.EmTrabalho || doZero != api.EmTrabalho {
+		t.Fatalf("tarefa em andamento: folha %s, zero %s", got, doZero)
+	}
+	// A tarefa menos madura manda: outra a fazer deixa a folha não atendida.
+	outra := a.tarefa("Outra parte da folha")
+	a.chamar("POST", "/tarefas/"+outra.Id+"/requisitos", "", api.VinculoRequisito{Requisito: folha.Id}, 200, nil)
+	if got := estado(folha.Id); got != api.NaoAtendido {
+		t.Fatalf("com uma tarefa a fazer: %s", got)
 	}
 	var lista []api.Execucao
 	a.chamar("GET", "/requisitos/"+folha.Id+"/execucoes", "", nil, 200, &lista)

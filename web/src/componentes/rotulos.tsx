@@ -57,13 +57,14 @@ export const nomesMotivoDeAtencao: Record<string, string> = {
 }
 
 export const nomesEstadoDoRequisito: Record<EstadoDoRequisito, string> = {
-  em_trabalho: "Em trabalho",
   nao_atendido: "Não atendido",
+  em_trabalho: "Em trabalho",
   nao_validado: "Não validado",
-  validado: "Validado",
   validacao_expirada: "Validação expirada",
+  validado: "Validado",
 }
 
+// Do menos ao mais maduro.
 export const ordemDosEstados = Object.keys(nomesEstadoDoRequisito) as EstadoDoRequisito[]
 
 const coresEstadoDoRequisito: Record<EstadoDoRequisito, string> = {
@@ -74,7 +75,7 @@ const coresEstadoDoRequisito: Record<EstadoDoRequisito, string> = {
   validacao_expirada: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
 }
 
-// Estado calculado pelo servidor, só do próprio requisito: tarefas ligadas e última execução.
+// Estado calculado pelo servidor: o menos maduro entre o próprio (tarefas e última execução) e os de baixo.
 export function EstadoDoRequisito({ estado, className }: { estado: EstadoDoRequisito; className?: string }) {
   return (
     <Badge variant="outline" className={cn("border-transparent", coresEstadoDoRequisito[estado], className)}>

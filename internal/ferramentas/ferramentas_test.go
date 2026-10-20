@@ -284,7 +284,7 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	var execucao api.Execucao
 	c.chamar("registrar_execucao", map[string]any{"requisito": pai.Id, "evidencia": "conferido", "validade_dias": 30}, &execucao)
 	c.chamar("obter_requisito", map[string]any{"id": pai.Id}, &pai)
-	if pai.Estado != api.Validado || pai.UltimaExecucao == nil || pai.UltimaExecucao.Id != execucao.Id {
+	if pai.EstadoProprio != api.Validado || pai.Estado != api.NaoAtendido || pai.UltimaExecucao == nil || pai.UltimaExecucao.Id != execucao.Id {
 		t.Fatalf("execução pelo MCP: %+v", pai)
 	}
 }
