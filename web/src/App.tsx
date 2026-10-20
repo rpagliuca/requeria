@@ -30,7 +30,7 @@ export default function App() {
       <nav className="mb-6 flex flex-wrap items-center gap-1 border-b pb-3">
         <NavLink to="/" className="mr-3 flex items-center gap-2 font-semibold tracking-tight" aria-label="Requerial">
           <Logotipo className="size-5" />
-          requerial
+          Requerial
         </NavLink>
         <NavLink to="/requisitos" className={aba}>
           Requisitos
