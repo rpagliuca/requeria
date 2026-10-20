@@ -27,7 +27,7 @@ export function NovaTarefa() {
         criar.mutate({ titulo, organizacao, descricao, status }, { onSuccess: (t) => navegar(`/tarefas/${t.id}`) })
       }}
     >
-      <Link to="/" className="text-muted-foreground text-sm hover:underline">
+      <Link to="/tarefas" className="text-muted-foreground text-sm hover:underline">
         ← Tarefas
       </Link>
       <h1 className="font-semibold text-xl">Nova tarefa</h1>

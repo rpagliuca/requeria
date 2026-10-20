@@ -16,6 +16,7 @@ import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
 import { Data, StatusDaTarefa } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
+import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 import { Texto } from "@/componentes/Texto"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -38,9 +39,13 @@ export function Requisito() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link to="/requisitos" className="text-muted-foreground text-sm hover:underline">
-          ← Requisitos
-        </Link>
+        <div className="space-y-0.5">
+          {trilhasAteOZero(r.id, porId).map((t) => (
+            <div key={t.join(">")}>
+              <Trilha ids={t} porId={porId} incluirUltimo={false} />
+            </div>
+          ))}
+        </div>
         <h1 className="font-semibold text-xl">{r.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           <span className="font-mono">{r.id}</span>
@@ -61,12 +66,11 @@ export function Requisito() {
         <Texto>{r.descricao}</Texto>
       </Secao>
 
-      <Secao titulo="De onde vem (acima na cadeia)">
-        <ArvoreDeRequisitos raizes={r.deriva_de} porId={porId} sentido="acima" />
+      <Secao titulo="Deriva de">
         <Pais requisito={r} porId={porId} />
       </Secao>
 
-      <Secao titulo="O que deriva dele (abaixo na cadeia)">
+      <Secao titulo="O que deriva dele">
         <ArvoreDeRequisitos raizes={r.derivados} porId={porId} sentido="abaixo" />
         <Button asChild size="sm" variant="outline">
           <Link to={`/requisitos/novo?deriva_de=${r.id}`}>Derivar novo requisito</Link>
@@ -111,14 +115,23 @@ function Pais({ requisito, porId }: { requisito: TipoRequisito; porId: Map<strin
   const erro = derivar.error ?? desfazer.error
   return (
     <div className="space-y-2">
-      {requisito.deriva_de.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+      {requisito.deriva_de.length === 0 ? (
+        <p className="text-muted-foreground text-sm">Este é o requisito zero: todos os outros derivam dele.</p>
+      ) : (
+        <ul className="divide-y rounded-md border">
           {requisito.deriva_de.map((p) => (
-            <Button key={p} size="sm" variant="ghost" className="h-7 text-xs" onClick={() => desfazer.mutate(p)}>
-              não deriva mais de {p} ✕
-            </Button>
+            <li key={p} className="flex items-center justify-between gap-2 px-3 py-2">
+              <Link to={`/requisitos/${p}`} className="text-sm hover:underline">
+                <span className="font-mono text-muted-foreground text-xs">{p}</span> {porId.get(p)?.titulo}
+              </Link>
+              {requisito.deriva_de.length > 1 && (
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => desfazer.mutate(p)}>
+                  desfazer
+                </Button>
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Select value={pai} onValueChange={setPai}>
