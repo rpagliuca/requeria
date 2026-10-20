@@ -45,10 +45,10 @@ export function NovoRequisito() {
       <h1 className="font-semibold text-xl">Novo requisito</h1>
       <div className="space-y-1.5">
         <Label htmlFor="titulo">Título</Label>
-        <Input id="titulo" placeholder="O que precisa ser (e continuar) verdade" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+        <Input id="titulo" placeholder="Afirmação testável, no presente: o que precisa ser (e continuar) verdade" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
       </div>
       <div className="space-y-1.5">
-        <Label>Deriva de</Label>
+        <Label>Deriva de (sem escolher, deriva do zero)</Label>
         <SelecaoMultipla
           rotulo="Requisitos"
           opcoes={(requisitos.data ?? []).map((r) => ({ valor: r.id, rotulo: `${r.id} ${r.titulo}` }))}

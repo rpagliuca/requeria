@@ -20,7 +20,7 @@ export function Tarefa() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link to="/" className="text-muted-foreground text-sm hover:underline">
+        <Link to="/tarefas" className="text-muted-foreground text-sm hover:underline">
           ← Tarefas
         </Link>
         <h1 className="font-semibold text-xl">{t.titulo}</h1>

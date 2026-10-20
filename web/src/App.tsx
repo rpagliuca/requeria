@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from "react-router-dom"
 
+import { Inicio } from "@/paginas/Inicio"
 import { NovaTarefa } from "@/paginas/NovaTarefa"
 import { NovoRequisito } from "@/paginas/NovoRequisito"
 import { Origens } from "@/paginas/Origens"
@@ -20,17 +21,21 @@ export default function App() {
       <nav className="mb-6 flex items-center gap-1 border-b pb-3">
         <span className="mr-3 font-semibold">requerial</span>
         <NavLink to="/" end className={aba}>
-          Tarefas
+          Início
         </NavLink>
         <NavLink to="/requisitos" className={aba}>
           Requisitos
+        </NavLink>
+        <NavLink to="/tarefas" end className={aba}>
+          Tarefas
         </NavLink>
         <NavLink to="/sessoes" className={aba}>
           Sessões
         </NavLink>
       </nav>
       <Routes>
-        <Route path="/" element={<Tarefas />} />
+        <Route path="/" element={<Inicio />} />
+        <Route path="/tarefas" element={<Tarefas />} />
         <Route path="/tarefas/nova" element={<NovaTarefa />} />
         <Route path="/tarefas/:id" element={<Tarefa />} />
         <Route path="/requisitos" element={<Requisitos />} />
