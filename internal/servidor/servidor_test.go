@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -377,5 +378,39 @@ func TestCadeiaDeRequisitos(t *testing.T) {
 	a.chamar("GET", "/requisitos?origem="+lei.Id, "", nil, 200, &daLei)
 	if len(daLei) != 1 || daLei[0].Id != copia.Id {
 		t.Fatalf("filtro por origem: %+v", daLei)
+	}
+}
+
+func TestLimiteDeFilhosEAtencao(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var zero api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &zero)
+	for i := 0; i <= MaxFilhos; i++ {
+		a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: fmt.Sprintf("Filho %d", i)}, 201, nil)
+	}
+	// Seis filhos é aceito, mas o pai pede atenção.
+	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
+	if len(zero.Atencao) == 0 || zero.Atencao[0].Motivo != api.MuitosFilhos {
+		t.Fatalf("o zero com seis filhos devia pedir atenção: %+v", zero.Atencao)
+	}
+
+	var filhos []api.Requisito
+	a.chamar("GET", "/requisitos", "", nil, 200, &filhos)
+	motivos := map[api.MotivoDeAtencao]bool{}
+	for _, m := range filhos[1].Atencao {
+		motivos[m.Motivo] = true
+	}
+	if !motivos[api.SemOrigem] || !motivos[api.SemDescricao] || !motivos[api.SemTarefa] {
+		t.Fatalf("atenção esperada no filho solto: %+v", filhos[1].Atencao)
+	}
+	tarefa := a.tarefa("Atende o filho")
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: filhos[1].Id}, 200, nil)
+	var filho api.Requisito
+	a.chamar("GET", "/requisitos/"+filhos[1].Id, "", nil, 200, &filho)
+	for _, m := range filho.Atencao {
+		if m.Motivo == api.SemTarefa {
+			t.Fatalf("com tarefa, não devia pedir atenção por falta dela: %+v", filho.Atencao)
+		}
 	}
 }

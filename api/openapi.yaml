@@ -583,7 +583,7 @@ components:
         descricao: { type: string }
     Requisito:
       type: object
-      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, criado_em, atualizado_em]
+      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, atencao, criado_em, atualizado_em]
       properties:
         id: { type: string, example: R-0001 }
         titulo: { type: string }
@@ -602,8 +602,21 @@ components:
           type: array
           description: Tarefas que tentam atender este requisito
           items: { type: string }
+        atencao:
+          type: array
+          description: Motivos pelos quais o requisito não está bem cuidado (vazio se está)
+          items: { $ref: '#/components/schemas/Atencao' }
         criado_em: { type: string, format: date-time }
         atualizado_em: { type: string, format: date-time }
+    Atencao:
+      type: object
+      required: [motivo, detalhe]
+      properties:
+        motivo: { $ref: '#/components/schemas/MotivoDeAtencao' }
+        detalhe: { type: string }
+    MotivoDeAtencao:
+      type: string
+      enum: [muitos_filhos, sem_origem, sem_descricao, sem_tarefa, trabalho_parado]
     NovoRequisito:
       type: object
       required: [titulo]

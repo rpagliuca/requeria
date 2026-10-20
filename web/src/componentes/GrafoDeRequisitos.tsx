@@ -57,6 +57,7 @@ function No({
   const aberto = abertos.has(chave)
   const abaixo = filhos.length > 0 ? descendentes(id, porId) : new Set<string>()
   const ativos = emTrabalho ? [id, ...abaixo].filter((x) => emTrabalho.has(x)).length : 0
+  const atencaoAbaixo = [...abaixo].filter((x) => (porId.get(x)?.atencao.length ?? 0) > 0).length
 
   return (
     <li>
@@ -76,6 +77,12 @@ function No({
               {filhos.length > 0 && <span>{abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
               {ativos > 0 && <span className="text-blue-600 dark:text-blue-400">● {ativos} em trabalho</span>}
+              {r.atencao.length > 0 && (
+                <span className="text-amber-600 dark:text-amber-400" title={r.atencao.map((a) => a.detalhe).join("\n")}>
+                  ⚠ {r.atencao.length}
+                </span>
+              )}
+              {atencaoAbaixo > 0 && <span className="text-amber-600/80 dark:text-amber-400/80">{atencaoAbaixo} abaixo pedem atenção</span>}
             </span>
           </span>
         </button>

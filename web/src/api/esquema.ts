@@ -160,6 +160,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** @description Recusa deixar o requisito sem pai (só o zero não deriva de nenhum). */
         delete: operations["desfazerDerivacao"];
         options?: never;
         head?: never;
@@ -471,17 +472,26 @@ export interface components {
             derivados: string[];
             /** @description Tarefas que tentam atender este requisito */
             tarefas: string[];
+            /** @description Motivos pelos quais o requisito não está bem cuidado (vazio se está) */
+            atencao: components["schemas"]["Atencao"][];
             /** Format: date-time */
             criado_em: string;
             /** Format: date-time */
             atualizado_em: string;
         };
+        Atencao: {
+            motivo: components["schemas"]["MotivoDeAtencao"];
+            detalhe: string;
+        };
+        /** @enum {string} */
+        MotivoDeAtencao: "muitos_filhos" | "sem_origem" | "sem_descricao" | "sem_tarefa" | "trabalho_parado";
         NovoRequisito: {
             titulo: string;
             descricao?: string;
             /** @description Padrão: a do primeiro requisito em deriva_de */
             organizacao?: string;
             origem?: string;
+            /** @description Padrão: o requisito zero (o único sem pais; o primeiro requisito criado é ele) */
             deriva_de?: string[];
         };
         AlteracaoRequisito: {
