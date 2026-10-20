@@ -281,4 +281,10 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	if len(filho.DerivaDe) != 1 || len(filho.Tarefas) != 1 || filho.Organizacao != "Exemplo" {
 		t.Fatalf("requisito pelo MCP: %+v", filho)
 	}
+	var execucao api.Execucao
+	c.chamar("registrar_execucao", map[string]any{"requisito": pai.Id, "evidencia": "conferido", "validade_dias": 30}, &execucao)
+	c.chamar("obter_requisito", map[string]any{"id": pai.Id}, &pai)
+	if pai.Estado != api.Validado || pai.UltimaExecucao == nil || pai.UltimaExecucao.Id != execucao.Id {
+		t.Fatalf("execução pelo MCP: %+v", pai)
+	}
 }

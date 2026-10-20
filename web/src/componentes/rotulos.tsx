@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-import type { StatusSessao, StatusTarefa } from "@/api/cliente"
+import type { EstadoDoRequisito, StatusSessao, StatusTarefa } from "@/api/cliente"
 
 export const nomesStatusTarefa: Record<StatusTarefa, string> = {
   a_fazer: "A fazer",
@@ -56,15 +56,29 @@ export const nomesMotivoDeAtencao: Record<string, string> = {
   trabalho_parado: "Trabalho parado",
 }
 
-// Estado de atendimento calculado: tarefa aberta (no requisito ou abaixo) ⇒ não atendido.
-export function EstadoDoRequisito({ estado }: { estado: "nao_atendido" | "nao_verificado" }) {
-  return estado === "nao_atendido" ? (
-    <Badge variant="outline" className="border-transparent bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">
-      Não atendido
-    </Badge>
-  ) : (
-    <Badge variant="outline" className="border-transparent bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-      Não verificado
+export const nomesEstadoDoRequisito: Record<EstadoDoRequisito, string> = {
+  em_trabalho: "Em trabalho",
+  nao_atendido: "Não atendido",
+  nao_validado: "Não validado",
+  validado: "Validado",
+  validacao_expirada: "Validação expirada",
+}
+
+export const ordemDosEstados = Object.keys(nomesEstadoDoRequisito) as EstadoDoRequisito[]
+
+const coresEstadoDoRequisito: Record<EstadoDoRequisito, string> = {
+  em_trabalho: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  nao_atendido: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  nao_validado: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  validado: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  validacao_expirada: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+}
+
+// Estado calculado pelo servidor, só do próprio requisito: tarefas ligadas e última execução.
+export function EstadoDoRequisito({ estado, className }: { estado: EstadoDoRequisito; className?: string }) {
+  return (
+    <Badge variant="outline" className={cn("border-transparent", coresEstadoDoRequisito[estado], className)}>
+      {nomesEstadoDoRequisito[estado]}
     </Badge>
   )
 }

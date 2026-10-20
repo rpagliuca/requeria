@@ -189,11 +189,9 @@ type ligacoes struct {
 	// trabalho guarda, por requisito, status e última atualização das tarefas ligadas.
 	trabalho map[int64][]tarefaLigada
 	agora    time.Time
-	// abertas: tarefas não concluídas de cada requisito; filhosN: derivados por número.
+	// abertas: tarefas não concluídas de cada requisito; ultimas: a execução mais recente de cada um.
 	abertas map[int64][]string
-	filhosN map[int64][]int64
-	// abaixo: memória dos requisitos não atendidos abaixo de cada um.
-	abaixo map[int64][]string
+	ultimas map[int64]api.Execucao
 }
 
 type tarefaLigada struct {
@@ -211,7 +209,7 @@ const diasParado = 14
 func carregarLigacoes(c consultor) (ligacoes, error) {
 	l := ligacoes{pais: map[int64][]string{}, filhos: map[int64][]string{}, tarefas: map[int64][]string{},
 		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC(),
-		abertas: map[int64][]string{}, filhosN: map[int64][]int64{}, abaixo: map[int64][]string{}}
+		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{}}
 	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
 	if err != nil {
 		return l, err
@@ -224,7 +222,21 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		}
 		l.pais[filho] = append(l.pais[filho], idRequisito(pai))
 		l.filhos[pai] = append(l.filhos[pai], idRequisito(filho))
-		l.filhosN[pai] = append(l.filhosN[pai], filho)
+	}
+	if err := linhas.Close(); err != nil {
+		return l, err
+	}
+	linhas, err = c.Query(`SELECT ` + colunasExecucao + ` FROM execucoes ORDER BY realizada_em, id`)
+	if err != nil {
+		return l, err
+	}
+	for linhas.Next() {
+		e, n, err := lerExecucao(linhas)
+		if err != nil {
+			linhas.Close()
+			return l, err
+		}
+		l.ultimas[n] = e
 	}
 	if err := linhas.Close(); err != nil {
 		return l, err
@@ -274,42 +286,33 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	}
 	x.DerivaDe, x.Derivados, x.Tarefas = naoNulo(l.pais[n]), naoNulo(l.filhos[n]), naoNulo(l.tarefas[n])
 	x.Atencao = atencao(x, l.trabalho[n], l.agora)
-	x.Atendimento = atendimento(n, l)
+	x.TarefasAbertas = naoNulo(l.abertas[n])
+	if e, ok := l.ultimas[n]; ok {
+		x.UltimaExecucao = &e
+	}
+	x.Estado = estado(l.trabalho[n], x.UltimaExecucao, l.agora)
 	return x, nil
 }
 
-// atendimento: tarefa aberta no requisito ou em algum abaixo dele ⇒ não atendido. Sem isso, ele só
-// pode ser dado como atendido por verificação; até lá, não verificado.
-func atendimento(n int64, l ligacoes) api.Atendimento {
-	a := api.Atendimento{Estado: api.NaoVerificado, TarefasAbertas: naoNulo(l.abertas[n]), AbaixoNaoAtendidos: naoNulo(l.naoAtendidosAbaixo(n))}
-	if len(a.TarefasAbertas) > 0 || len(a.AbaixoNaoAtendidos) > 0 {
-		a.Estado = api.NaoAtendido
-	}
-	return a
-}
-
-// naoAtendidosAbaixo lista, sem repetir, os requisitos abaixo de n que têm tarefa aberta.
-func (l ligacoes) naoAtendidosAbaixo(n int64) []string {
-	if ids, ok := l.abaixo[n]; ok {
-		return ids
-	}
-	l.abaixo[n] = nil // a derivação não tem ciclo; isto só protege de dados inconsistentes
-	vistos := map[string]bool{}
-	var ids []string
-	for _, f := range l.filhosN[n] {
-		candidatos := l.naoAtendidosAbaixo(f)
-		if len(l.abertas[f]) > 0 {
-			candidatos = append([]string{idRequisito(f)}, candidatos...)
+// estado é só do próprio requisito: tarefa em andamento ⇒ em trabalho; outra tarefa aberta ⇒ não
+// atendido. Tarefas concluídas não provam nada: sem tarefa aberta, quem decide é a última execução.
+func estado(trabalho []tarefaLigada, ultima *api.Execucao, agora time.Time) api.EstadoDoRequisito {
+	aberta := false
+	for _, t := range trabalho {
+		if t.status == api.EmAndamento {
+			return api.EmTrabalho
 		}
-		for _, id := range candidatos {
-			if !vistos[id] {
-				vistos[id] = true
-				ids = append(ids, id)
-			}
-		}
+		aberta = aberta || t.status != api.Concluida
 	}
-	l.abaixo[n] = ids
-	return ids
+	switch {
+	case aberta:
+		return api.NaoAtendido
+	case ultima == nil:
+		return api.NaoValidado
+	case ultima.ValidaAte != nil && !ultima.ValidaAte.After(agora):
+		return api.ValidacaoExpirada
+	}
+	return api.Validado
 }
 
 // atencao lista o que falta para o requisito estar bem cuidado.

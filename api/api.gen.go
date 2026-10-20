@@ -23,10 +23,13 @@ const (
 	TokenDaSessaoScopes = "tokenDaSessao.Scopes"
 )
 
-// Defines values for EstadoDeAtendimento.
+// Defines values for EstadoDoRequisito.
 const (
-	NaoAtendido   EstadoDeAtendimento = "nao_atendido"
-	NaoVerificado EstadoDeAtendimento = "nao_verificado"
+	EmTrabalho        EstadoDoRequisito = "em_trabalho"
+	NaoAtendido       EstadoDoRequisito = "nao_atendido"
+	NaoValidado       EstadoDoRequisito = "nao_validado"
+	ValidacaoExpirada EstadoDoRequisito = "validacao_expirada"
+	Validado          EstadoDoRequisito = "validado"
 )
 
 // Defines values for MotivoDeAtencao.
@@ -111,18 +114,6 @@ type Atencao struct {
 	Motivo  MotivoDeAtencao `json:"motivo"`
 }
 
-// Atendimento Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
-// indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
-// verificação, ele fica não verificado.
-type Atendimento struct {
-	// AbaixoNaoAtendidos Requisitos abaixo dele, na cadeia, com tarefa aberta
-	AbaixoNaoAtendidos []string            `json:"abaixo_nao_atendidos"`
-	Estado             EstadoDeAtendimento `json:"estado"`
-
-	// TarefasAbertas Tarefas ligadas a este requisito que não estão concluídas
-	TarefasAbertas []string `json:"tarefas_abertas"`
-}
-
 // Derivacao defines model for Derivacao.
 type Derivacao struct {
 	// Pai Requisito do qual este deriva
@@ -143,8 +134,11 @@ type Erro struct {
 	Mensagem string `json:"mensagem"`
 }
 
-// EstadoDeAtendimento defines model for EstadoDeAtendimento.
-type EstadoDeAtendimento string
+// EstadoDoRequisito Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
+// em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
+// está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
+// validacao_expirada se o prazo passou, nao_validado se não há execução.
+type EstadoDoRequisito string
 
 // Evento defines model for Evento.
 type Evento struct {
@@ -154,6 +148,21 @@ type Evento struct {
 	Id       int64                  `json:"id"`
 	Momento  time.Time              `json:"momento"`
 	Tipo     string                 `json:"tipo"`
+}
+
+// Execucao defines model for Execucao.
+type Execucao struct {
+	Autor string `json:"autor"`
+
+	// Evidencia O que foi verificado e como (comando, relatório, link)
+	Evidencia    string    `json:"evidencia"`
+	Id           string    `json:"id"`
+	RealizadaEm  time.Time `json:"realizada_em"`
+	RegistradaEm time.Time `json:"registrada_em"`
+	Requisito    string    `json:"requisito"`
+
+	// ValidaAte Sem prazo, não expira
+	ValidaAte *time.Time `json:"valida_ate,omitempty"`
 }
 
 // ImportacaoTarefa defines model for ImportacaoTarefa.
@@ -174,6 +183,17 @@ type MotivoDeAtencao string
 
 // MotivoEncerramento defines model for MotivoEncerramento.
 type MotivoEncerramento string
+
+// NovaExecucao defines model for NovaExecucao.
+type NovaExecucao struct {
+	Evidencia string `json:"evidencia"`
+
+	// RealizadaEm Padrão: agora
+	RealizadaEm *time.Time `json:"realizada_em,omitempty"`
+
+	// ValidadeDias Dias a partir de realizada_em; sem ele, não expira
+	ValidadeDias *int `json:"validade_dias,omitempty"`
+}
 
 // NovaOrigem defines model for NovaOrigem.
 type NovaOrigem struct {
@@ -256,28 +276,33 @@ type Repasse struct {
 // Requisito defines model for Requisito.
 type Requisito struct {
 	// Atencao Motivos pelos quais o requisito não está bem cuidado (vazio se está)
-	Atencao []Atencao `json:"atencao"`
-
-	// Atendimento Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
-	// indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
-	// verificação, ele fica não verificado.
-	Atendimento  Atendimento `json:"atendimento"`
-	AtualizadoEm time.Time   `json:"atualizado_em"`
-	CriadoEm     time.Time   `json:"criado_em"`
+	Atencao      []Atencao `json:"atencao"`
+	AtualizadoEm time.Time `json:"atualizado_em"`
+	CriadoEm     time.Time `json:"criado_em"`
 
 	// DerivaDe Requisitos dos quais este deriva (acima na cadeia)
 	DerivaDe []string `json:"deriva_de"`
 
 	// Derivados Requisitos que derivam deste (abaixo na cadeia)
-	Derivados   []string `json:"derivados"`
-	Descricao   string   `json:"descricao"`
-	Id          string   `json:"id"`
-	Organizacao string   `json:"organizacao"`
-	Origem      *string  `json:"origem,omitempty"`
+	Derivados []string `json:"derivados"`
+	Descricao string   `json:"descricao"`
+
+	// Estado Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
+	// em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
+	// está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
+	// validacao_expirada se o prazo passou, nao_validado se não há execução.
+	Estado      EstadoDoRequisito `json:"estado"`
+	Id          string            `json:"id"`
+	Organizacao string            `json:"organizacao"`
+	Origem      *string           `json:"origem,omitempty"`
 
 	// Tarefas Tarefas que tentam atender este requisito
 	Tarefas []string `json:"tarefas"`
-	Titulo  string   `json:"titulo"`
+
+	// TarefasAbertas Tarefas ligadas a este requisito que não estão concluídas
+	TarefasAbertas []string  `json:"tarefas_abertas"`
+	Titulo         string    `json:"titulo"`
+	UltimaExecucao *Execucao `json:"ultima_execucao,omitempty"`
 }
 
 // Sessao defines model for Sessao.
@@ -406,6 +431,9 @@ type AlterarRequisitoJSONRequestBody = AlteracaoRequisito
 
 // DerivarRequisitoJSONRequestBody defines body for DerivarRequisito for application/json ContentType.
 type DerivarRequisitoJSONRequestBody = Derivacao
+
+// RegistrarExecucaoJSONRequestBody defines body for RegistrarExecucao for application/json ContentType.
+type RegistrarExecucaoJSONRequestBody = NovaExecucao
 
 // CriarSessaoJSONRequestBody defines body for CriarSessao for application/json ContentType.
 type CriarSessaoJSONRequestBody = NovaSessao
@@ -560,6 +588,14 @@ type ClientInterface interface {
 
 	// DesfazerDerivacao request
 	DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarExecucoes request
+	ListarExecucoes(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegistrarExecucaoWithBody request with any body
+	RegistrarExecucaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RegistrarExecucao(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarSessoes request
 	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -848,6 +884,42 @@ func (c *Client) DerivarRequisito(ctx context.Context, id Id, body DerivarRequis
 
 func (c *Client) DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDesfazerDerivacaoRequest(c.Server, id, pai)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarExecucoes(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarExecucoesRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegistrarExecucaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegistrarExecucaoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegistrarExecucao(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegistrarExecucaoRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1708,6 +1780,87 @@ func NewDesfazerDerivacaoRequest(server string, id Id, pai string) (*http.Reques
 	return req, nil
 }
 
+// NewListarExecucoesRequest generates requests for ListarExecucoes
+func NewListarExecucoesRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/execucoes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRegistrarExecucaoRequest calls the generic RegistrarExecucao builder with application/json body
+func NewRegistrarExecucaoRequest(server string, id Id, body RegistrarExecucaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegistrarExecucaoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRegistrarExecucaoRequestWithBody generates requests for RegistrarExecucao with any type of body
+func NewRegistrarExecucaoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/execucoes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListarSessoesRequest generates requests for ListarSessoes
 func NewListarSessoesRequest(server string, params *ListarSessoesParams) (*http.Request, error) {
 	var err error
@@ -2515,6 +2668,14 @@ type ClientWithResponsesInterface interface {
 	// DesfazerDerivacaoWithResponse request
 	DesfazerDerivacaoWithResponse(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*DesfazerDerivacaoResponse, error)
 
+	// ListarExecucoesWithResponse request
+	ListarExecucoesWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarExecucoesResponse, error)
+
+	// RegistrarExecucaoWithBodyWithResponse request with any body
+	RegistrarExecucaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegistrarExecucaoResponse, error)
+
+	RegistrarExecucaoWithResponse(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*RegistrarExecucaoResponse, error)
+
 	// ListarSessoesWithResponse request
 	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
 
@@ -2881,6 +3042,53 @@ func (r DesfazerDerivacaoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DesfazerDerivacaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarExecucoesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Execucao
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarExecucoesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarExecucoesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RegistrarExecucaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Execucao
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r RegistrarExecucaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegistrarExecucaoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3433,6 +3641,32 @@ func (c *ClientWithResponses) DesfazerDerivacaoWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseDesfazerDerivacaoResponse(rsp)
+}
+
+// ListarExecucoesWithResponse request returning *ListarExecucoesResponse
+func (c *ClientWithResponses) ListarExecucoesWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarExecucoesResponse, error) {
+	rsp, err := c.ListarExecucoes(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarExecucoesResponse(rsp)
+}
+
+// RegistrarExecucaoWithBodyWithResponse request with arbitrary body returning *RegistrarExecucaoResponse
+func (c *ClientWithResponses) RegistrarExecucaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegistrarExecucaoResponse, error) {
+	rsp, err := c.RegistrarExecucaoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegistrarExecucaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) RegistrarExecucaoWithResponse(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*RegistrarExecucaoResponse, error) {
+	rsp, err := c.RegistrarExecucao(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegistrarExecucaoResponse(rsp)
 }
 
 // ListarSessoesWithResponse request returning *ListarSessoesResponse
@@ -4103,6 +4337,79 @@ func ParseDesfazerDerivacaoResponse(rsp *http.Response) (*DesfazerDerivacaoRespo
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarExecucoesResponse parses an HTTP response from a ListarExecucoesWithResponse call
+func ParseListarExecucoesResponse(rsp *http.Response) (*ListarExecucoesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarExecucoesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Execucao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegistrarExecucaoResponse parses an HTTP response from a RegistrarExecucaoWithResponse call
+func ParseRegistrarExecucaoResponse(rsp *http.Response) (*RegistrarExecucaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegistrarExecucaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Execucao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Erro
@@ -4791,6 +5098,12 @@ type ServerInterface interface {
 	// (DELETE /requisitos/{id}/derivacoes/{pai})
 	DesfazerDerivacao(w http.ResponseWriter, r *http.Request, id Id, pai string)
 
+	// (GET /requisitos/{id}/execucoes)
+	ListarExecucoes(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /requisitos/{id}/execucoes)
+	RegistrarExecucao(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (GET /sessoes)
 	ListarSessoes(w http.ResponseWriter, r *http.Request, params ListarSessoesParams)
 
@@ -5131,6 +5444,56 @@ func (siw *ServerInterfaceWrapper) DesfazerDerivacao(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DesfazerDerivacao(w, r, id, pai)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListarExecucoes operation middleware
+func (siw *ServerInterfaceWrapper) ListarExecucoes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarExecucoes(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegistrarExecucao operation middleware
+func (siw *ServerInterfaceWrapper) RegistrarExecucao(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegistrarExecucao(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5696,6 +6059,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PATCH "+options.BaseURL+"/requisitos/{id}", wrapper.AlterarRequisito)
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/derivacoes", wrapper.DerivarRequisito)
 	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DesfazerDerivacao)
+	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.ListarExecucoes)
+	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.RegistrarExecucao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes", wrapper.CriarSessao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)

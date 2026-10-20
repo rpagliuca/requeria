@@ -13,6 +13,9 @@ export type Requisito = components["schemas"]["Requisito"]
 export type Origem = components["schemas"]["Origem"]
 export type NovoRequisito = components["schemas"]["NovoRequisito"]
 export type AlteracaoRequisito = components["schemas"]["AlteracaoRequisito"]
+export type EstadoDoRequisito = components["schemas"]["EstadoDoRequisito"]
+export type Execucao = components["schemas"]["Execucao"]
+export type NovaExecucao = components["schemas"]["NovaExecucao"]
 export type NovaOrigem = components["schemas"]["NovaOrigem"]
 export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
 export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
@@ -96,6 +99,12 @@ export const useDerivar = (id: string) =>
 
 export const useDesfazerDerivacao = (id: string) =>
   useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "DELETE"))
+
+export const useExecucoes = (id: string) =>
+  useQuery({ queryKey: ["execucoes", id], queryFn: () => obter<Execucao[]>(`/requisitos/${id}/execucoes`) })
+
+export const useRegistrarExecucao = (id: string) =>
+  useEscrita((nova: NovaExecucao) => obter<Execucao>(`/requisitos/${id}/execucoes`, "POST", nova))
 
 export const useCriarOrigem = () => useEscrita((nova: NovaOrigem) => obter<Origem>("/origens", "POST", nova))
 

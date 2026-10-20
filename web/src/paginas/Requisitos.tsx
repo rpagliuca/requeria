@@ -2,19 +2,20 @@ import { useMemo } from "react"
 import { Link } from "react-router-dom"
 
 import { useOrigens, useRequisitos } from "@/api/cliente"
-import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
+import { GrafoDeRequisitos, recortar } from "@/componentes/GrafoDeRequisitos"
 import { Estado } from "@/componentes/Estado"
+import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, ordemDosEstados } from "@/componentes/rotulos"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-// Sem filtro, a cadeia inteira em árvore a partir dos requisitos que não derivam de nenhum; com
-// filtro ou busca, a lista dos que casam.
+// A tela inicial. Sem filtro, a cadeia a partir do zero, aberta sob demanda; com filtro, só os
+// requisitos que casam, cada um sob o caminho que leva do zero até ele.
 export function Requisitos() {
   const { data, isLoading, error } = useRequisitos()
   const origens = useOrigens()
-  const [params, setParams] = useFiltrosLembrados("requisitos")
+  const [params, setParams] = useFiltrosLembrados("requisitos", "estado=em_trabalho")
   const texto = params.get("q") ?? ""
   const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
   const alterar = (chave: string, valor: string | null) => {
@@ -27,31 +28,46 @@ export function Requisitos() {
   const porId = useMemo(() => new Map((data ?? []).map((r) => [r.id, r])), [data])
   const nomesOrigem = useMemo(() => new Map((origens.data ?? []).map((o) => [o.id, o.nome])), [origens.data])
   const organizacoes = useMemo(() => [...new Set((data ?? []).map((r) => r.organizacao))].sort(), [data])
-  const orgs = params.has("org") ? lista("org") : organizacoes
   const idsOrigem = (origens.data ?? []).map((o) => o.id)
+  const motivos = Object.keys(nomesMotivoDeAtencao)
+  const estados = params.has("estado") ? lista("estado") : ordemDosEstados
+  const orgs = params.has("org") ? lista("org") : organizacoes
   const origensSel = params.has("origem") ? lista("origem") : idsOrigem
-  const filtrando = !!texto || params.has("org") || params.has("origem")
+  const atencao = lista("atencao")
+  const filtrando = !!texto || ["estado", "org", "origem", "atencao"].some((c) => params.has(c))
 
-  const filtrados = useMemo(() => {
+  const recorte = useMemo(() => {
+    if (!filtrando) return undefined
     const termos = texto.toLowerCase().split(/\s+/).filter(Boolean)
-    return (data ?? [])
-      .filter((r) => !params.has("org") || orgs.includes(r.organizacao))
-      .filter((r) => !params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem)))
-      .filter((r) => {
-        const alvo = `${r.id} ${r.titulo} ${r.descricao} ${r.organizacao} ${nomesOrigem.get(r.origem ?? "") ?? ""}`.toLowerCase()
-        return termos.every((t) => alvo.includes(t))
-      })
-  }, [data, params, nomesOrigem]) // eslint-disable-line react-hooks/exhaustive-deps
+    return recortar(porId, (r) => {
+      const alvo = `${r.id} ${r.titulo} ${r.descricao} ${r.organizacao} ${nomesOrigem.get(r.origem ?? "") ?? ""}`.toLowerCase()
+      return (
+        estados.includes(r.estado) &&
+        (!params.has("org") || orgs.includes(r.organizacao)) &&
+        (!params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem))) &&
+        (atencao.length === 0 || r.atencao.some((a) => atencao.includes(a.motivo))) &&
+        termos.every((t) => alvo.includes(t))
+      )
+    })
+  }, [porId, params, nomesOrigem]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const contagem = (estado: string) => (data ?? []).filter((r) => r.estado === estado).length
+  const contagemAtencao = (m: string) => (data ?? []).filter((r) => r.atencao.some((a) => a.motivo === m)).length
   const raizes = (data ?? []).filter((r) => r.deriva_de.length === 0).map((r) => r.id)
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button asChild>
-          <Link to="/requisitos/novo">Novo requisito</Link>
-        </Button>
-        <Input placeholder="Buscar em requisitos" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <SelecaoMultipla
+          rotulo="Estado"
+          opcoes={ordemDosEstados.map((e) => ({ valor: e, rotulo: nomesEstadoDoRequisito[e], contagem: contagem(e) }))}
+          selecionados={estados}
+          alterar={(v) => alterar("estado", v.length === ordemDosEstados.length ? null : v.join(","))}
+          atalhos={[
+            { rotulo: "Todos", valores: ordemDosEstados },
+            { rotulo: "Pendentes", valores: ["em_trabalho", "nao_atendido", "nao_validado", "validacao_expirada"] },
+          ]}
+        />
         <SelecaoMultipla
           rotulo="Organização"
           opcoes={organizacoes.map((o) => ({ valor: o, rotulo: o }))}
@@ -66,9 +82,30 @@ export function Requisitos() {
           alterar={(v) => alterar("origem", v.length === idsOrigem.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: idsOrigem }]}
         />
+        <SelecaoMultipla
+          rotulo="Atenção"
+          opcoes={motivos.map((m) => ({ valor: m, rotulo: nomesMotivoDeAtencao[m], contagem: contagemAtencao(m) }))}
+          selecionados={atencao}
+          alterar={(v) => alterar("atencao", v.length === 0 ? null : v.join(","))}
+          atalhos={[
+            { rotulo: "Sem filtro", valores: [] },
+            { rotulo: "Qualquer motivo", valores: motivos },
+          ]}
+        />
+        <Input className="sm:w-56" placeholder="Buscar" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
+        <Button asChild variant="outline">
+          <Link to="/requisitos/novo">Novo requisito</Link>
+        </Button>
       </div>
       <p className="text-muted-foreground text-xs">
-        {filtrando ? `${filtrados.length} requisitos` : `${data?.length ?? 0} requisitos · clique para abrir os que derivam de cada um`} ·{" "}
+        {recorte
+          ? `${recorte.casam.size} de ${data?.length ?? 0} requisitos, com o caminho desde o zero (esmaecido)`
+          : `${data?.length ?? 0} requisitos · clique para abrir os que derivam de cada um`}{" "}
+        ·{" "}
+        <button type="button" className="underline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+          limpar filtros
+        </button>{" "}
+        ·{" "}
         <Link to="/origens" className="underline">
           origens
         </Link>
@@ -76,28 +113,18 @@ export function Requisitos() {
 
       <Estado carregando={isLoading} erro={error} />
       {data &&
-        (filtrando ? (
-          <ul className="divide-y rounded-md border">
-            {filtrados.map((r) => (
-              <li key={r.id}>
-                <Link to={`/requisitos/${r.id}`} className="block px-3 py-2.5 hover:bg-muted/50">
-                  <div className="font-medium">{r.titulo}</div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground text-xs">
-                    <span className="font-mono">{r.id}</span>
-                    <span>{r.organizacao}</span>
-                    {r.origem && <span>origem: {nomesOrigem.get(r.origem)}</span>}
-                    {r.deriva_de.length > 0 && <span>deriva de {r.deriva_de.join(", ")}</span>}
-                    {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nenhum requisito ainda.</p>
+        (data.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            Nenhum requisito ainda.{" "}
+            <Link to="/requisitos/novo" className="underline">
+              Criar o zero
+            </Link>
+          </p>
+        ) : recorte && recorte.casam.size === 0 ? (
+          <p className="text-muted-foreground text-sm">Nenhum requisito com esses filtros.</p>
         ) : (
           <div className="rounded-md border p-2">
-            <GrafoDeRequisitos raizes={raizes} porId={porId} abertosNoInicio={raizes} />
+            <GrafoDeRequisitos key={params.toString()} raizes={raizes} porId={porId} recorte={recorte} abertosNoInicio={raizes} />
           </div>
         ))}
     </div>

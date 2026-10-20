@@ -3,6 +3,9 @@ import { Link, useParams } from "react-router-dom"
 
 import {
   type Requisito as TipoRequisito,
+  type Tarefa,
+  useExecucoes,
+  useRegistrarExecucao,
   useAlterarRequisito,
   useDerivar,
   useDesfazerDerivacao,
@@ -48,7 +51,7 @@ export function Requisito() {
         </div>
         <h1 className="font-semibold text-xl">{r.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
-          <EstadoDoRequisito estado={r.atendimento.estado} />
+          <EstadoDoRequisito estado={r.estado} />
           <span className="font-mono">{r.id}</span>
           <span>{r.organizacao}</span>
           {origem && (
@@ -76,38 +79,10 @@ export function Requisito() {
         </div>
       )}
 
-      {r.atendimento.estado === "nao_atendido" && (
-        <Secao titulo="Por que não está atendido">
-          <ul className="space-y-1 text-sm">
-            {r.atendimento.tarefas_abertas.map((tid) => (
-              <li key={tid}>
-                Tarefa aberta:{" "}
-                <Link to={`/tarefas/${tid}`} className="hover:underline">
-                  <span className="font-mono text-muted-foreground text-xs">{tid}</span> {tarefasPorId.get(tid)?.titulo}
-                </Link>
-                {tarefasPorId.get(tid) && (
-                  <span className="ml-2">
-                    <StatusDaTarefa status={tarefasPorId.get(tid)!.status} />
-                  </span>
-                )}
-              </li>
-            ))}
-            {r.atendimento.abaixo_nao_atendidos.map((rid) => (
-              <li key={rid}>
-                Requisito abaixo não atendido:{" "}
-                <Link to={`/requisitos/${rid}`} className="hover:underline">
-                  <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Secao>
-      )}
-      {r.atendimento.estado === "nao_verificado" && (
-        <p className="text-muted-foreground text-sm">
-          Nenhuma tarefa aberta aqui nem abaixo. Isso não prova que está atendido: só uma verificação prova.
-        </p>
-      )}
+      <Secao titulo="Estado">
+        <PorQue requisito={r} tarefasPorId={tarefasPorId} />
+        <Execucoes requisito={r} />
+      </Secao>
 
       <Secao titulo="Descrição">
         <Texto>{r.descricao}</Texto>
@@ -261,5 +236,130 @@ function FormularioDeEdicao({ requisito, fechar }: { requisito: TipoRequisito; f
         </Button>
       </DialogFooter>
     </form>
+  )
+}
+
+// O que define o estado: as tarefas abertas ou, sem elas, a última execução.
+function PorQue({ requisito: r, tarefasPorId }: { requisito: TipoRequisito; tarefasPorId: Map<string, Tarefa> }) {
+  if (r.tarefas_abertas.length > 0)
+    return (
+      <ul className="space-y-1 text-sm">
+        {r.tarefas_abertas.map((tid) => (
+          <li key={tid}>
+            Tarefa aberta:{" "}
+            <Link to={`/tarefas/${tid}`} className="hover:underline">
+              <span className="font-mono text-muted-foreground text-xs">{tid}</span> {tarefasPorId.get(tid)?.titulo}
+            </Link>
+            {tarefasPorId.get(tid) && (
+              <span className="ml-2">
+                <StatusDaTarefa status={tarefasPorId.get(tid)!.status} />
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  const e = r.ultima_execucao
+  if (!e)
+    return (
+      <p className="text-muted-foreground text-sm">
+        Nenhuma tarefa aberta, mas nenhuma execução registrada: tarefas concluídas não provam que o requisito está atendido.
+      </p>
+    )
+  return (
+    <p className="text-sm">
+      Última execução em <Data valor={e.realizada_em} />
+      {e.valida_ate ? (
+        <>
+          , {r.estado === "validacao_expirada" ? "expirou em" : "válida até"} <Data valor={e.valida_ate} />
+        </>
+      ) : (
+        ", sem prazo de validade"
+      )}
+      .
+    </p>
+  )
+}
+
+function Execucoes({ requisito }: { requisito: TipoRequisito }) {
+  const execucoes = useExecucoes(requisito.id)
+  return (
+    <div className="space-y-2">
+      {(execucoes.data ?? []).length > 0 && (
+        <ul className="divide-y rounded-md border text-sm">
+          {execucoes.data!.map((e) => (
+            <li key={e.id} className="space-y-1 px-3 py-2">
+              <div className="flex flex-wrap gap-x-3 text-muted-foreground text-xs">
+                <span className="font-mono">{e.id}</span>
+                <span>
+                  em <Data valor={e.realizada_em} />
+                </span>
+                <span>{e.valida_ate ? <>válida até <Data valor={e.valida_ate} /></> : "sem prazo"}</span>
+                <span>por {e.autor}</span>
+              </div>
+              <Texto>{e.evidencia}</Texto>
+            </li>
+          ))}
+        </ul>
+      )}
+      <RegistrarExecucao requisito={requisito} />
+    </div>
+  )
+}
+
+function RegistrarExecucao({ requisito }: { requisito: TipoRequisito }) {
+  const registrar = useRegistrarExecucao(requisito.id)
+  const [aberto, setAberto] = useState(false)
+  const [evidencia, setEvidencia] = useState("")
+  const [dias, setDias] = useState("90")
+  return (
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          Registrar execução
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            registrar.mutate(
+              { evidencia, validade_dias: dias ? Number(dias) : undefined },
+              {
+                onSuccess: () => {
+                  setAberto(false)
+                  setEvidencia("")
+                },
+              },
+            )
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Execução de {requisito.id}</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            Registre só o que foi verificado agora e está conforme: &quot;{requisito.titulo}&quot;.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="evidencia">Evidência: o que foi verificado e como</Label>
+            <Textarea id="evidencia" rows={5} value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="validade">Validade em dias (vazio: não expira)</Label>
+            <Input id="validade" type="number" min={1} value={dias} onChange={(e) => setDias(e.target.value)} />
+          </div>
+          {registrar.error && <p className="text-destructive text-sm">{registrar.error.message}</p>}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={registrar.isPending}>
+              Registrar
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

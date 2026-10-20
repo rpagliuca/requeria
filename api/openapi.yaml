@@ -239,6 +239,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Requisito' }
         '404': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/execucoes:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: listarExecucoes
+      description: Execuções (verificações de conformidade) do requisito, da mais recente para a mais antiga.
+      responses:
+        '200':
+          description: Execuções
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Execucao' }
+        '404': { $ref: '#/components/responses/Erro' }
+    post:
+      operationId: registrarExecucao
+      description: Registra que o requisito foi verificado e está conforme, com a evidência e o prazo de validade.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaExecucao' }
+      responses:
+        '201':
+          description: Execução registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execucao' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/requisitos:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -583,7 +614,7 @@ components:
         descricao: { type: string }
     Requisito:
       type: object
-      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, atencao, atendimento, criado_em, atualizado_em]
+      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, atencao, estado, tarefas_abertas, criado_em, atualizado_em]
       properties:
         id: { type: string, example: R-0001 }
         titulo: { type: string }
@@ -606,29 +637,40 @@ components:
           type: array
           description: Motivos pelos quais o requisito não está bem cuidado (vazio se está)
           items: { $ref: '#/components/schemas/Atencao' }
-        atendimento: { $ref: '#/components/schemas/Atendimento' }
-        criado_em: { type: string, format: date-time }
-        atualizado_em: { type: string, format: date-time }
-    Atendimento:
-      type: object
-      description: |
-        Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
-        indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
-        verificação, ele fica não verificado.
-      required: [estado, tarefas_abertas, abaixo_nao_atendidos]
-      properties:
-        estado: { $ref: '#/components/schemas/EstadoDeAtendimento' }
+        estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
         tarefas_abertas:
           type: array
           description: Tarefas ligadas a este requisito que não estão concluídas
           items: { type: string }
-        abaixo_nao_atendidos:
-          type: array
-          description: Requisitos abaixo dele, na cadeia, com tarefa aberta
-          items: { type: string }
-    EstadoDeAtendimento:
+        ultima_execucao: { $ref: '#/components/schemas/Execucao' }
+        criado_em: { type: string, format: date-time }
+        atualizado_em: { type: string, format: date-time }
+    EstadoDoRequisito:
       type: string
-      enum: [nao_atendido, nao_verificado]
+      description: |
+        Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
+        em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
+        está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
+        validacao_expirada se o prazo passou, nao_validado se não há execução.
+      enum: [em_trabalho, nao_atendido, nao_validado, validado, validacao_expirada]
+    Execucao:
+      type: object
+      required: [id, requisito, evidencia, realizada_em, autor, registrada_em]
+      properties:
+        id: { type: string, example: E-0001 }
+        requisito: { type: string, example: R-0001 }
+        evidencia: { type: string, description: 'O que foi verificado e como (comando, relatório, link)' }
+        realizada_em: { type: string, format: date-time }
+        valida_ate: { type: string, format: date-time, description: 'Sem prazo, não expira' }
+        autor: { type: string }
+        registrada_em: { type: string, format: date-time }
+    NovaExecucao:
+      type: object
+      required: [evidencia]
+      properties:
+        evidencia: { type: string }
+        realizada_em: { type: string, format: date-time, description: 'Padrão: agora' }
+        validade_dias: { type: integer, minimum: 1, description: 'Dias a partir de realizada_em; sem ele, não expira' }
     Atencao:
       type: object
       required: [motivo, detalhe]
