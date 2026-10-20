@@ -325,8 +325,9 @@ func TestCadeiaDeRequisitos(t *testing.T) {
 
 	org := "Exemplo"
 	var cumprir, copia, backup api.Requisito
-	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cumprir a lei de dados", Organizacao: &org, Origem: &diretora.Id}, 201, &cumprir)
+	// O zero (primeiro requisito) precisa de organização: não tem de quem herdar.
 	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Sem organização"}, 400, nil)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cumprir a lei de dados", Organizacao: &org, Origem: &diretora.Id}, 201, &cumprir)
 	// Organização herdada do pai.
 	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cópia fora do ambiente", Origem: &lei.Id,
 		DerivaDe: &[]string{cumprir.Id}}, 201, &copia)
@@ -361,9 +362,17 @@ func TestCadeiaDeRequisitos(t *testing.T) {
 		t.Fatalf("vínculo não aparece no requisito: %+v", backup)
 	}
 
-	// Desfazer e filtrar.
+	// Desfazer e filtrar; o último pai não pode ser desfeito.
 	a.chamar("DELETE", "/requisitos/"+backup.Id+"/derivacoes/"+cumprir.Id, "", nil, 200, &backup)
 	a.chamar("DELETE", "/requisitos/"+backup.Id+"/derivacoes/"+cumprir.Id, "", nil, 404, nil)
+	a.chamar("DELETE", "/requisitos/"+backup.Id+"/derivacoes/"+copia.Id, "", nil, 409, nil)
+
+	// Sem deriva_de, o novo deriva do zero (o primeiro requisito).
+	var solto api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Outro ramo"}, 201, &solto)
+	if len(solto.DerivaDe) != 1 || solto.DerivaDe[0] != cumprir.Id || solto.Organizacao != org {
+		t.Fatalf("o novo devia derivar do zero: %+v", solto)
+	}
 	var daLei []api.Requisito
 	a.chamar("GET", "/requisitos?origem="+lei.Id, "", nil, 200, &daLei)
 	if len(daLei) != 1 || daLei[0].Id != copia.Id {

@@ -50,6 +50,11 @@ erDiagram
 - **Commit**: hash, repositório, tarefa e sessão. Chega por um hook de `post-commit`.
 - **Evento**: log append-only de toda alteração, com autor, data e sessão.
 
+Um requisito é uma **afirmação testável** sobre o estado do mundo, no presente ("o backup tem
+cópia em dois destinos independentes, verificada toda semana"), não uma ação. Existe um único
+**requisito zero**, o único sem pais; todo outro deriva de algum, e o contexto de um requisito são
+as suas trilhas até o zero. A derivação nunca tem ciclo.
+
 Exemplo de cadeia:
 
 1. Origem *diretora de operações* → Requisito *cumprir a LGPD*.

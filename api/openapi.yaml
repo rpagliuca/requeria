@@ -231,6 +231,7 @@ paths:
         schema: { type: string }
     delete:
       operationId: desfazerDerivacao
+      description: Recusa deixar o requisito sem pai (só o zero não deriva de nenhum).
       responses:
         '200':
           description: Requisito sem a derivação
@@ -613,6 +614,7 @@ components:
         origem: { type: string }
         deriva_de:
           type: array
+          description: 'Padrão: o requisito zero (o único sem pais; o primeiro requisito criado é ele)'
           items: { type: string }
     AlteracaoRequisito:
       type: object

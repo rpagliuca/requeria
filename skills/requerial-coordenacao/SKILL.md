@@ -68,6 +68,12 @@ atendê-lo. Cada requisito tem uma **Origem** (`O-0001`): uma pessoa que pediu o
 norma, contrato). Requisitos derivam de outros, formando um grafo: "backup em dois destinos" deriva
 de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
 
+- **Um só requisito zero**: o primeiro criado, o único sem pais. Todo outro requisito deriva de
+  algum (sem `deriva_de`, deriva do zero), então todo requisito tem uma trilha até o zero: é ela que
+  dá o contexto inteiro dele.
+- **Requisito é uma afirmação testável (falseável)**, no presente, sobre o estado do mundo — não uma
+  ação. "O backup do cartório tem cópia em dois destinos independentes, verificada toda semana" ✅;
+  "Fazer backup" ❌ (isso é tarefa). Quanto mais abaixo na cadeia, mais concreto e verificável.
 - Antes de criar uma origem, `listar_origens`: reaproveite a existente.
 - `criar_requisito` com `origem` e `deriva_de`; sem `organizacao`, herda a do primeiro pai.
 - `derivar_requisito` acrescenta um pai (um requisito pode derivar de vários); ciclos são recusados.
