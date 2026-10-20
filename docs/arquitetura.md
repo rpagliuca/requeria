@@ -1,4 +1,4 @@
-# Arquitetura do requerial
+# Arquitetura do Requerial
 
 Status: desenho inicial, ainda sem implementação.
 
@@ -8,7 +8,7 @@ Requisitos atendidos geram valor; tarefas executadas, não necessariamente. Um r
 o que se sabe é que ele estava atendido no momento em que foi verificado. A verificação precisa se
 repetir, e o requisito volta a exigir trabalho quando deixa de ser atendido.
 
-O requerial coordena o trabalho de humanos e agentes de IA em torno desses requisitos. Inspira-se na
+O Requerial coordena o trabalho de humanos e agentes de IA em torno desses requisitos. Inspira-se na
 rastreabilidade de ferramentas de engenharia de requisitos (vínculos entre requisitos, mudanças,
 atividades e evidências de teste) e trata agentes de IA como trabalhadores de primeira classe.
 
@@ -170,7 +170,7 @@ fora da máquina.
 
 ## Lançador de agentes
 
-O requerial é a fonte única do status. Entrar em `em_andamento` sem sessão ativa, por alguém que
+O Requerial é a fonte única do status. Entrar em `em_andamento` sem sessão ativa, por alguém que
 não é uma sessão, sobe um agente (tmux, comando configurável) com `REQUERIAL_TAREFA` no ambiente;
 sair de `em_andamento` por mão de outro pede ao agente vivo que encerre com resumo, sem mexer no
 status. Sem agente vivo, a sessão é encerrada à mão pelo frontend. O journal de cada sessão fica na

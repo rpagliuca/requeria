@@ -1,4 +1,4 @@
-// Comando requerial.
+// Comando Requerial.
 //
 //	requerial servir   servidor da API (único processo que escreve no banco)
 //	requerial mcp      servidor MCP por stdio, para um agente de IA, falando com a API

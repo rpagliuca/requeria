@@ -1,4 +1,4 @@
-// Package banco abre o SQLite do requerial e aplica as migrações versionadas.
+// Package banco abre o SQLite do Requerial e aplica as migrações versionadas.
 package banco
 
 import (

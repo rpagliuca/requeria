@@ -1,15 +1,15 @@
 ---
 name: requerial-coordenacao
-description: "Coordenar o trabalho de agentes de IA pelo requerial: criar tarefas, pôr um agente para trabalhar numa tarefa, pausar, bloquear, mandar para validação, concluir ou retomar tarefas de outros agentes. Use quando o usuário pedir para criar uma tarefa ou um agente, iniciar, pausar, bloquear, retomar ou concluir uma tarefa que não é a deste chat, ou revisar o que está em andamento. Triggers: criar tarefa, criar agente, novo agente para, subir um agente, pausar a tarefa, bloquear a tarefa, retomar a tarefa, concluir a tarefa, mover para validação, o que está em andamento, matar o agente de, encerrar o agente de."
+description: "Coordenar o trabalho de agentes de IA pelo Requerial: criar tarefas, pôr um agente para trabalhar numa tarefa, pausar, bloquear, mandar para validação, concluir ou retomar tarefas de outros agentes. Use quando o usuário pedir para criar uma tarefa ou um agente, iniciar, pausar, bloquear, retomar ou concluir uma tarefa que não é a deste chat, ou revisar o que está em andamento. Triggers: criar tarefa, criar agente, novo agente para, subir um agente, pausar a tarefa, bloquear a tarefa, retomar a tarefa, concluir a tarefa, mover para validação, o que está em andamento, matar o agente de, encerrar o agente de."
 user-invocable: true
 ---
 
-# requerial: coordenar agentes
+# Requerial: coordenar agentes
 
-O requerial é a fonte única do status das tarefas. Coordenar é **mudar o status**; o resto é
+O Requerial é a fonte única do status das tarefas. Coordenar é **mudar o status**; o resto é
 consequência:
 
-| Você muda | O requerial faz |
+| Você muda | O Requerial faz |
 |---|---|
 | tarefa nova ou existente → `em_andamento`, sem sessão ativa | o lançador sobe um agente para ela, numa sessão tmux |
 | `em_andamento` → qualquer outro status | o lançador pede ao agente vivo que encerre a sessão com resumo; o agente fecha o próprio tmux |
@@ -40,7 +40,7 @@ bloqueia e o que precisa acontecer para destravar, e registre isso na descriçã
 - `status`: `em_andamento` para começar já (sobe o agente) ou `a_fazer` para só registrar.
 
 Se este chat tem uma sessão de trabalho aberta, uma tarefa que ele cria em andamento **não** sobe
-agente (o requerial entende que a sessão vai trabalhar nela). Para delegar a outro agente, crie a
+agente (o Requerial entende que a sessão vai trabalhar nela). Para delegar a outro agente, crie a
 tarefa sem sessão aberta neste chat, ou crie como `a_fazer` e depois mude para `em_andamento`.
 
 Depois de pôr em andamento, confira com `obter_tarefa` em cerca de um minuto que `sessao_ativa`

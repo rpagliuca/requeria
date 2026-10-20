@@ -202,7 +202,7 @@ type tarefaLigada struct {
 	atualizada time.Time
 }
 
-// MaxFilhos é a boa prática do requerial: cada requisito se desdobra em no máximo cinco. Não é
+// MaxFilhos é a boa prática do Requerial: cada requisito se desdobra em no máximo cinco. Não é
 // imposto; acima disso, o requisito pede atenção.
 const MaxFilhos = 5
 

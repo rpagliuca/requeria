@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: requerial
+  title: Requerial
   version: 0.1.0
   description: |
-    API de Tarefas e Sessões de Trabalho do requerial.
+    API de Tarefas e Sessões de Trabalho do Requerial.
     Operações sobre uma sessão exigem o token entregue na criação dela.
 paths:
   /tarefas:
@@ -487,7 +487,7 @@ paths:
     post:
       operationId: importarTarefa
       description: |
-        Importa uma tarefa já existente fora do requerial, com as datas originais e as sessões que
+        Importa uma tarefa já existente fora do Requerial, com as datas originais e as sessões que
         trabalharam nela, todas já encerradas. Os eventos registram o momento real da importação.
       requestBody:
         required: true

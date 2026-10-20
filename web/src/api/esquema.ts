@@ -384,7 +384,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Importa uma tarefa já existente fora do requerial, com as datas originais e as sessões que
+        /** @description Importa uma tarefa já existente fora do Requerial, com as datas originais e as sessões que
          *     trabalharam nela, todas já encerradas. Os eventos registram o momento real da importação.
          *      */
         post: operations["importarTarefa"];
