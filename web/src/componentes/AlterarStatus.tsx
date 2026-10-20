@@ -1,84 +1,164 @@
 import { useState } from "react"
 
-import { type StatusTarefa, type Tarefa, useAlterarTarefa, useOpcoesDoLancador } from "@/api/cliente"
-import { LancarAgente } from "@/componentes/LancarAgente"
-import { nomesStatusTarefa } from "@/componentes/rotulos"
+import {
+  type StatusTarefa,
+  type Tarefa,
+  useAlterarTarefa,
+  useLancarAgente,
+  useOpcoesDoLancador,
+} from "@/api/cliente"
+import { StatusDaTarefa, nomesStatusTarefa } from "@/componentes/rotulos"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 
 const todos = Object.keys(nomesStatusTarefa) as StatusTarefa[]
+const PADRAO = "padrao"
 
-// Um só combo de status. Entrar em andamento sobe um agente e sair derruba o agente vivo: nesses
-// dois casos a escolha abre uma confirmação logo abaixo, em vez de agir na hora.
+// Status atual e o botão que abre a tela de mudança. Entrar em andamento sobe um agente (com
+// modelo, esforço e instrução de reabertura); sair de em andamento faz o agente vivo encerrar.
 export function AlterarStatus({ tarefa }: { tarefa: Tarefa }) {
-  const alterar = useAlterarTarefa(tarefa.id)
-  const lancador = useOpcoesDoLancador()
-  const [pendente, setPendente] = useState<StatusTarefa | null>(null)
-  const comAgente = !!tarefa.sessao_ativa
-  const semAgenteEmAndamento = tarefa.status === "em_andamento" && !comAgente && !!lancador.data
-
-  const escolher = (status: StatusTarefa) => {
-    const iniciar = status === "em_andamento" && !comAgente && !!lancador.data
-    const parar = tarefa.status === "em_andamento" && status !== "em_andamento" && comAgente
-    if (iniciar || parar) setPendente(status)
-    else alterar.mutate({ status })
-  }
-
+  const [aberto, setAberto] = useState(false)
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={pendente ?? tarefa.status} disabled={alterar.isPending} onValueChange={(s) => escolher(s as StatusTarefa)}>
-          <SelectTrigger className="w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {todos.map((s) => (
-              <SelectItem key={s} value={s}>
-                {nomesStatusTarefa[s]}
-                {s === "em_andamento" && !comAgente && lancador.data ? " (sobe agente)" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {semAgenteEmAndamento && pendente === null && (
-          <Button size="sm" variant="outline" onClick={() => setPendente("em_andamento")}>
-            Subir agente…
+    <div className="flex flex-wrap items-center gap-2">
+      <StatusDaTarefa status={tarefa.status} />
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline">
+            Alterar status
           </Button>
-        )}
-      </div>
-      {pendente === "em_andamento" && lancador.data && (
-        <LancarAgente tarefa={tarefa} opcoes={lancador.data} aoTerminar={() => setPendente(null)} />
-      )}
-      {pendente && pendente !== "em_andamento" && (
-        <PararAgente tarefa={tarefa} destino={pendente} aoTerminar={() => setPendente(null)} />
-      )}
-      {alterar.error && <p className="text-destructive text-sm">{alterar.error.message}</p>}
+        </DialogTrigger>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          {aberto && <TelaDeStatus tarefa={tarefa} fechar={() => setAberto(false)} />}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function PararAgente({ tarefa, destino, aoTerminar }: { tarefa: Tarefa; destino: StatusTarefa; aoTerminar: () => void }) {
+function TelaDeStatus({ tarefa, fechar }: { tarefa: Tarefa; fechar: () => void }) {
   const alterar = useAlterarTarefa(tarefa.id)
+  const lancar = useLancarAgente(tarefa.id)
+  const opcoes = useOpcoesDoLancador().data
+  const [destino, setDestino] = useState<StatusTarefa>(tarefa.status)
+  const [instrucao, setInstrucao] = useState("")
+  const [modelo, setModelo] = useState(opcoes?.modelo_padrao ?? "")
+  const [esforco, setEsforco] = useState(opcoes?.esforco_padrao ?? PADRAO)
+
+  const comAgente = !!tarefa.sessao_ativa
+  // Sobe agente: indo para em andamento (ou já nela, sem agente) e com lançador.
+  const iniciar = destino === "em_andamento" && !comAgente && !!opcoes
+  const parar = tarefa.status === "em_andamento" && destino !== "em_andamento" && comAgente
+  const nada = destino === tarefa.status && !iniciar
+  const erro = alterar.error ?? lancar.error
+
+  const confirmar = () => {
+    if (iniciar) {
+      lancar.mutate(
+        { instrucao: instrucao.trim() || undefined, modelo: modelo || undefined, esforco: esforco === PADRAO ? undefined : esforco },
+        { onSuccess: fechar },
+      )
+    } else {
+      alterar.mutate({ status: destino }, { onSuccess: fechar })
+    }
+  }
+
   return (
-    <div className="space-y-3 rounded-md border p-3">
-      <p className="text-sm">
-        A tarefa vai para <strong>{nomesStatusTarefa[destino].toLowerCase()}</strong>. O agente da sessão{" "}
-        {tarefa.sessao_ativa} vai parar o que está fazendo, encerrar a sessão com um resumo e fechar o próprio tmux.
-      </p>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="destructive"
-          disabled={alterar.isPending}
-          onClick={() => alterar.mutate({ status: destino }, { onSuccess: aoTerminar })}
-        >
-          Parar agente
-        </Button>
-        <Button size="sm" variant="ghost" onClick={aoTerminar}>
+    <>
+      <DialogHeader>
+        <DialogTitle>Alterar status</DialogTitle>
+        <DialogDescription>{tarefa.titulo}</DialogDescription>
+      </DialogHeader>
+
+      <RadioGroup value={destino} onValueChange={(v) => setDestino(v as StatusTarefa)} className="gap-1">
+        {todos.map((s) => (
+          <Label key={s} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 font-normal hover:bg-muted">
+            <RadioGroupItem value={s} />
+            <span className="flex-1">{nomesStatusTarefa[s]}</span>
+            {s === tarefa.status && <span className="text-muted-foreground text-xs">atual</span>}
+          </Label>
+        ))}
+      </RadioGroup>
+
+      {iniciar && opcoes && (
+        <div className="space-y-3 rounded-md border p-3">
+          <p className="text-sm">Um agente sobe para trabalhar nesta tarefa.</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="instrucao">Instrução adicional de reabertura (opcional)</Label>
+            <Textarea
+              id="instrucao"
+              rows={4}
+              placeholder="O que mudou ou o que fazer agora. O resto o agente lê da tarefa e das sessões anteriores."
+              value={instrucao}
+              onChange={(e) => setInstrucao(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="space-y-1.5">
+              <Label>Modelo</Label>
+              <Select value={modelo} onValueChange={setModelo}>
+                <SelectTrigger className="w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoes.modelos.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Esforço</Label>
+              <Select value={esforco} onValueChange={setEsforco}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {!opcoes.esforco_padrao && <SelectItem value={PADRAO}>Padrão do agente</SelectItem>}
+                  {(opcoes.esforcos ?? []).map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+      {parar && (
+        <p className="rounded-md border border-destructive/40 p-3 text-sm">
+          O agente da sessão {tarefa.sessao_ativa} vai parar o que está fazendo, encerrar a sessão com um resumo e fechar o
+          próprio tmux.
+        </p>
+      )}
+      {erro && <p className="text-destructive text-sm">{erro.message}</p>}
+
+      <DialogFooter>
+        <Button variant="ghost" onClick={fechar}>
           Cancelar
         </Button>
-      </div>
-      {alterar.error && <p className="text-destructive text-sm">{alterar.error.message}</p>}
-    </div>
+        <Button
+          variant={parar ? "destructive" : "default"}
+          disabled={nada || alterar.isPending || lancar.isPending}
+          onClick={confirmar}
+        >
+          {iniciar ? "Iniciar agente" : parar ? "Parar agente e alterar" : "Alterar"}
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
