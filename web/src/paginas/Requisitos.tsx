@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useDefinirZero, useOrigens, useRequisitos, useZero } from "@/api/cliente"
+import { useComponentes, useDefinirZero, useOrigens, useRequisitos, useZero } from "@/api/cliente"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GrafoDeRequisitos, recortar } from "@/componentes/GrafoDeRequisitos"
@@ -37,10 +37,13 @@ export function Requisitos() {
   const orgs = params.has("org") ? lista("org") : organizacoes
   const origensSel = params.has("origem") ? lista("origem") : idsOrigem
   const atencao = lista("atencao")
+  const componentes = useComponentes()
+  const idsComp = [...(componentes.data ?? []).map((c) => c.id), "_nenhum"]
+  const compSel = params.has("comp") ? lista("comp") : idsComp
   const prioridades = Object.keys(nomesPrioridade)
   const prioSel = params.has("prio") ? lista("prio") : prioridades
   const filtraOrg = !organizacao && params.has("org")
-  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao", "prio"].some((c) => params.has(c))
+  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao", "prio", "comp"].some((c) => params.has(c))
 
   const recorte = useMemo(() => {
     if (!filtrando) return undefined
@@ -50,6 +53,7 @@ export function Requisitos() {
       return (
         estados.includes(r.estado) &&
         prioSel.includes(r.prioridade ?? "nao_triado") &&
+        (!params.has("comp") || (r.componentes.length === 0 ? compSel.includes("_nenhum") : r.componentes.some((c) => compSel.includes(c)))) &&
         (!filtraOrg || orgs.includes(r.organizacao)) &&
         (!params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem))) &&
         (atencao.length === 0 || r.atencao.some((a) => atencao.includes(a.motivo))) &&
@@ -85,6 +89,16 @@ export function Requisitos() {
             { rotulo: "Todas", valores: prioridades },
             { rotulo: "Triados", valores: ["alta", "media", "baixa"] },
           ]}
+        />
+        <SelecaoMultipla
+          rotulo="Componente"
+          opcoes={[
+            ...(componentes.data ?? []).map((c) => ({ valor: c.id, rotulo: c.nome, contagem: c.requisitos.filter((r) => porId.has(r)).length })),
+            { valor: "_nenhum", rotulo: "Sem componente" },
+          ]}
+          selecionados={compSel}
+          alterar={(v) => alterar("comp", v.length === idsComp.length ? null : v.join(","))}
+          atalhos={[{ rotulo: "Todos", valores: idsComp }]}
         />
         {!organizacao && <SelecaoMultipla
           rotulo="Organização"

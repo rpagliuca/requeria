@@ -193,8 +193,9 @@ type ligacoes struct {
 	abertas map[int64][]string
 	ultimas map[int64]api.Execucao
 	// filhosN: derivados por número; estados: memória do estado (herdado) de cada um.
-	filhosN map[int64][]int64
-	estados map[int64]api.EstadoDoRequisito
+	filhosN     map[int64][]int64
+	estados     map[int64]api.EstadoDoRequisito
+	componentes map[int64][]string
 	// orgs: organização de cada requisito; zeros: os zeros atribuídos às organizações.
 	orgs  map[int64]string
 	zeros map[int64]bool
@@ -217,8 +218,11 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC(),
 		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{},
 		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{},
-		orgs: map[int64]string{}, zeros: map[int64]bool{}}
+		orgs: map[int64]string{}, zeros: map[int64]bool{}, componentes: map[int64][]string{}}
 	if err := carregarOrganizacoesDosRequisitos(c, &l); err != nil {
+		return l, err
+	}
+	if err := carregarComponentesDosRequisitos(c, &l); err != nil {
 		return l, err
 	}
 	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
@@ -315,6 +319,22 @@ func carregarOrganizacoesDosRequisitos(c consultor, l *ligacoes) error {
 	return linhas.Err()
 }
 
+func carregarComponentesDosRequisitos(c consultor, l *ligacoes) error {
+	linhas, err := c.Query(`SELECT requisito_id, componente_id FROM requisito_componente ORDER BY componente_id`)
+	if err != nil {
+		return err
+	}
+	defer linhas.Close()
+	for linhas.Next() {
+		var r, k int64
+		if err := linhas.Scan(&r, &k); err != nil {
+			return err
+		}
+		l.componentes[r] = append(l.componentes[r], idComponente(k))
+	}
+	return linhas.Err()
+}
+
 func naoNulo(ids []string) []string {
 	if ids == nil {
 		return []string{}
@@ -343,6 +363,7 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 		x.Origem = &o
 	}
 	x.DerivaDe, x.Derivados, x.Tarefas = naoNulo(l.pais[n]), naoNulo(l.filhos[n]), naoNulo(l.tarefas[n])
+	x.Componentes = naoNulo(l.componentes[n])
 	x.Atencao = atencao(x, l.trabalho[n], l.agora)
 	if !l.zeros[n] {
 		for _, pai := range l.paisN(n) {

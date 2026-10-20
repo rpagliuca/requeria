@@ -377,6 +377,126 @@ paths:
               schema: { $ref: '#/components/schemas/Organizacao' }
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
+  /componentes:
+    get:
+      operationId: listarComponentes
+      responses:
+        '200':
+          description: Componentes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Componente' }
+    post:
+      operationId: criarComponente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovoComponente' }
+      responses:
+        '201':
+          description: Componente criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Componente' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /componentes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterComponente
+      responses:
+        '200':
+          description: Componente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Componente' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarComponente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoComponente' }
+      responses:
+        '200':
+          description: Componente alterado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Componente' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/componentes:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: vincularComponenteARequisito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VinculoComponente' }
+      responses:
+        '200':
+          description: Com o componente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/componentes/{componente}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: componente
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: desvincularComponenteDeRequisito
+      responses:
+        '200':
+          description: Sem o componente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/componentes:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: vincularComponenteATarefa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VinculoComponente' }
+      responses:
+        '200':
+          description: Com o componente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/componentes/{componente}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: componente
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: desvincularComponenteDeTarefa
+      responses:
+        '200':
+          description: Sem o componente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/requisitos:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -673,6 +793,10 @@ components:
           description: Estado para retomar, gravado no encerramento de cada sessão
         sessao_ativa: { type: string, example: S-0001 }
         template: { type: string, example: TP-0001, description: 'Template do qual a tarefa foi instanciada' }
+        componentes:
+          type: array
+          description: Componentes em que a tarefa mexe (só no detalhe da tarefa)
+          items: { type: string }
         requisitos:
           type: array
           description: Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
@@ -743,6 +867,40 @@ components:
       required: [zero]
       properties:
         zero: { type: string }
+    Componente:
+      type: object
+      description: Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade).
+      required: [id, nome, descricao, organizacao, requisitos, tarefas, criado_em]
+      properties:
+        id: { type: string, example: C-0001 }
+        nome: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        requisitos:
+          type: array
+          items: { type: string }
+        tarefas:
+          type: array
+          items: { type: string }
+        criado_em: { type: string, format: date-time }
+    NovoComponente:
+      type: object
+      required: [nome, organizacao]
+      properties:
+        nome: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+    AlteracaoComponente:
+      type: object
+      properties:
+        nome: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+    VinculoComponente:
+      type: object
+      required: [componente]
+      properties:
+        componente: { type: string, example: C-0001 }
     NovaTarefa:
       type: object
       required: [titulo, organizacao]
@@ -786,7 +944,7 @@ components:
         descricao: { type: string }
     Requisito:
       type: object
-      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, atencao, estado, estado_proprio, limitado_por, tarefas_abertas, criado_em, atualizado_em]
+      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, componentes, atencao, estado, estado_proprio, limitado_por, tarefas_abertas, criado_em, atualizado_em]
       properties:
         id: { type: string, example: R-0001 }
         titulo: { type: string }
@@ -811,6 +969,10 @@ components:
           items: { $ref: '#/components/schemas/Atencao' }
         estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
         prioridade: { $ref: '#/components/schemas/Prioridade' }
+        componentes:
+          type: array
+          description: Componentes a que o requisito se refere
+          items: { type: string }
         estado_proprio: { $ref: '#/components/schemas/EstadoDoRequisito' }
         limitado_por:
           type: array

@@ -7,6 +7,8 @@ import { Requisito } from "@/paginas/Requisito"
 import { Requisitos } from "@/paginas/Requisitos"
 import { Sessao } from "@/paginas/Sessao"
 import { Sessoes } from "@/paginas/Sessoes"
+import { Componente } from "@/paginas/Componente"
+import { Componentes } from "@/paginas/Componentes"
 import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
 import { useOrganizacoes, useTemplates } from "@/api/cliente"
@@ -40,6 +42,9 @@ export default function App() {
             </span>
           )}
         </NavLink>
+        <NavLink to="/componentes" className={aba}>
+          Componentes
+        </NavLink>
         <NavLink to="/sessoes" className={aba}>
           Sessões
         </NavLink>
@@ -56,6 +61,8 @@ export default function App() {
         <Route path="/origens" element={<Origens />} />
         <Route path="/templates" element={<Templates />} />
         <Route path="/templates/:id" element={<Template />} />
+        <Route path="/componentes" element={<Componentes />} />
+        <Route path="/componentes/:id" element={<Componente />} />
         <Route path="/sessoes" element={<Sessoes />} />
         <Route path="/sessoes/:id" element={<Sessao />} />
       </Routes>

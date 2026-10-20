@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { useSessoesDaTarefa, useTarefa } from "@/api/cliente"
 import { AlterarStatus } from "@/componentes/AlterarStatus"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
+import { ComponentesLigados } from "@/componentes/ComponentesLigados"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
@@ -52,6 +53,9 @@ export function Tarefa() {
 
       <Secao titulo="Requisitos que ela tenta atender">
         <RequisitosDaTarefa tarefa={t} />
+      </Secao>
+      <Secao titulo="Componentes">
+        <ComponentesLigados alvo="tarefas" id={t.id} ligados={t.componentes ?? []} organizacao={t.organizacao} />
       </Secao>
       <Secao titulo="Resumo para retomar">
         <Texto>{t.resumo}</Texto>

@@ -15,6 +15,7 @@ import {
 } from "@/api/cliente"
 import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { EscolherOrigem } from "@/componentes/EscolherOrigem"
+import { ComponentesLigados } from "@/componentes/ComponentesLigados"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { Eventos } from "@/componentes/Eventos"
@@ -84,6 +85,10 @@ export function Requisito() {
       <Secao titulo="Estado">
         <PorQue requisito={r} tarefasPorId={tarefasPorId} porId={porId} />
         <Execucoes requisito={r} />
+      </Secao>
+
+      <Secao titulo="Componentes">
+        <ComponentesLigados alvo="requisitos" id={r.id} ligados={r.componentes} organizacao={r.organizacao} />
       </Secao>
 
       <Secao titulo="Descrição">

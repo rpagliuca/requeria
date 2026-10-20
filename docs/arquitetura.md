@@ -97,6 +97,10 @@ roda sozinho: instanciar um template cria uma tarefa a fazer, com as instruçõe
 Um periódico cuja última instância é mais antiga que a periodicidade (ou que nunca foi instanciado), e
 sem instância aberta, aparece como devido.
 
+**Componentes** são qualquer coisa reaproveitável a que requisitos e tarefas se referem
+(repositório, módulo, lugar físico, funcionalidade), sem tipo. Requisitos e tarefas se ligam a vários
+componentes; a página do componente reúne os dois, e a tela de Requisitos filtra por componente.
+
 **Organização atual.** A barra superior escolhe uma organização, e todas as telas passam a mostrar só
 o que é dela (para compartilhar a tela sem mostrar o resto). Cada organização tem o seu **zero**,
 atribuído explicitamente (`PUT /organizacoes/{nome}`); na visão sem organização, o zero é o geral, o

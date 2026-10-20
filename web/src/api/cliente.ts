@@ -22,6 +22,7 @@ export type Template = components["schemas"]["Template"]
 export type NovoTemplate = components["schemas"]["NovoTemplate"]
 export type AlteracaoTemplate = components["schemas"]["AlteracaoTemplate"]
 export type Organizacao = components["schemas"]["Organizacao"]
+export type Componente = components["schemas"]["Componente"]
 export type NovaOrigem = components["schemas"]["NovaOrigem"]
 export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
 export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
@@ -176,3 +177,25 @@ export const useAlterarTemplate = (id: string) =>
 
 export const useInstanciarTemplate = (id: string) =>
   useEscrita((titulo?: string) => obter<Tarefa>(`/templates/${id}/instancias`, "POST", { titulo }))
+
+export const useComponentes = () => {
+  const { organizacao } = useOrganizacaoAtual()
+  return useQuery({
+    queryKey: ["componentes"],
+    queryFn: () => obter<Componente[]>("/componentes"),
+    select: daOrganizacao<Componente>(organizacao),
+  })
+}
+
+export const useCriarComponente = () =>
+  useEscrita((novo: { nome: string; organizacao: string; descricao?: string }) => obter<Componente>("/componentes", "POST", novo))
+
+export const useAlterarComponente = (id: string) =>
+  useEscrita((alteracao: { nome?: string; organizacao?: string; descricao?: string }) => obter<Componente>(`/componentes/${id}`, "PATCH", alteracao))
+
+// alvo: "requisitos" ou "tarefas".
+export const useVincularComponente = (alvo: string, id: string) =>
+  useEscrita((componente: string) => obter<unknown>(`/${alvo}/${id}/componentes`, "POST", { componente }))
+
+export const useDesvincularComponente = (alvo: string, id: string) =>
+  useEscrita((componente: string) => obter<unknown>(`/${alvo}/${id}/componentes/${componente}`, "DELETE"))

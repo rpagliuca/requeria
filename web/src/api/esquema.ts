@@ -277,6 +277,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/componentes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listarComponentes"];
+        put?: never;
+        post: operations["criarComponente"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/componentes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["obterComponente"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["alterarComponente"];
+        trace?: never;
+    };
+    "/requisitos/{id}/componentes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["vincularComponenteARequisito"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/requisitos/{id}/componentes/{componente}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                componente: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["desvincularComponenteDeRequisito"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tarefas/{id}/componentes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["vincularComponenteATarefa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tarefas/{id}/componentes/{componente}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                componente: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["desvincularComponenteDeTarefa"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/requisitos": {
         parameters: {
             query?: never;
@@ -531,6 +639,8 @@ export interface components {
              * @example TP-0001
              */
             template?: string;
+            /** @description Componentes em que a tarefa mexe (só no detalhe da tarefa) */
+            componentes?: string[];
             /** @description Requisitos que a tarefa tenta atender (só na leitura de uma tarefa) */
             requisitos?: string[];
             /** Format: date-time */
@@ -601,6 +711,32 @@ export interface components {
         DefinicaoDeOrganizacao: {
             zero: string;
         };
+        /** @description Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade). */
+        Componente: {
+            /** @example C-0001 */
+            id: string;
+            nome: string;
+            descricao: string;
+            organizacao: string;
+            requisitos: string[];
+            tarefas: string[];
+            /** Format: date-time */
+            criado_em: string;
+        };
+        NovoComponente: {
+            nome: string;
+            descricao?: string;
+            organizacao: string;
+        };
+        AlteracaoComponente: {
+            nome?: string;
+            descricao?: string;
+            organizacao?: string;
+        };
+        VinculoComponente: {
+            /** @example C-0001 */
+            componente: string;
+        };
         NovaTarefa: {
             titulo: string;
             descricao?: string;
@@ -654,6 +790,8 @@ export interface components {
             atencao: components["schemas"]["Atencao"][];
             estado: components["schemas"]["EstadoDoRequisito"];
             prioridade?: components["schemas"]["Prioridade"];
+            /** @description Componentes a que o requisito se refere */
+            componentes: string[];
             estado_proprio: components["schemas"]["EstadoDoRequisito"];
             /** @description Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio */
             limitado_por: string[];
@@ -1468,6 +1606,206 @@ export interface operations {
                 };
             };
             400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    listarComponentes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Componentes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Componente"][];
+                };
+            };
+        };
+    };
+    criarComponente: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovoComponente"];
+            };
+        };
+        responses: {
+            /** @description Componente criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Componente"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    obterComponente: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Componente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Componente"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    alterarComponente: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlteracaoComponente"];
+            };
+        };
+        responses: {
+            /** @description Componente alterado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Componente"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    vincularComponenteARequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VinculoComponente"];
+            };
+        };
+        responses: {
+            /** @description Com o componente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    desvincularComponenteDeRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                componente: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sem o componente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    vincularComponenteATarefa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VinculoComponente"];
+            };
+        };
+        responses: {
+            /** @description Com o componente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    desvincularComponenteDeTarefa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                componente: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sem o componente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
+                };
+            };
             404: components["responses"]["Erro"];
         };
     };
