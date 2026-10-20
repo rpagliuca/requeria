@@ -176,7 +176,7 @@ export const useAlterarTemplate = (id: string) =>
   useEscrita((alteracao: AlteracaoTemplate) => obter<Template>(`/templates/${id}`, "PATCH", alteracao))
 
 export const useInstanciarTemplate = (id: string) =>
-  useEscrita((titulo?: string) => obter<Tarefa>(`/templates/${id}/instancias`, "POST", { titulo }))
+  useEscrita((contexto?: string) => obter<Tarefa>(`/templates/${id}/instancias`, "POST", { contexto }))
 
 export const useComponentes = () => {
   const { organizacao } = useOrganizacaoAtual()

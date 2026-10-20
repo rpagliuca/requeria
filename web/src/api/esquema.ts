@@ -735,7 +735,9 @@ export interface components {
             requisitos?: string[];
         };
         PedidoDeInstancia: {
-            /** @description Padrão: o título do template com a data */
+            /** @description Informações desta instância; vão para o topo da descrição da tarefa */
+            contexto?: string;
+            /** @description Padrão: o título do template com a data (o agente dá um título específico ao começar) */
             titulo?: string;
         };
         Organizacao: {

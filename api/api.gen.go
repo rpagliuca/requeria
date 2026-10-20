@@ -341,7 +341,10 @@ type Origem struct {
 
 // PedidoDeInstancia defines model for PedidoDeInstancia.
 type PedidoDeInstancia struct {
-	// Titulo Padrão: o título do template com a data
+	// Contexto Informações desta instância; vão para o topo da descrição da tarefa
+	Contexto *string `json:"contexto,omitempty"`
+
+	// Titulo Padrão: o título do template com a data (o agente dá um título específico ao começar)
 	Titulo *string `json:"titulo,omitempty"`
 }
 
