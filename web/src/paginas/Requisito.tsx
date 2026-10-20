@@ -70,7 +70,7 @@ export function Requisito() {
       </header>
 
       {r.atencao.length > 0 && (
-        <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+        <div className="space-y-1 rounded-md border border-tom-atencao-borda bg-tom-atencao/50 p-3 text-sm">
           <p className="font-medium">Precisa de atenção</p>
           <ul className="list-disc pl-5">
             {r.atencao.map((a) => (

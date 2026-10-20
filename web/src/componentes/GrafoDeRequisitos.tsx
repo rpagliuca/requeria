@@ -131,13 +131,13 @@ function No({
               <PrioridadeDoRequisito prioridade={r.prioridade} className="h-5 px-1.5 text-[11px]" />
               {filhos.length > 0 && <span>{recorte ? [...abaixo].filter((x) => recorte.casam.has(x)).length : abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
-              {!recorte && emTrabalhoAbaixo > 0 && <span className="text-blue-600 dark:text-blue-400">● {emTrabalhoAbaixo} em trabalho abaixo</span>}
+              {!recorte && emTrabalhoAbaixo > 0 && <span className="text-tom-andamento-fg">● {emTrabalhoAbaixo} em trabalho abaixo</span>}
               {r.atencao.length > 0 && (
-                <span className="text-amber-600 dark:text-amber-400" title={r.atencao.map((a) => a.detalhe).join("\n")}>
+                <span className="text-tom-atencao-fg" title={r.atencao.map((a) => a.detalhe).join("\n")}>
                   ⚠ {r.atencao.length}
                 </span>
               )}
-              {!recorte && atencaoAbaixo > 0 && <span className="text-amber-600/80 dark:text-amber-400/80">{atencaoAbaixo} abaixo pedem atenção</span>}
+              {!recorte && atencaoAbaixo > 0 && <span className="text-tom-atencao-fg/80">{atencaoAbaixo} abaixo pedem atenção</span>}
             </span>
           </span>
         </button>
