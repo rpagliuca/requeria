@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/rpagliuca/requerial/api"
 )
 
 const colunasSessao = `s.id, s.status, s.agente, s.tipo_agente, s.chat, s.servidor, s.anterior_id,
-	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em, s.resumo`
+	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em, s.resumo, s.aguardando, s.aguardando_desde`
 
 // listarSessoes carrega as sessões que casam com o filtro, já com as tarefas de cada uma.
 // As tarefas são lidas depois de fechar o cursor: o banco tem uma única conexão.
@@ -25,10 +26,10 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		var x api.Sessao
 		var n int64
 		var status, tipo, artefatos, iniciada string
-		var chat, motivo, journal, encerrada, resumo sql.NullString
+		var chat, motivo, journal, encerrada, resumo, aguardando, desde sql.NullString
 		var anterior sql.NullInt64
 		if err := linhas.Scan(&n, &status, &x.Agente, &tipo, &chat, &x.Servidor, &anterior,
-			&motivo, &journal, &artefatos, &iniciada, &encerrada, &resumo); err != nil {
+			&motivo, &journal, &artefatos, &iniciada, &encerrada, &resumo, &aguardando, &desde); err != nil {
 			linhas.Close()
 			return nil, err
 		}
@@ -56,6 +57,9 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		}
 		if resumo.Valid {
 			x.Resumo = &resumo.String
+		}
+		if aguardando.Valid {
+			x.Aguardando = &api.EsperaDeSessao{Mensagem: aguardando.String, Desde: lerMomento(desde.String)}
 		}
 		if err := json.Unmarshal([]byte(artefatos), &x.Artefatos); err != nil {
 			linhas.Close()
@@ -170,7 +174,7 @@ func (s *Servidor) iniciar(tx *sql.Tx, agente string, tipo api.TipoAgente, chat 
 
 // encerrar fecha a sessão e libera as tarefas dela.
 func (s *Servidor) encerrar(tx *sql.Tx, n int64, status api.StatusSessao, motivo api.MotivoEncerramento) error {
-	if _, err := tx.Exec(`UPDATE sessoes SET status = ?, motivo_encerramento = ?, encerrada_em = ? WHERE id = ?`,
+	if _, err := tx.Exec(`UPDATE sessoes SET status = ?, motivo_encerramento = ?, encerrada_em = ?, aguardando = NULL, aguardando_desde = NULL WHERE id = ?`,
 		string(status), string(motivo), s.momento(), n); err != nil {
 		return err
 	}
@@ -254,9 +258,11 @@ func (s *Servidor) operarSessao(w http.ResponseWriter, r *http.Request, id api.I
 		responderErro(w, err)
 		return
 	}
-	if err := ler(r, corpo); err != nil {
-		responderErro(w, err)
-		return
+	if corpo != nil {
+		if err := ler(r, corpo); err != nil {
+			responderErro(w, err)
+			return
+		}
 	}
 	var x api.Sessao
 	err = s.emTransacao(func(tx *sql.Tx) error {
@@ -475,11 +481,29 @@ func (s *Servidor) RepassarSessao(w http.ResponseWriter, r *http.Request, id api
 }
 
 func (s *Servidor) ListarEventos(w http.ResponseWriter, r *http.Request, params api.ListarEventosParams) {
-	consulta, args := `SELECT id, momento, autor, entidade, tipo, dados FROM eventos`, []any{}
+	consulta, args := `SELECT id, momento, autor, entidade, tipo, dados FROM eventos WHERE 1 = 1`, []any{}
 	if params.Entidade != nil {
-		consulta, args = consulta+` WHERE entidade = ?`, []any{*params.Entidade}
+		consulta, args = consulta+` AND entidade = ?`, append(args, *params.Entidade)
 	}
-	linhas, err := s.db.Query(consulta+` ORDER BY id`, args...)
+	if params.Depois != nil {
+		consulta, args = consulta+` AND id > ?`, append(args, *params.Depois)
+	}
+	if params.Tipo != nil {
+		var marcas []string
+		for _, tipo := range strings.Split(*params.Tipo, ",") {
+			marcas, args = append(marcas, "?"), append(args, strings.TrimSpace(tipo))
+		}
+		consulta += ` AND tipo IN (` + strings.Join(marcas, ", ") + `)`
+	}
+	consulta += ` ORDER BY id`
+	if params.Limite != nil {
+		if *params.Limite < 1 || *params.Limite > 1000 {
+			responderErro(w, falha(http.StatusBadRequest, "limite entre 1 e 1000"))
+			return
+		}
+		consulta, args = consulta+` LIMIT ?`, append(args, *params.Limite)
+	}
+	linhas, err := s.db.Query(consulta, args...)
 	if err != nil {
 		responderErro(w, err)
 		return

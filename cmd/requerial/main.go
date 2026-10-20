@@ -13,11 +13,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rpagliuca/requerial/internal/banco"
 	"github.com/rpagliuca/requerial/internal/ferramentas"
+	"github.com/rpagliuca/requerial/internal/integracao"
 	"github.com/rpagliuca/requerial/internal/lancador"
 	"github.com/rpagliuca/requerial/internal/servidor"
 	"github.com/rpagliuca/requerial/web"
@@ -46,6 +48,7 @@ func servir(args []string) {
 	caminho := opcoes.String("banco", "requerial.db", "arquivo do SQLite")
 	endereco := opcoes.String("endereco", enderecoPadrao, "endereços HTTP separados por vírgula (ex.: o local e o IP do Tailscale)")
 	configLancador := opcoes.String("lancador", "", "arquivo JSON do lançador de agentes (opcional)")
+	configIntegracoes := opcoes.String("integracoes", "", "arquivo JSON das integrações: ganchos, captura e fuso (opcional; ver docs/integracao.md)")
 	opcoes.Parse(args)
 
 	db, err := banco.Abrir(*caminho)
@@ -63,6 +66,16 @@ func servir(args []string) {
 		l.Conectar(s)
 		log.Printf("lançador de agentes ativo (%s)", *configLancador)
 	}
+	ctx := context.Background()
+	if *configIntegracoes != "" {
+		i, err := integracao.Carregar(*configIntegracoes)
+		if err != nil {
+			log.Fatalf("integrações: %v", err)
+		}
+		i.Conectar(ctx, s)
+		log.Printf("integrações ativas (%s)", *configIntegracoes)
+	}
+	go integracao.Agendar(ctx, s, 15*time.Second)
 
 	handler := comGzip(rotas(s.Handler()))
 	enderecos := strings.Split(*endereco, ",")
@@ -79,7 +92,7 @@ func servir(args []string) {
 // resto é o frontend, que navega pelo hash da URL.
 func rotas(apiHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
-	for _, recurso := range []string{"/tarefas", "/sessoes", "/eventos", "/importacao", "/lancador", "/origens", "/requisitos", "/templates", "/organizacoes", "/componentes", "/busca", "/arvore"} {
+	for _, recurso := range []string{"/tarefas", "/sessoes", "/eventos", "/importacao", "/lancador", "/origens", "/requisitos", "/templates", "/organizacoes", "/componentes", "/busca", "/arvore", "/lembretes", "/integracao", "/captura"} {
 		mux.Handle(recurso, apiHandler)
 		mux.Handle(recurso+"/", apiHandler)
 	}
