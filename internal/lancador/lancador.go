@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,6 +78,7 @@ const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por out
 type Sessoes interface {
 	AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error)
 	EncerrarSessaoLancada(id, resumo string) error
+	Sessao(id string) (api.Sessao, error)
 }
 
 // Variáveis que levam ao agente (e ao MCP dele) a sessão já aberta pelo lançador.
@@ -92,6 +94,10 @@ type Lancador struct {
 	maquina string
 	// executar roda o tmux; substituível nos testes.
 	executar func(args ...string) (string, error)
+	// processoDoChat acha o pid de um processo do agente cujo chat é o dado; substituível nos testes.
+	processoDoChat func(chat string) int
+	// paiDe devolve o processo pai; substituível nos testes.
+	paiDe func(pid int) int
 }
 
 // Carregar lê a configuração do arquivo.
@@ -122,7 +128,7 @@ func Novo(cfg Config) (*Lancador, error) {
 		cfg.PromptEncerrar = promptEncerrarPadrao
 	}
 	maquina, _ := os.Hostname()
-	l := &Lancador{cfg: cfg, maquina: maquina}
+	l := &Lancador{cfg: cfg, maquina: maquina, processoDoChat: processoDoChat, paiDe: paiDe}
 	l.executar = func(args ...string) (string, error) {
 		saida, err := exec.Command(l.cfg.Tmux, args...).CombinedOutput()
 		return strings.TrimSpace(string(saida)), err
@@ -322,6 +328,10 @@ func (l *Lancador) avisar(t api.Tarefa) error {
 		return err
 	}
 	if nome == "" {
+		// Agente que o lançador não subiu (iniciado à mão e registrado depois): acha pelo chat da sessão.
+		nome = l.encontrarPeloChat(*t.SessaoAtiva)
+	}
+	if nome == "" {
 		log.Printf("lançador: tarefa %s saiu de em_andamento, mas não há agente vivo da sessão %s; encerre-a pelo frontend", t.Id, *t.SessaoAtiva)
 		return nil
 	}
@@ -349,6 +359,80 @@ func (l *Lancador) encontrar(id string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// encontrarPeloChat acha a sessão tmux do agente da sessão de trabalho: o servidor MCP do agente
+// carrega CLAUDE_CODE_SESSION_ID com o chat; sobe pelos processos pais até um painel do tmux.
+func (l *Lancador) encontrarPeloChat(sessao string) string {
+	if l.sessoes == nil {
+		return ""
+	}
+	x, err := l.sessoes.Sessao(sessao)
+	if err != nil || x.Chat == nil || *x.Chat == "" {
+		return ""
+	}
+	pid := l.processoDoChat(*x.Chat)
+	if pid == 0 {
+		return ""
+	}
+	saida, err := l.executar("list-panes", "-a", "-F", "#{pane_pid} #{session_name}")
+	if err != nil {
+		return ""
+	}
+	paineis := map[int]string{}
+	for _, linha := range strings.Split(saida, "\n") {
+		var p int
+		var nome string
+		if _, err := fmt.Sscanf(linha, "%d %s", &p, &nome); err == nil {
+			paineis[p] = nome
+		}
+	}
+	for i := 0; i < 10 && pid > 1; i++ {
+		if nome, ok := paineis[pid]; ok {
+			return nome
+		}
+		pid = l.paiDe(pid)
+	}
+	return ""
+}
+
+// processoDoChat procura em /proc um processo com CLAUDE_CODE_SESSION_ID igual ao chat.
+func processoDoChat(chat string) int {
+	entradas, err := os.ReadDir("/proc")
+	if err != nil {
+		return 0
+	}
+	alvo := "CLAUDE_CODE_SESSION_ID=" + chat
+	for _, e := range entradas {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
+		ambiente, err := os.ReadFile("/proc/" + e.Name() + "/environ")
+		if err != nil {
+			continue
+		}
+		for _, v := range strings.Split(string(ambiente), "\x00") {
+			if v == alvo {
+				return pid
+			}
+		}
+	}
+	return 0
+}
+
+func paiDe(pid int) int {
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0
+	}
+	texto := string(stat)
+	campos := strings.Fields(texto[strings.LastIndexByte(texto, ')')+1:])
+	if len(campos) < 2 {
+		return 0
+	}
+	pai, _ := strconv.Atoi(campos[1])
+	return pai
 }
 
 func (l *Lancador) nomeLivre(base string) (string, error) {

@@ -128,3 +128,12 @@ func (s *Servidor) EncerrarSessaoLancada(id, resumo string) error {
 	}
 	return err
 }
+
+// Sessao lê uma sessão pelo identificador, para quem reage aos avisos fora de uma requisição.
+func (s *Servidor) Sessao(id string) (api.Sessao, error) {
+	n, err := numero(id, "S")
+	if err != nil {
+		return api.Sessao{}, err
+	}
+	return carregarSessao(s.db, n)
+}

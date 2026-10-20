@@ -52,6 +52,8 @@ func (f *tmuxFalso) executar(args ...string) (string, error) {
 			}
 		}
 		f.sessoes[nome] = tarefa
+	case "list-panes":
+		return "500 manual\n600 outra", nil
 	case "kill-session":
 		delete(f.sessoes, alvo())
 	}
@@ -198,6 +200,11 @@ func (s *sessoesFalsas) AbrirSessaoLancada(tarefa, agente, servidor, chat string
 	return api.SessaoCriada{Sessao: api.Sessao{Id: "S-0042"}, Token: "segredo"}, nil
 }
 
+func (s *sessoesFalsas) Sessao(id string) (api.Sessao, error) {
+	chat := "chat-manual"
+	return api.Sessao{Id: id, Chat: &chat}, nil
+}
+
 func (s *sessoesFalsas) EncerrarSessaoLancada(id, resumo string) error {
 	s.encerradas = append(s.encerradas, id)
 	return nil
@@ -229,4 +236,27 @@ func TestLancadorAbreASessaoAntesDoAgente(t *testing.T) {
 		!strings.Contains(ultima, "--session-id "+partes[2]) {
 		t.Fatalf("o agente não recebeu a sessão: %s", ultima)
 	}
+}
+
+func TestAvisaAgenteIniciadoAMaoPeloChat(t *testing.T) {
+	l, f := novoLancador(t)
+	f.sessoes["manual"] = "" // tmux sem REQUERIAL_TAREFA: o lançador não subiu este agente
+	l.sessoes = &sessoesFalsas{}
+	// MCP (pid 700) → claude (650) → shell do painel (500).
+	l.processoDoChat = func(chat string) int {
+		if chat == "chat-manual" {
+			return 700
+		}
+		return 0
+	}
+	l.paiDe = func(pid int) int { return map[int]int{700: 650, 650: 500}[pid] }
+
+	tarefa := api.Tarefa{Id: "T-0009", Titulo: "Alertas", Status: api.Pausada, SessaoAtiva: ptr("S-0010")}
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "local"})
+	for _, c := range f.chamadas {
+		if strings.HasPrefix(c, "send-keys -t =manual: -l") {
+			return
+		}
+	}
+	t.Fatalf("o agente iniciado à mão não foi avisado: %v", f.chamadas)
 }
