@@ -272,7 +272,6 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	}
 	var pai, filho api.Requisito
 	c.chamar("criar_requisito", map[string]any{"titulo": "Cumprir a lei", "organizacao": "Exemplo", "origem": origem.Id}, &pai)
-	c.chamar("criar_requisito", map[string]any{"titulo": "Backup fora do ambiente"}, nil)
 	c.chamar("criar_requisito", map[string]any{"titulo": "Backup fora do ambiente", "deriva_de": []string{pai.Id}}, &filho)
 	c.chamar("derivar_requisito", map[string]any{"id": pai.Id, "pai": filho.Id}, nil)
 	var tarefa api.Tarefa

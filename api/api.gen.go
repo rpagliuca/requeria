@@ -163,6 +163,7 @@ type NovaTarefa struct {
 
 // NovoRequisito defines model for NovoRequisito.
 type NovoRequisito struct {
+	// DerivaDe Padrão: o requisito zero (o único sem pais; o primeiro requisito criado é ele)
 	DerivaDe  *[]string `json:"deriva_de,omitempty"`
 	Descricao *string   `json:"descricao,omitempty"`
 

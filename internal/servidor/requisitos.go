@@ -267,6 +267,17 @@ func existeRequisito(c consultor, n int64) error {
 	return err
 }
 
+// raiz devolve o requisito zero, o único que não deriva de nenhum, ou 0 se ainda não há requisitos.
+func raiz(c consultor) (int64, error) {
+	var n int64
+	err := c.QueryRow(`SELECT id FROM requisitos r WHERE NOT EXISTS (SELECT 1 FROM derivacoes d WHERE d.requisito_id = r.id)
+		ORDER BY id LIMIT 1`).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return n, err
+}
+
 // derivar liga filho → pai, recusando o que fecharia um ciclo: o pai não pode já descender do filho.
 func derivar(tx *sql.Tx, filho, pai int64) error {
 	if filho == pai {
@@ -373,6 +384,16 @@ func (s *Servidor) CriarRequisito(w http.ResponseWriter, r *http.Request) {
 					return err
 				}
 				pais = append(pais, n)
+			}
+		}
+		// Um só zero: o primeiro requisito é ele; os demais derivam de algo (padrão: do zero).
+		if len(pais) == 0 {
+			zero, err := raiz(tx)
+			if err != nil {
+				return err
+			}
+			if zero != 0 {
+				pais = append(pais, zero)
 			}
 		}
 		organizacao := ""
@@ -576,6 +597,14 @@ func (s *Servidor) DesfazerDerivacao(w http.ResponseWriter, r *http.Request, id 
 		}
 		if afetadas, _ := res.RowsAffected(); afetadas == 0 {
 			return falha(http.StatusNotFound, "%s não deriva de %s", idRequisito(n), idRequisito(pai))
+		}
+		var restantes int
+		if err := tx.QueryRow(`SELECT count(*) FROM derivacoes WHERE requisito_id = ?`, n).Scan(&restantes); err != nil {
+			return err
+		}
+		if restantes == 0 {
+			return falha(http.StatusConflict, "%s ficaria sem pai: todo requisito, menos o zero, deriva de algum; "+
+				"acrescente o novo pai antes de desfazer este", idRequisito(n))
 		}
 		return s.registrarEvento(tx, quem, idRequisito(n), "derivacao_desfeita", map[string]any{"pai": idRequisito(pai)})
 	})
