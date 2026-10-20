@@ -135,10 +135,11 @@ type Erro struct {
 }
 
 // EstadoDoRequisito Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
-// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+// andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
+// (tarefas todas concluídas, sem execução),
 // validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
 // tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
-// requisito abaixo.
+// requisito abaixo. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles.
 type EstadoDoRequisito string
 
 // Evento defines model for Evento.
@@ -289,17 +290,19 @@ type Requisito struct {
 	Descricao string   `json:"descricao"`
 
 	// Estado Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
-	// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+	// andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
+	// (tarefas todas concluídas, sem execução),
 	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
 	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
-	// requisito abaixo.
+	// requisito abaixo. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles.
 	Estado EstadoDoRequisito `json:"estado"`
 
 	// EstadoProprio Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
-	// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+	// andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
+	// (tarefas todas concluídas, sem execução),
 	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
 	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
-	// requisito abaixo.
+	// requisito abaixo. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles.
 	EstadoProprio EstadoDoRequisito `json:"estado_proprio"`
 	Id            string            `json:"id"`
 

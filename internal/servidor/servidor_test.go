@@ -429,8 +429,13 @@ func TestEstadoDoRequisito(t *testing.T) {
 	mudar := func(tarefa string, status api.StatusTarefa) {
 		a.chamar("PATCH", "/tarefas/"+tarefa, "", api.AlteracaoTarefa{Status: &status}, 200, nil)
 	}
-	if e := estado(folha.Id); e != api.NaoValidado {
+	// Sem tarefa nem execução, nada indica atendimento; o zero, sem tarefa, é decidido pela folha.
+	if e := estado(folha.Id); e != api.NaoAtendido {
 		t.Fatalf("sem tarefa nem execução: %s", e)
+	}
+	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
+	if zero.Estado != api.NaoAtendido || zero.EstadoProprio != api.NaoAtendido || len(zero.LimitadoPor) != 1 {
+		t.Fatalf("o zero devia seguir a folha: %+v", zero)
 	}
 	tarefa := a.tarefa("Atender a folha")
 	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: folha.Id}, 200, nil)
@@ -439,7 +444,7 @@ func TestEstadoDoRequisito(t *testing.T) {
 	}
 	// O zero é limitado pela folha, menos madura que ele.
 	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
-	if zero.Estado != api.NaoAtendido || zero.EstadoProprio != api.NaoValidado || len(zero.LimitadoPor) != 1 || zero.LimitadoPor[0] != folha.Id {
+	if zero.Estado != api.NaoAtendido || len(zero.LimitadoPor) != 1 || zero.LimitadoPor[0] != folha.Id {
 		t.Fatalf("o zero devia herdar o estado da folha: %+v", zero)
 	}
 	mudar(tarefa.Id, api.Pausada)

@@ -250,13 +250,18 @@ function PorQue({
   porId: Map<string, TipoRequisito>
 }) {
   const e = r.ultima_execucao
+  const pelosDerivados = r.tarefas.length === 0 && !e && r.derivados.length > 0
   return (
     <div className="space-y-2 text-sm">
       {r.limitado_por.length > 0 && (
         <div className="space-y-1">
-          <p>
-            Limitado pelo que está abaixo (o estado próprio seria <EstadoDoRequisito estado={r.estado_proprio} />):
-          </p>
+          {pelosDerivados ? (
+            <p>Sem tarefa nem execução: quem decide são os requisitos abaixo. Os menos maduros:</p>
+          ) : (
+            <p>
+              Limitado pelo que está abaixo (o estado próprio seria <EstadoDoRequisito estado={r.estado_proprio} />):
+            </p>
+          )}
           <ul className="space-y-1 pl-4">
             {r.limitado_por.map((rid) => (
               <li key={rid}>
@@ -287,7 +292,13 @@ function PorQue({
         </ul>
       )}
       {r.tarefas_abertas.length === 0 &&
-        (!e ? (
+        (!e && r.tarefas.length === 0 ? (
+          !pelosDerivados && (
+            <p className="text-muted-foreground">
+              Sem tarefa e sem validação explícita: nada indica que está atendido. Ligue uma tarefa ou registre uma execução.
+            </p>
+          )
+        ) : !e ? (
           <p className="text-muted-foreground">
             Nenhuma tarefa aberta nele, mas nenhuma execução registrada: tarefas concluídas não provam que o requisito está atendido.
           </p>
