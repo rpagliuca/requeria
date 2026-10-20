@@ -56,6 +56,9 @@ Nada que mude estado (comandos, PRs, consultas que alterem algo) antes de confer
 
 Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`, não outra sessão.
 
+Se a tarefa tem `requisitos`, leia-os com `obter_requisito`: são o **porquê** do trabalho, e a
+cadeia (`deriva_de`) mostra de onde vem cada exigência (uma pessoa, uma lei, um contrato).
+
 ## Durante
 
 - Escreva o journal: o que fez, o que decidiu e por quê, o que falhou, onde estão os artefatos.

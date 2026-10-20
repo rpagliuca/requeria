@@ -61,6 +61,19 @@ O MCP não lista todas as tarefas, de propósito: custa muitos tokens e quase nu
 que o usuário citar; se ele não souber, peça para procurar no frontend. Com o id, `obter_tarefa` e
 `historico_da_tarefa` dão o estado e as sessões.
 
+## Requisitos e a cadeia
+
+Um **Requisito** (`R-0001`) nunca fecha: é o que precisa ser (e continuar) verdade. Tarefas tentam
+atendê-lo. Cada requisito tem uma **Origem** (`O-0001`): uma pessoa que pediu ou um documento (lei,
+norma, contrato). Requisitos derivam de outros, formando um grafo: "backup em dois destinos" deriva
+de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
+
+- Antes de criar uma origem, `listar_origens`: reaproveite a existente.
+- `criar_requisito` com `origem` e `deriva_de`; sem `organizacao`, herda a do primeiro pai.
+- `derivar_requisito` acrescenta um pai (um requisito pode derivar de vários); ciclos são recusados.
+- `vincular_requisito` liga uma tarefa ao requisito que ela tenta atender.
+- Registre o pedido verbatim na descrição do requisito: é a evidência de onde ele veio.
+
 ## Responder ao usuário
 
 Diga o id da tarefa, o status novo e o que vai acontecer ("o agente vai encerrar com resumo", "um

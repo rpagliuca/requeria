@@ -43,6 +43,11 @@ func carregarTarefa(c consultor, n int64) (api.Tarefa, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, falha(http.StatusNotFound, "tarefa %s não encontrada", idTarefa(n))
 	}
+	if err != nil {
+		return t, err
+	}
+	requisitos, err := requisitosDaTarefa(c, n)
+	t.Requisitos = &requisitos
 	return t, err
 }
 

@@ -315,3 +315,58 @@ func TestLancamentoDeAgente(t *testing.T) {
 	a.sessao("Claude Opus 5.5 Medium", tarefa.Id)
 	a.chamar("POST", "/tarefas/"+tarefa.Id+"/lancamento", "", api.PedidoDeLancamento{}, 409, nil)
 }
+
+func TestCadeiaDeRequisitos(t *testing.T) {
+	a := novoAmbiente(t)
+	var diretora, lei api.Origem
+	a.chamar("POST", "/origens", "", api.NovaOrigem{Nome: "Diretora de operações", Tipo: api.Pessoa}, 201, &diretora)
+	a.chamar("POST", "/origens", "", api.NovaOrigem{Nome: "Lei de proteção de dados", Tipo: api.Documento}, 201, &lei)
+	a.chamar("POST", "/origens", "", api.NovaOrigem{Nome: "Diretora de operações", Tipo: api.Pessoa}, 409, nil)
+
+	org := "Exemplo"
+	var cumprir, copia, backup api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cumprir a lei de dados", Organizacao: &org, Origem: &diretora.Id}, 201, &cumprir)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Sem organização"}, 400, nil)
+	// Organização herdada do pai.
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cópia fora do ambiente", Origem: &lei.Id,
+		DerivaDe: &[]string{cumprir.Id}}, 201, &copia)
+	if copia.Organizacao != org || len(copia.DerivaDe) != 1 || copia.DerivaDe[0] != cumprir.Id {
+		t.Fatalf("derivado inesperado: %+v", copia)
+	}
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Backup em dois destinos", DerivaDe: &[]string{copia.Id}}, 201, &backup)
+
+	// Grafo: mais de um pai.
+	a.chamar("POST", "/requisitos/"+backup.Id+"/derivacoes", "", api.Derivacao{Pai: cumprir.Id}, 200, &backup)
+	if len(backup.DerivaDe) != 2 {
+		t.Fatalf("esperava dois pais: %+v", backup.DerivaDe)
+	}
+	// Ciclos são recusados, inclusive indiretos.
+	a.chamar("POST", "/requisitos/"+cumprir.Id+"/derivacoes", "", api.Derivacao{Pai: backup.Id}, 409, nil)
+	a.chamar("POST", "/requisitos/"+cumprir.Id+"/derivacoes", "", api.Derivacao{Pai: cumprir.Id}, 400, nil)
+
+	a.chamar("GET", "/requisitos/"+cumprir.Id, "", nil, 200, &cumprir)
+	if len(cumprir.Derivados) != 2 {
+		t.Fatalf("o topo da cadeia devia listar os dois derivados: %+v", cumprir.Derivados)
+	}
+
+	// Tarefa ↔ requisito.
+	tarefa := a.tarefa("Configurar o segundo destino")
+	var vinculada api.Tarefa
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: backup.Id}, 200, &vinculada)
+	if vinculada.Requisitos == nil || len(*vinculada.Requisitos) != 1 {
+		t.Fatalf("vínculo não aparece na tarefa: %+v", vinculada)
+	}
+	a.chamar("GET", "/requisitos/"+backup.Id, "", nil, 200, &backup)
+	if len(backup.Tarefas) != 1 || backup.Tarefas[0] != tarefa.Id {
+		t.Fatalf("vínculo não aparece no requisito: %+v", backup)
+	}
+
+	// Desfazer e filtrar.
+	a.chamar("DELETE", "/requisitos/"+backup.Id+"/derivacoes/"+cumprir.Id, "", nil, 200, &backup)
+	a.chamar("DELETE", "/requisitos/"+backup.Id+"/derivacoes/"+cumprir.Id, "", nil, 404, nil)
+	var daLei []api.Requisito
+	a.chamar("GET", "/requisitos?origem="+lei.Id, "", nil, 200, &daLei)
+	if len(daLei) != 1 || daLei[0].Id != copia.Id {
+		t.Fatalf("filtro por origem: %+v", daLei)
+	}
+}

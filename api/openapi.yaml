@@ -87,6 +87,191 @@ paths:
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
+  /origens:
+    get:
+      operationId: listarOrigens
+      responses:
+        '200':
+          description: Origens, por nome
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Origem' }
+    post:
+      operationId: criarOrigem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaOrigem' }
+      responses:
+        '201':
+          description: Origem criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Origem' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /origens/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterOrigem
+      responses:
+        '200':
+          description: Origem
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Origem' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarOrigem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoOrigem' }
+      responses:
+        '200':
+          description: Origem alterada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Origem' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /requisitos:
+    get:
+      operationId: listarRequisitos
+      description: Todos os requisitos, com as ligações (origem, cadeia e tarefas) em identificadores.
+      parameters:
+        - name: organizacao
+          in: query
+          schema: { type: string }
+        - name: origem
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Requisitos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Requisito' }
+    post:
+      operationId: criarRequisito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovoRequisito' }
+      responses:
+        '201':
+          description: Requisito criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterRequisito
+      responses:
+        '200':
+          description: Requisito
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarRequisito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoRequisito' }
+      responses:
+        '200':
+          description: Requisito alterado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/derivacoes:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: derivarRequisito
+      description: Registra que o requisito deriva de outro. Recusa ciclos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Derivacao' }
+      responses:
+        '200':
+          description: Requisito com a derivação
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/derivacoes/{pai}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: pai
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: desfazerDerivacao
+      responses:
+        '200':
+          description: Requisito sem a derivação
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/requisitos:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: vincularRequisito
+      description: Registra que a tarefa tenta atender o requisito.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VinculoRequisito' }
+      responses:
+        '200':
+          description: Tarefa com o vínculo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /tarefas/{id}/requisitos/{requisito}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: requisito
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: desvincularRequisito
+      responses:
+        '200':
+          description: Tarefa sem o vínculo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '404': { $ref: '#/components/responses/Erro' }
   /lancador:
     get:
       operationId: opcoesDoLancador
@@ -348,6 +533,10 @@ components:
           type: string
           description: Estado para retomar, gravado no encerramento de cada sessão
         sessao_ativa: { type: string, example: S-0001 }
+        requisitos:
+          type: array
+          description: Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
+          items: { type: string }
         criada_em: { type: string, format: date-time }
         atualizada_em: { type: string, format: date-time }
     NovaTarefa:
@@ -366,6 +555,82 @@ components:
         organizacao: { type: string }
         status: { $ref: '#/components/schemas/StatusTarefa' }
         resumo: { type: string }
+    Origem:
+      type: object
+      required: [id, nome, tipo, descricao, criada_em]
+      properties:
+        id: { type: string, example: O-0001 }
+        nome: { type: string, description: 'Pessoa (quem pede) ou documento (lei, norma, contrato)' }
+        tipo: { $ref: '#/components/schemas/TipoOrigem' }
+        descricao: { type: string }
+        criada_em: { type: string, format: date-time }
+    TipoOrigem:
+      type: string
+      enum: [pessoa, documento]
+    NovaOrigem:
+      type: object
+      required: [nome, tipo]
+      properties:
+        nome: { type: string }
+        tipo: { $ref: '#/components/schemas/TipoOrigem' }
+        descricao: { type: string }
+    AlteracaoOrigem:
+      type: object
+      properties:
+        nome: { type: string }
+        tipo: { $ref: '#/components/schemas/TipoOrigem' }
+        descricao: { type: string }
+    Requisito:
+      type: object
+      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, criado_em, atualizado_em]
+      properties:
+        id: { type: string, example: R-0001 }
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        origem: { type: string, example: O-0001 }
+        deriva_de:
+          type: array
+          description: Requisitos dos quais este deriva (acima na cadeia)
+          items: { type: string }
+        derivados:
+          type: array
+          description: Requisitos que derivam deste (abaixo na cadeia)
+          items: { type: string }
+        tarefas:
+          type: array
+          description: Tarefas que tentam atender este requisito
+          items: { type: string }
+        criado_em: { type: string, format: date-time }
+        atualizado_em: { type: string, format: date-time }
+    NovoRequisito:
+      type: object
+      required: [titulo]
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string, description: 'Padrão: a do primeiro requisito em deriva_de' }
+        origem: { type: string }
+        deriva_de:
+          type: array
+          items: { type: string }
+    AlteracaoRequisito:
+      type: object
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        origem: { type: string, description: 'Vazio remove a origem' }
+    Derivacao:
+      type: object
+      required: [pai]
+      properties:
+        pai: { type: string, description: Requisito do qual este deriva }
+    VinculoRequisito:
+      type: object
+      required: [requisito]
+      properties:
+        requisito: { type: string }
     PedidoDeLancamento:
       type: object
       properties:
