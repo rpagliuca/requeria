@@ -281,6 +281,16 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	if len(filho.DerivaDe) != 1 || len(filho.Tarefas) != 1 || filho.Organizacao != "Exemplo" {
 		t.Fatalf("requisito pelo MCP: %+v", filho)
 	}
+	var busca Requisitos
+	c.chamar("buscar_requisitos", map[string]any{"texto": "backup"}, &busca)
+	if len(busca.Requisitos) != 1 || busca.Requisitos[0].Id != filho.Id {
+		t.Fatalf("busca pelo MCP: %+v", busca)
+	}
+	var arvore api.ArvoreDeRequisitos
+	c.chamar("arvore_de_requisitos", map[string]any{}, &arvore)
+	if arvore.Requisitos != 2 {
+		t.Fatalf("árvore pelo MCP: %+v", arvore)
+	}
 	var execucao api.Execucao
 	c.chamar("registrar_execucao", map[string]any{"requisito": pai.Id, "evidencia": "conferido", "validade_dias": 30}, &execucao)
 	c.chamar("obter_requisito", map[string]any{"id": pai.Id}, &pai)
