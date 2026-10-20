@@ -30,15 +30,18 @@ Se as ferramentas não estiverem disponíveis, diga isso ao usuário e pare. Nã
 
 Há dois caminhos.
 
-**Você foi lançado para uma tarefa** (o prompt cita a tarefa, `REQUERIAL_TAREFA` está no ambiente):
+**Você foi lançado para uma tarefa** (o prompt cita a tarefa; `REQUERIAL_SESSAO` está no ambiente):
 
-1. `obter_tarefa(id)`: leia o **resumo** primeiro; é o que a sessão anterior deixou para você.
-2. `historico_da_tarefa(id)`: as sessões anteriores, com o journal de cada uma. Leia os journals que
+1. A sua sessão de trabalho **já está aberta**: o lançador a abriu com o seu modelo e esforço.
+   `sessao_atual` mostra qual é e o `journal` (`<máquina>:<caminho>/S-0001/journal.md`), já criado.
+   Escreva nele. (`iniciar_sessao`, se chamado, devolve essa mesma sessão.)
+2. `obter_tarefa(id)`: leia o **resumo** primeiro; é o que a sessão anterior deixou para você.
+3. `historico_da_tarefa(id)`: as sessões anteriores, com o journal de cada uma. Leia os journals que
    o resumo não cobrir.
-3. `iniciar_sessao` só com `modelo` (provider e modelo, sem o esforço: `Claude Opus 5.5`). A tarefa
-   vem do ambiente; o esforço e o chat vêm do cliente do agente. Se a ferramenta disser que o esforço
-   não foi fornecido, pergunte ao usuário e passe em `esforco`.
-4. A resposta traz o `journal`: `<máquina>:<caminho>/S-0001/journal.md`. Escreva nele.
+4. Se o prompt trouxer uma **instrução adicional de reabertura**, ela é o ponto de partida; o resto
+   do contexto vem da tarefa e das sessões anteriores.
+
+Nada que mude estado (comandos, PRs, consultas que alterem algo) antes de conferir a sessão.
 
 **O usuário pediu para este chat virar uma tarefa** (ou começou a trabalhar numa sem o lançador):
 

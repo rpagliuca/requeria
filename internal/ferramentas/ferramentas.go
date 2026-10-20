@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -35,6 +36,10 @@ type Ferramentas struct {
 	mu     sync.Mutex
 	sessao string
 	token  string
+	// adotada diz que a sessão veio pronta do lançador (REQUERIAL_SESSAO e REQUERIAL_TOKEN), e
+	// conferida indica que o ambiente já foi lido.
+	adotada   bool
+	conferida bool
 }
 
 // Novo cria as ferramentas apontando para a API no endereço dado.
@@ -75,6 +80,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 
 // autorizar acrescenta o token da sessão aberta, se houver, para atribuir a escrita a ela.
 func (f *Ferramentas) autorizar(ctx context.Context, req *http.Request) error {
+	f.adotar(ctx)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.token != "" {
@@ -83,8 +89,38 @@ func (f *Ferramentas) autorizar(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
+// adotar assume a sessão que o lançador abriu para este agente, se houver, e cria a pasta do journal
+// dela. Roda uma vez, na primeira ferramenta que precisa da sessão.
+func (f *Ferramentas) adotar(ctx context.Context) {
+	f.mu.Lock()
+	if f.conferida || f.sessao != "" {
+		f.mu.Unlock()
+		return
+	}
+	f.conferida = true
+	id, token := f.ambiente("REQUERIAL_SESSAO"), f.ambiente("REQUERIAL_TOKEN")
+	if id == "" || token == "" {
+		f.mu.Unlock()
+		return
+	}
+	f.sessao, f.token, f.adotada = id, token, true
+	f.mu.Unlock()
+	if f.journals == "" {
+		return
+	}
+	var x api.Sessao
+	resp, err := f.cliente.ObterSessao(ctx, id)
+	if err := decodificar(resp, err, &x); err != nil || x.Journal != nil {
+		return
+	}
+	if _, err := f.criarJournal(ctx, x, x.Servidor); err != nil {
+		log.Printf("criar o journal da sessão %s: %v", id, err)
+	}
+}
+
 // sessaoAberta devolve a sessão deste processo ou um erro que diz o que fazer.
 func (f *Ferramentas) sessaoAberta() (string, error) {
+	f.adotar(context.Background())
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.sessao == "" {
@@ -143,11 +179,6 @@ type Repasse struct {
 	Servidor *string `json:"servidor,omitempty" jsonschema:"padrão: o da sessão anterior"`
 }
 
-// nomesDeEsforco escreve os níveis de esforço como aparecem no nome do agente.
-var nomesDeEsforco = map[string]string{
-	"low": "Low", "medium": "Medium", "high": "High", "xhigh": "XHigh", "max": "Max",
-}
-
 // agente monta o nome imutável do agente: provider, modelo e esforço, como "Claude Opus 5.5 Medium".
 // Sem esforço explícito, usa o que o cliente do agente informou ao processo MCP.
 func (f *Ferramentas) agente(modelo string, esforco *string) (string, error) {
@@ -165,11 +196,7 @@ func (f *Ferramentas) agente(modelo string, esforco *string) (string, error) {
 	if nivel == "" {
 		return "", errors.New("o esforço não foi informado e o cliente do agente não o forneceu; pergunte ao usuário e passe em 'esforco'")
 	}
-	nome, ok := nomesDeEsforco[strings.ToLower(nivel)]
-	if !ok {
-		nome = strings.ToUpper(nivel[:1]) + nivel[1:]
-	}
-	return modelo + " " + nome, nil
+	return api.NomeDoAgente(modelo, nivel), nil
 }
 
 func (f *Ferramentas) chatAtual(informado *string) *string {
@@ -217,6 +244,16 @@ func (f *Ferramentas) historicoDaTarefa(ctx context.Context, _ *mcp.CallToolRequ
 }
 
 func (f *Ferramentas) iniciarSessao(ctx context.Context, _ *mcp.CallToolRequest, in NovaSessao) (*mcp.CallToolResult, api.Sessao, error) {
+	f.adotar(ctx)
+	f.mu.Lock()
+	adotada, id := f.adotada, f.sessao
+	f.mu.Unlock()
+	if adotada {
+		// O lançador já abriu a sessão deste agente: é ela.
+		var x api.Sessao
+		resp, err := f.cliente.ObterSessao(ctx, id)
+		return nil, x, decodificar(resp, err, &x)
+	}
 	if atual, err := f.sessaoAberta(); err == nil {
 		return nil, api.Sessao{}, fmt.Errorf("este chat já tem a sessão %s aberta; use vincular_tarefa ou encerre-a antes", atual)
 	}

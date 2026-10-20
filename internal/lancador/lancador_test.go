@@ -187,3 +187,46 @@ func TestLancamentoComModeloEsforcoEInstrucao(t *testing.T) {
 		t.Fatalf("padrões inesperados: %+v %v", padrao, err)
 	}
 }
+
+type sessoesFalsas struct {
+	abertas    []string
+	encerradas []string
+}
+
+func (s *sessoesFalsas) AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error) {
+	s.abertas = append(s.abertas, tarefa+"|"+agente+"|"+chat)
+	return api.SessaoCriada{Sessao: api.Sessao{Id: "S-0042"}, Token: "segredo"}, nil
+}
+
+func (s *sessoesFalsas) EncerrarSessaoLancada(id, resumo string) error {
+	s.encerradas = append(s.encerradas, id)
+	return nil
+}
+
+func TestLancadorAbreASessaoAntesDoAgente(t *testing.T) {
+	l, err := Novo(Config{
+		Diretorio: "/journals", Comando: []string{"agente", "--session-id", "{chat}"},
+		Modelos: []Modelo{{Nome: "Claude Opus 5.5", Argumentos: []string{"--model", "opus"}}}, EsforcoPadrao: "medium",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &tmuxFalso{sessoes: map[string]string{}}
+	l.executar = f.executar
+	sessoes := &sessoesFalsas{}
+	l.sessoes = sessoes
+
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: api.Tarefa{Id: "T-0001", Titulo: "Backup", Status: api.EmAndamento}, Anterior: api.AFazer, Autor: "local"})
+	if len(sessoes.abertas) != 1 {
+		t.Fatalf("sessão não aberta: %v", sessoes.abertas)
+	}
+	partes := strings.Split(sessoes.abertas[0], "|")
+	if partes[0] != "T-0001" || partes[1] != "Claude Opus 5.5 Medium" || len(partes[2]) != 36 {
+		t.Fatalf("sessão aberta com dados inesperados: %v", partes)
+	}
+	ultima := f.chamadas[len(f.chamadas)-1]
+	if !strings.Contains(ultima, "-e "+VariavelSessao+"=S-0042") || !strings.Contains(ultima, "-e "+VariavelToken+"=segredo") ||
+		!strings.Contains(ultima, "--session-id "+partes[2]) {
+		t.Fatalf("o agente não recebeu a sessão: %s", ultima)
+	}
+}
