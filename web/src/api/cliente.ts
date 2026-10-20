@@ -9,6 +9,11 @@ export type StatusTarefa = components["schemas"]["StatusTarefa"]
 export type StatusSessao = components["schemas"]["StatusSessao"]
 export type NovaTarefa = components["schemas"]["NovaTarefa"]
 export type AlteracaoTarefa = components["schemas"]["AlteracaoTarefa"]
+export type Requisito = components["schemas"]["Requisito"]
+export type Origem = components["schemas"]["Origem"]
+export type NovoRequisito = components["schemas"]["NovoRequisito"]
+export type AlteracaoRequisito = components["schemas"]["AlteracaoRequisito"]
+export type NovaOrigem = components["schemas"]["NovaOrigem"]
 export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
 export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
 
@@ -74,3 +79,28 @@ export const useOpcoesDoLancador = () =>
 
 export const useLancarAgente = (id: string) =>
   useEscrita((pedido: PedidoDeLancamento) => obter<Tarefa>(`/tarefas/${id}/lancamento`, "POST", pedido))
+
+export const useRequisitos = () =>
+  useQuery({ queryKey: ["requisitos"], queryFn: () => obter<Requisito[]>("/requisitos"), refetchInterval: atualizacao })
+
+export const useOrigens = () => useQuery({ queryKey: ["origens"], queryFn: () => obter<Origem[]>("/origens") })
+
+export const useCriarRequisito = () =>
+  useEscrita((novo: NovoRequisito) => obter<Requisito>("/requisitos", "POST", novo))
+
+export const useAlterarRequisito = (id: string) =>
+  useEscrita((alteracao: AlteracaoRequisito) => obter<Requisito>(`/requisitos/${id}`, "PATCH", alteracao))
+
+export const useDerivar = (id: string) =>
+  useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes`, "POST", { pai }))
+
+export const useDesfazerDerivacao = (id: string) =>
+  useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "DELETE"))
+
+export const useCriarOrigem = () => useEscrita((nova: NovaOrigem) => obter<Origem>("/origens", "POST", nova))
+
+export const useVincularRequisito = (tarefa: string) =>
+  useEscrita((requisito: string) => obter<Tarefa>(`/tarefas/${tarefa}/requisitos`, "POST", { requisito }))
+
+export const useDesvincularRequisito = (tarefa: string) =>
+  useEscrita((requisito: string) => obter<Tarefa>(`/tarefas/${tarefa}/requisitos/${requisito}`, "DELETE"))
