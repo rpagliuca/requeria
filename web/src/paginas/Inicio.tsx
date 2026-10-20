@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 
 import { type Requisito, type Tarefa, useRequisitos, useSessoes, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
+import { nomesMotivoDeAtencao } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
@@ -57,6 +58,8 @@ export function Inicio() {
           </div>
         )}
       </Secao>
+
+      <PrecisamDeAtencao porId={porId} />
 
       <Secao titulo="A partir do zero">
         {!zero ? (
@@ -125,4 +128,41 @@ function Navegacao({
   trabalhados: Map<string, Tarefa[]>
 }) {
   return <GrafoDeRequisitos raizes={[zero.id]} porId={porId} emTrabalho={new Set(trabalhados.keys())} abertosNoInicio={[zero.id]} />
+}
+
+// Requisitos que não estão bem cuidados, agrupados pelo motivo; cada grupo abre a lista.
+function PrecisamDeAtencao({ porId }: { porId: Map<string, Requisito> }) {
+  const grupos = new Map<string, Requisito[]>()
+  for (const r of porId.values()) for (const a of r.atencao) grupos.set(a.motivo, [...(grupos.get(a.motivo) ?? []), r])
+  const total = [...porId.values()].filter((r) => r.atencao.length > 0).length
+  return (
+    <Secao titulo={`Precisam de atenção (${total})`}>
+      {total === 0 ? (
+        <p className="text-muted-foreground text-sm">Todos os requisitos estão bem cuidados.</p>
+      ) : (
+        <div className="space-y-1">
+          {Object.keys(nomesMotivoDeAtencao)
+            .filter((m) => grupos.has(m))
+            .map((m) => (
+              <details key={m} className="rounded-md border">
+                <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+                  <span className="text-amber-700 dark:text-amber-400">⚠ {nomesMotivoDeAtencao[m]}</span>
+                  <span className="text-muted-foreground text-xs">{grupos.get(m)!.length}</span>
+                </summary>
+                <ul className="space-y-2 border-t px-3 py-2">
+                  {grupos.get(m)!.map((r) => (
+                    <li key={r.id}>
+                      <Trilha ids={trilhasAteOZero(r.id, porId)[0]} porId={porId} incluirUltimo={false} />
+                      <Link to={`/requisitos/${r.id}`} className="block text-sm hover:underline">
+                        {r.titulo}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+        </div>
+      )}
+    </Secao>
+  )
 }

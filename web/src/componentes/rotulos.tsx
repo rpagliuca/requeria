@@ -47,3 +47,11 @@ export function Data({ valor }: { valor?: string }) {
   if (!valor) return <span className="text-muted-foreground">—</span>
   return <time dateTime={valor}>{formatoData.format(new Date(valor))}</time>
 }
+
+export const nomesMotivoDeAtencao: Record<string, string> = {
+  muitos_filhos: "Mais de 5 requisitos abaixo",
+  sem_origem: "Sem origem",
+  sem_descricao: "Sem descrição",
+  sem_tarefa: "Ninguém trabalhando nele",
+  trabalho_parado: "Trabalho parado",
+}

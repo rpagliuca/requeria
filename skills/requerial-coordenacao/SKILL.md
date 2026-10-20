@@ -74,6 +74,12 @@ de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
 - **Requisito é uma afirmação testável (falseável)**, no presente, sobre o estado do mundo — não uma
   ação. "O backup do cartório tem cópia em dois destinos independentes, verificada toda semana" ✅;
   "Fazer backup" ❌ (isso é tarefa). Quanto mais abaixo na cadeia, mais concreto e verificável.
+- **Boa prática: no máximo 5 requisitos derivados de cada um.** Passou disso, agrupe-os sob
+  requisitos intermediários (cada um também uma afirmação testável). Não é bloqueado; o requisito
+  só passa a pedir atenção.
+- O campo `atencao` de cada requisito diz o que falta para ele estar bem cuidado (muitos filhos,
+  sem origem, sem descrição, sem tarefa, trabalho parado). Ao mexer num requisito, resolva o que
+  estiver ao alcance.
 - Antes de criar uma origem, `listar_origens`: reaproveite a existente.
 - `criar_requisito` com `origem` e `deriva_de`; sem `organizacao`, herda a do primeiro pai.
 - `derivar_requisito` acrescenta um pai (um requisito pode derivar de vários); ciclos são recusados.

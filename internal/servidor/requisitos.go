@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/rpagliuca/requerial/api"
 )
@@ -185,10 +186,26 @@ func (s *Servidor) AlterarOrigem(w http.ResponseWriter, r *http.Request, id api.
 // ligacoes devolve, para cada requisito, os ids de pais, filhos e tarefas, numa leitura só de cada tabela.
 type ligacoes struct {
 	pais, filhos, tarefas map[int64][]string
+	// trabalho guarda, por requisito, status e última atualização das tarefas ligadas.
+	trabalho map[int64][]tarefaLigada
+	agora    time.Time
 }
 
+type tarefaLigada struct {
+	status     api.StatusTarefa
+	atualizada time.Time
+}
+
+// MaxFilhos é a boa prática do requerial: cada requisito se desdobra em no máximo cinco. Não é
+// imposto; acima disso, o requisito pede atenção.
+const MaxFilhos = 5
+
+// diasParado é o tempo sem movimento a partir do qual um requisito só com tarefas paradas pede atenção.
+const diasParado = 14
+
 func carregarLigacoes(c consultor) (ligacoes, error) {
-	l := ligacoes{pais: map[int64][]string{}, filhos: map[int64][]string{}, tarefas: map[int64][]string{}}
+	l := ligacoes{pais: map[int64][]string{}, filhos: map[int64][]string{}, tarefas: map[int64][]string{},
+		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC()}
 	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
 	if err != nil {
 		return l, err
@@ -205,17 +222,20 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 	if err := linhas.Close(); err != nil {
 		return l, err
 	}
-	linhas, err = c.Query(`SELECT requisito_id, tarefa_id FROM tarefa_requisito ORDER BY tarefa_id`)
+	linhas, err = c.Query(`SELECT tr.requisito_id, tr.tarefa_id, t.status, t.atualizada_em
+		FROM tarefa_requisito tr JOIN tarefas t ON t.id = tr.tarefa_id ORDER BY tr.tarefa_id`)
 	if err != nil {
 		return l, err
 	}
 	defer linhas.Close()
 	for linhas.Next() {
 		var requisito, tarefa int64
-		if err := linhas.Scan(&requisito, &tarefa); err != nil {
+		var status, atualizada string
+		if err := linhas.Scan(&requisito, &tarefa, &status, &atualizada); err != nil {
 			return l, err
 		}
 		l.tarefas[requisito] = append(l.tarefas[requisito], idTarefa(tarefa))
+		l.trabalho[requisito] = append(l.trabalho[requisito], tarefaLigada{api.StatusTarefa(status), lerMomento(atualizada)})
 	}
 	return l, linhas.Err()
 }
@@ -243,7 +263,43 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 		x.Origem = &o
 	}
 	x.DerivaDe, x.Derivados, x.Tarefas = naoNulo(l.pais[n]), naoNulo(l.filhos[n]), naoNulo(l.tarefas[n])
+	x.Atencao = atencao(x, l.trabalho[n], l.agora)
 	return x, nil
+}
+
+// atencao lista o que falta para o requisito estar bem cuidado.
+func atencao(x api.Requisito, trabalho []tarefaLigada, agora time.Time) []api.Atencao {
+	motivos := []api.Atencao{}
+	add := func(m api.MotivoDeAtencao, detalhe string, args ...any) {
+		motivos = append(motivos, api.Atencao{Motivo: m, Detalhe: fmt.Sprintf(detalhe, args...)})
+	}
+	if len(x.Derivados) > MaxFilhos {
+		add(api.MuitosFilhos, "%d requisitos derivam dele; a boa prática é até %d: agrupe-os sob requisitos intermediários", len(x.Derivados), MaxFilhos)
+	}
+	if x.Origem == nil && len(x.DerivaDe) > 0 {
+		add(api.SemOrigem, "não diz de onde vem (pessoa ou documento)")
+	}
+	if vazio(x.Descricao) {
+		add(api.SemDescricao, "sem descrição: por que existe e como verificar")
+	}
+	if len(x.Derivados) == 0 && len(trabalho) == 0 {
+		add(api.SemTarefa, "nenhum requisito abaixo e nenhuma tarefa tentando atendê-lo")
+	}
+	if len(trabalho) > 0 {
+		parado, ultima := true, time.Time{}
+		for _, t := range trabalho {
+			if t.status != api.Pausada && t.status != api.Bloqueada {
+				parado = false
+			}
+			if t.atualizada.After(ultima) {
+				ultima = t.atualizada
+			}
+		}
+		if dias := int(agora.Sub(ultima).Hours() / 24); parado && dias >= diasParado {
+			add(api.TrabalhoParado, "todas as tarefas estão pausadas ou bloqueadas há %d dias", dias)
+		}
+	}
+	return motivos
 }
 
 func carregarRequisito(c consultor, n int64) (api.Requisito, error) {

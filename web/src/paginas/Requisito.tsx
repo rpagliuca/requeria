@@ -14,7 +14,7 @@ import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { EscolherOrigem } from "@/componentes/EscolherOrigem"
 import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
-import { Data, StatusDaTarefa } from "@/componentes/rotulos"
+import { Data, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 import { Texto } from "@/componentes/Texto"
@@ -61,6 +61,19 @@ export function Requisito() {
           <EditarRequisito requisito={r} />
         </div>
       </header>
+
+      {r.atencao.length > 0 && (
+        <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+          <p className="font-medium">Precisa de atenção</p>
+          <ul className="list-disc pl-5">
+            {r.atencao.map((a) => (
+              <li key={a.motivo}>
+                <span className="font-medium">{nomesMotivoDeAtencao[a.motivo] ?? a.motivo}:</span> {a.detalhe}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Secao titulo="Descrição">
         <Texto>{r.descricao}</Texto>

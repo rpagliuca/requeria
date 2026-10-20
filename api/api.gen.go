@@ -23,6 +23,15 @@ const (
 	TokenDaSessaoScopes = "tokenDaSessao.Scopes"
 )
 
+// Defines values for MotivoDeAtencao.
+const (
+	MuitosFilhos   MotivoDeAtencao = "muitos_filhos"
+	SemDescricao   MotivoDeAtencao = "sem_descricao"
+	SemOrigem      MotivoDeAtencao = "sem_origem"
+	SemTarefa      MotivoDeAtencao = "sem_tarefa"
+	TrabalhoParado MotivoDeAtencao = "trabalho_parado"
+)
+
 // Defines values for MotivoEncerramento.
 const (
 	FimDoTrabalho MotivoEncerramento = "fim_do_trabalho"
@@ -90,6 +99,12 @@ type AlteracaoTarefa struct {
 	Titulo      *string       `json:"titulo,omitempty"`
 }
 
+// Atencao defines model for Atencao.
+type Atencao struct {
+	Detalhe string          `json:"detalhe"`
+	Motivo  MotivoDeAtencao `json:"motivo"`
+}
+
 // Derivacao defines model for Derivacao.
 type Derivacao struct {
 	// Pai Requisito do qual este deriva
@@ -132,6 +147,9 @@ type ImportacaoTarefa struct {
 	Status  StatusTarefa      `json:"status"`
 	Titulo  string            `json:"titulo"`
 }
+
+// MotivoDeAtencao defines model for MotivoDeAtencao.
+type MotivoDeAtencao string
 
 // MotivoEncerramento defines model for MotivoEncerramento.
 type MotivoEncerramento string
@@ -216,6 +234,8 @@ type Repasse struct {
 
 // Requisito defines model for Requisito.
 type Requisito struct {
+	// Atencao Motivos pelos quais o requisito não está bem cuidado (vazio se está)
+	Atencao      []Atencao `json:"atencao"`
 	AtualizadoEm time.Time `json:"atualizado_em"`
 	CriadoEm     time.Time `json:"criado_em"`
 
