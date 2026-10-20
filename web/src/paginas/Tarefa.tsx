@@ -44,7 +44,7 @@ export function Tarefa() {
             </Link>
           )}
           {t.sessao_ativa && (
-            <Link to={`/sessoes/${t.sessao_ativa}`} className="text-blue-600 hover:underline dark:text-blue-400">
+            <Link to={`/sessoes/${t.sessao_ativa}`} className="text-tom-andamento-fg hover:underline">
               ● sessão ativa {t.sessao_ativa}
             </Link>
           )}

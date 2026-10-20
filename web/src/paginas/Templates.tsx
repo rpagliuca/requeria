@@ -86,7 +86,7 @@ export function Templates() {
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-medium">{t.titulo}</span>
                   {t.devido && (
-                    <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                    <Badge variant="outline" className="border-transparent bg-tom-atencao text-tom-atencao-fg">
                       Devida agora
                     </Badge>
                   )}
@@ -98,7 +98,7 @@ export function Templates() {
                   <span>
                     última instância {t.ultima_instancia_em ? <Data valor={t.ultima_instancia_em} /> : "nenhuma"}
                   </span>
-                  {t.instancia_aberta && <span className="text-blue-600 dark:text-blue-400">aberta: {t.instancia_aberta}</span>}
+                  {t.instancia_aberta && <span className="text-tom-andamento-fg">aberta: {t.instancia_aberta}</span>}
                 </div>
               </Link>
             </li>

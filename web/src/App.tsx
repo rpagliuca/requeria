@@ -9,6 +9,7 @@ import { Sessao } from "@/paginas/Sessao"
 import { Sessoes } from "@/paginas/Sessoes"
 import { Componente } from "@/paginas/Componente"
 import { Componentes } from "@/paginas/Componentes"
+import { Logotipo } from "@/componentes/Logotipo"
 import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
 import { useOrganizacoes, useTemplates } from "@/api/cliente"
@@ -27,7 +28,10 @@ export default function App() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-4">
       <nav className="mb-6 flex flex-wrap items-center gap-1 border-b pb-3">
-        <span className="mr-3 font-semibold">Requerial</span>
+        <NavLink to="/" className="mr-3 flex items-center gap-2 font-semibold tracking-tight" aria-label="Requerial">
+          <Logotipo className="size-5" />
+          requerial
+        </NavLink>
         <NavLink to="/requisitos" className={aba}>
           Requisitos
         </NavLink>
@@ -37,7 +41,7 @@ export default function App() {
         <NavLink to="/templates" className={aba}>
           Tarefas Pré-moldadas
           {devidos > 0 && (
-            <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-white text-xs" title={`${devidos} devidas agora`}>
+            <span className="ml-1.5 rounded-full bg-tom-atencao px-1.5 text-tom-atencao-fg text-xs font-medium" title={`${devidos} devidas agora`}>
               {devidos}
             </span>
           )}

@@ -2,7 +2,7 @@
 
 Coordenação de humanos e agentes de IA orientada por requisitos vivos, com evidência contínua.
 
-Desenho completo em [`docs/arquitetura.md`](docs/arquitetura.md).
+Desenho completo em [`docs/arquitetura.md`](docs/arquitetura.md); identidade visual em [`docs/design.md`](docs/design.md).
 
 ## Estado atual
 

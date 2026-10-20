@@ -33,7 +33,7 @@ export function Template() {
         <h1 className="font-semibold text-xl">{t.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           {t.devido && (
-            <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <Badge variant="outline" className="border-transparent bg-tom-atencao text-tom-atencao-fg">
               Devida agora
             </Badge>
           )}

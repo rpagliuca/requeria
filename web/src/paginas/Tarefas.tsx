@@ -106,7 +106,7 @@ export function Tarefas() {
                   <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground text-xs">
                     <span className="font-mono">{t.id}</span>
                     <span>{t.organizacao}</span>
-                    {t.sessao_ativa && <span className="text-blue-600 dark:text-blue-400">● {t.sessao_ativa}</span>}
+                    {t.sessao_ativa && <span className="text-tom-andamento-fg">● {t.sessao_ativa}</span>}
                     <span>
                       atualizada <Data valor={t.atualizada_em} />
                     </span>
