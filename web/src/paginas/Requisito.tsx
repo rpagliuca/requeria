@@ -18,7 +18,7 @@ import { EscolherOrigem } from "@/componentes/EscolherOrigem"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { Eventos } from "@/componentes/Eventos"
-import { Data, EstadoDoRequisito, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
+import { Data, EstadoDoRequisito, StatusDaTarefa, nomesMotivoDeAtencao, nomesPrioridade } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 import { Texto } from "@/componentes/Texto"
@@ -53,6 +53,7 @@ export function Requisito() {
         <h1 className="font-semibold text-xl">{r.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           <EstadoDoRequisito estado={r.estado} />
+          <Triagem requisito={r} />
           <span className="font-mono">{r.id}</span>
           <span>{r.organizacao}</span>
           {origem && (
@@ -400,5 +401,25 @@ function RegistrarExecucao({ requisito }: { requisito: TipoRequisito }) {
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Triagem num clique: a prioridade muda na hora.
+function Triagem({ requisito }: { requisito: TipoRequisito }) {
+  const alterar = useAlterarRequisito(requisito.id)
+  return (
+    <Select value={requisito.prioridade ?? "nao_triado"} onValueChange={(v) => alterar.mutate({ prioridade: v === "nao_triado" ? "" : v })}>
+      <SelectTrigger className="h-7 w-auto gap-1 text-xs">
+        <span className="text-muted-foreground">Prioridade:</span>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(nomesPrioridade).map(([valor, nome]) => (
+          <SelectItem key={valor} value={valor}>
+            {nome}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

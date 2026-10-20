@@ -322,17 +322,22 @@ func naoNulo(ids []string) []string {
 	return ids
 }
 
-const colunasRequisito = `id, titulo, descricao, organizacao, origem_id, criado_em, atualizado_em`
+const colunasRequisito = `id, titulo, descricao, organizacao, origem_id, criado_em, atualizado_em, prioridade`
 
 func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	var x api.Requisito
 	var n int64
 	var origem sql.NullInt64
 	var criado, atualizado string
-	if err := linha.Scan(&n, &x.Titulo, &x.Descricao, &x.Organizacao, &origem, &criado, &atualizado); err != nil {
+	var prioridade sql.NullString
+	if err := linha.Scan(&n, &x.Titulo, &x.Descricao, &x.Organizacao, &origem, &criado, &atualizado, &prioridade); err != nil {
 		return x, err
 	}
 	x.Id, x.CriadoEm, x.AtualizadoEm = idRequisito(n), lerMomento(criado), lerMomento(atualizado)
+	if prioridade.Valid {
+		p := api.Prioridade(prioridade.String)
+		x.Prioridade = &p
+	}
 	if origem.Valid {
 		o := idOrigem(origem.Int64)
 		x.Origem = &o
@@ -734,6 +739,17 @@ func (s *Servidor) AlterarRequisito(w http.ResponseWriter, r *http.Request, id a
 				return err
 			}
 			definir("origem_id", origem, *alteracao.Origem)
+		}
+		if alteracao.Prioridade != nil {
+			var valor any
+			switch p := api.Prioridade(*alteracao.Prioridade); p {
+			case "":
+			case api.Alta, api.Media, api.Baixa:
+				valor = string(p)
+			default:
+				return falha(http.StatusBadRequest, "prioridade inválida: %q (alta, media, baixa ou vazio)", p)
+			}
+			definir("prioridade", valor, *alteracao.Prioridade)
 		}
 		if len(sets) == 0 {
 			return falha(http.StatusBadRequest, "nenhum campo para alterar")

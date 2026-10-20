@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import { type Requisito, type Tarefa, useTarefas } from "@/api/cliente"
-import { EstadoDoRequisito, StatusDaTarefa } from "@/componentes/rotulos"
+import { EstadoDoRequisito, PrioridadeDoRequisito, StatusDaTarefa, ordemDaPrioridade } from "@/componentes/rotulos"
 import { descendentes } from "@/componentes/trilhas"
 import { cn } from "@/lib/utils"
 
@@ -100,7 +100,10 @@ function No({
 }) {
   const r = porId.get(id)
   if (!r) return null
-  const filhos = (recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados).filter((f) => porId.has(f))
+  const prioridade = (x: string) => ordemDaPrioridade[porId.get(x)?.prioridade ?? "nao_triado"]
+  const filhos = (recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados)
+    .filter((f) => porId.has(f))
+    .sort((a, b) => prioridade(a) - prioridade(b))
   const estaAberto = aberto(chave)
   const tarefas = r.tarefas.filter((t) => tarefasPorId.has(t)).sort((a, b) => abertaPrimeiro(tarefasPorId.get(a)) - abertaPrimeiro(tarefasPorId.get(b)))
   const abre = filhos.length > 0 || tarefas.length > 0
@@ -125,6 +128,7 @@ function No({
             <span>{r.titulo}</span>
             <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
               <EstadoDoRequisito estado={r.estado} className="h-5 px-1.5 text-[11px]" />
+              <PrioridadeDoRequisito prioridade={r.prioridade} className="h-5 px-1.5 text-[11px]" />
               {filhos.length > 0 && <span>{recorte ? [...abaixo].filter((x) => recorte.casam.has(x)).length : abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
               {!recorte && emTrabalhoAbaixo > 0 && <span className="text-blue-600 dark:text-blue-400">● {emTrabalhoAbaixo} em trabalho abaixo</span>}

@@ -6,7 +6,7 @@ import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GrafoDeRequisitos, recortar } from "@/componentes/GrafoDeRequisitos"
 import { Estado } from "@/componentes/Estado"
-import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, ordemDosEstados } from "@/componentes/rotulos"
+import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, nomesPrioridade, ordemDosEstados } from "@/componentes/rotulos"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Button } from "@/components/ui/button"
@@ -37,8 +37,10 @@ export function Requisitos() {
   const orgs = params.has("org") ? lista("org") : organizacoes
   const origensSel = params.has("origem") ? lista("origem") : idsOrigem
   const atencao = lista("atencao")
+  const prioridades = Object.keys(nomesPrioridade)
+  const prioSel = params.has("prio") ? lista("prio") : prioridades
   const filtraOrg = !organizacao && params.has("org")
-  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao"].some((c) => params.has(c))
+  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao", "prio"].some((c) => params.has(c))
 
   const recorte = useMemo(() => {
     if (!filtrando) return undefined
@@ -47,6 +49,7 @@ export function Requisitos() {
       const alvo = `${r.id} ${r.titulo} ${r.descricao} ${r.organizacao} ${nomesOrigem.get(r.origem ?? "") ?? ""}`.toLowerCase()
       return (
         estados.includes(r.estado) &&
+        prioSel.includes(r.prioridade ?? "nao_triado") &&
         (!filtraOrg || orgs.includes(r.organizacao)) &&
         (!params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem))) &&
         (atencao.length === 0 || r.atencao.some((a) => atencao.includes(a.motivo))) &&
@@ -71,6 +74,16 @@ export function Requisitos() {
           atalhos={[
             { rotulo: "Todos", valores: ordemDosEstados },
             { rotulo: "Pendentes", valores: ["em_trabalho", "nao_atendido", "nao_validado", "validacao_expirada"] },
+          ]}
+        />
+        <SelecaoMultipla
+          rotulo="Prioridade"
+          opcoes={prioridades.map((p) => ({ valor: p, rotulo: nomesPrioridade[p], contagem: (data ?? []).filter((r) => (r.prioridade ?? "nao_triado") === p).length }))}
+          selecionados={prioSel}
+          alterar={(v) => alterar("prio", v.length === prioridades.length ? null : v.join(","))}
+          atalhos={[
+            { rotulo: "Todas", valores: prioridades },
+            { rotulo: "Triados", valores: ["alta", "media", "baixa"] },
           ]}
         />
         {!organizacao && <SelecaoMultipla

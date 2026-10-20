@@ -83,3 +83,28 @@ export function EstadoDoRequisito({ estado, className }: { estado: EstadoDoRequi
     </Badge>
   )
 }
+
+export const nomesPrioridade: Record<string, string> = {
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
+  nao_triado: "Não triado",
+}
+
+export const ordemDaPrioridade: Record<string, number> = { alta: 0, media: 1, baixa: 2, nao_triado: 3 }
+
+const coresPrioridade: Record<string, string> = {
+  alta: "border-red-400 text-red-700 dark:border-red-700 dark:text-red-300",
+  media: "border-amber-400 text-amber-700 dark:border-amber-700 dark:text-amber-300",
+  baixa: "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300",
+}
+
+// Prioridade da triagem; sem ela, nada aparece.
+export function PrioridadeDoRequisito({ prioridade, className }: { prioridade?: string; className?: string }) {
+  if (!prioridade) return null
+  return (
+    <Badge variant="outline" className={cn(coresPrioridade[prioridade], className)}>
+      ↑ {nomesPrioridade[prioridade]}
+    </Badge>
+  )
+}
