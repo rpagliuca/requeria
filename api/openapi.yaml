@@ -5,6 +5,7 @@ info:
   description: |
     API de Tarefas e Sessões de Trabalho do Requerial.
     Operações sobre uma sessão exigem o token entregue na criação dela.
+    Integrações (lembretes, notificações, agentes, captura): docs/integracao.md.
 paths:
   /tarefas:
     get:
@@ -771,6 +772,17 @@ paths:
           in: query
           description: Identificador da entidade, como T-0001 ou S-0001
           schema: { type: string }
+        - name: depois
+          in: query
+          description: 'Só eventos com id maior (cursor; ver Pendencias.ultimo_evento)'
+          schema: { type: integer, format: int64 }
+        - name: tipo
+          in: query
+          description: 'Um ou mais tipos, separados por vírgula (ex.: lembrete_disparado,sessao_aguardando)'
+          schema: { type: string }
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000 }
       responses:
         '200':
           description: Eventos, do mais antigo para o mais recente
@@ -779,11 +791,258 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Evento' }
+  /lembretes:
+    get:
+      operationId: listarLembretes
+      description: |
+        Lembretes por hora marcada, do mais próximo para o mais distante. Sem filtros, só os que
+        ainda pedem atenção (agendado, adiado e disparado).
+      parameters:
+        - name: status
+          in: query
+          description: Um ou mais status, separados por vírgula
+          schema: { type: string, example: 'agendado,adiado' }
+        - name: ate
+          in: query
+          description: 'Só os com hora marcada até este instante (ex.: agora + 2 h, para ver o que vence)'
+          schema: { type: string, format: date-time }
+        - name: organizacao
+          in: query
+          schema: { type: string }
+        - name: tarefa
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lembretes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Lembrete' }
+        '400': { $ref: '#/components/responses/Erro' }
+    post:
+      operationId: criarLembrete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovoLembrete' }
+      responses:
+        '201':
+          description: Lembrete agendado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /lembretes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterLembrete
+      responses:
+        '200':
+          description: Lembrete
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarLembrete
+      description: |
+        Corrige texto, hora, organização ou ligações. Mudar `quando` de um lembrete disparado o volta
+        a agendado. Lembrete confirmado ou cancelado não muda (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoLembrete' }
+      responses:
+        '200':
+          description: Lembrete alterado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /lembretes/{id}/confirmacao:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: confirmarLembrete
+      description: |
+        O Rafael viu o lembrete. Vale para disparado e também para agendado/adiado (confirmar antes da
+        hora encerra o lembrete sem disparar). Repetir em um confirmado devolve 200 sem novo evento.
+      responses:
+        '200':
+          description: Lembrete confirmado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /lembretes/{id}/adiamento:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: adiarLembrete
+      description: Reagenda para `ate` ou para agora + `minutos` (um dos dois). O status vira adiado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Adiamento' }
+      responses:
+        '200':
+          description: Lembrete adiado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /lembretes/{id}/cancelamento:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: cancelarLembrete
+      responses:
+        '200':
+          description: Lembrete cancelado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/espera:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: aguardarResposta
+      description: |
+        O agente entregou ou ficou bloqueado e está esperando o Rafael. Fica em `aguardando` na sessão
+        e nas pendências até `DELETE` (o agente retomou) ou o encerramento da sessão.
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Espera' }
+      responses:
+        '200':
+          description: Sessão aguardando
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+    delete:
+      operationId: retomarSessao
+      security:
+        - tokenDaSessao: []
+      responses:
+        '200':
+          description: Sessão sem espera
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /integracao/pendencias:
+    get:
+      operationId: listarPendencias
+      description: |
+        Retrato do que pede atenção do Rafael agora, para integrações que fazem polling (ver
+        docs/integracao.md). É estado, não histórico: um consumidor que perdeu chamadas se recupera na
+        seguinte. Lembretes: os disparados (até confirmar ou adiar) e os agendados/adiados com hora
+        marcada até `horizonte`; as antecedências de apresentação são do consumidor.
+      parameters:
+        - name: horizonte
+          in: query
+          description: 'Lembretes que vencem até agora + horizonte, em minutos. Padrão: 120'
+          schema: { type: integer, minimum: 0, maximum: 10080 }
+      responses:
+        '200':
+          description: Pendências
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pendencias' }
+        '400': { $ref: '#/components/responses/Erro' }
+  /captura:
+    post:
+      operationId: capturar
+      description: |
+        Entrada por voz ou outro canal sem sessão (atalhos da Siri). Texto livre; o servidor interpreta
+        data e hora em português no fuso configurado. A resposta é uma frase curta em text/plain para
+        ser falada, em sucesso e em erro. Autor no log de eventos: "captura".
+        - lembrete: precisa de uma hora inequívoca no texto; sem ela, 422 pedindo de novo.
+        - tarefa: sempre a_fazer, nunca aciona o lançador.
+        - requisito: título verbatim, sob o zero da organização, para triagem.
+        Repetir com a mesma `chave` devolve o mesmo resultado (200) sem criar outro.
+        Horas relativas ("daqui a 20 minutos", "amanhã às 9") contam de `dita_em`, não da chegada.
+        Lembrete cuja hora já passou quando o pedido chega (fila atrasada) é criado e disparado na
+        hora, marcado como atrasado, e a frase diz isso; hora no passado em relação a `dita_em` é 422.
+        Frases de até 200 caracteres. 5xx: o canal pode reenviar com a mesma `chave`.
+      security:
+        - tokenDeCaptura: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Captura' }
+      responses:
+        '201':
+          description: Criado
+          headers:
+            X-Requerial-Id:
+              description: Identificador criado (L-0001, T-0001 ou R-0001)
+              schema: { type: string }
+          content:
+            text/plain:
+              schema: { type: string, example: 'Lembrete L-0007: ligar para o contador, terça 21/10 às 09:00.' }
+        '200':
+          description: 'Repetição de uma `chave` já processada, ou `simular: true`'
+          headers:
+            X-Requerial-Id:
+              description: Identificador já criado (ausente na simulação)
+              schema: { type: string }
+          content:
+            text/plain:
+              schema: { type: string }
+        '400':
+          description: Pedido malformado (tipo desconhecido, texto vazio)
+          content:
+            text/plain:
+              schema: { type: string }
+        '401':
+          description: Token de captura ausente ou errado
+          content:
+            text/plain:
+              schema: { type: string }
+        '404':
+          description: Captura desligada nesta instalação
+          content:
+            text/plain:
+              schema: { type: string }
+        '422':
+          description: Não deu para entender (hora ausente, ambígua ou no passado); a frase pede de novo
+          content:
+            text/plain:
+              schema: { type: string, example: 'Não entendi a hora do lembrete. Diga de novo com o dia e a hora.' }
 components:
   securitySchemes:
     tokenDaSessao:
       type: http
       scheme: bearer
+    tokenDeCaptura:
+      type: http
+      scheme: bearer
+      description: 'Token fixo da instalação (captura.token_ambiente em -integracoes), só para POST /captura'
   parameters:
     Id:
       name: id
@@ -1172,6 +1431,7 @@ components:
         iniciada_em: { type: string, format: date-time }
         encerrada_em: { type: string, format: date-time }
         resumo: { type: string, description: Resumo gravado no encerramento desta sessão }
+        aguardando: { $ref: '#/components/schemas/EsperaDeSessao' }
     NovaSessao:
       type: object
       required: [agente, tipo_agente, servidor, tarefas]
@@ -1255,3 +1515,123 @@ components:
         dados:
           type: object
           additionalProperties: true
+    StatusLembrete:
+      type: string
+      description: |
+        agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
+        adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
+        (finais).
+      enum: [agendado, disparado, adiado, confirmado, cancelado]
+    Lembrete:
+      type: object
+      required: [id, texto, quando, organizacao, status, autor, adiamentos, criado_em, atualizado_em]
+      properties:
+        id: { type: string, example: L-0001 }
+        texto: { type: string }
+        quando:
+          type: string
+          format: date-time
+          description: 'Hora marcada atual (após adiamentos), com o fuso em que foi pedida'
+          example: '2026-10-21T09:00:00-03:00'
+        organizacao: { type: string }
+        tarefa: { type: string, example: T-0001 }
+        requisito: { type: string, example: R-0001 }
+        status: { $ref: '#/components/schemas/StatusLembrete' }
+        autor: { type: string, description: 'Sessão (S-0001), "local" ou "captura"' }
+        disparado_em: { type: string, format: date-time, description: 'Último disparo' }
+        atrasado:
+          type: boolean
+          description: 'O último disparo aconteceu depois da hora (o servidor estava parado)'
+        adiamentos: { type: integer, description: 'Quantas vezes foi adiado' }
+        confirmado_em: { type: string, format: date-time }
+        link: { type: string, description: 'URL do lembrete no frontend, se o servidor conhece a base pública' }
+        criado_em: { type: string, format: date-time }
+        atualizado_em: { type: string, format: date-time }
+    NovoLembrete:
+      type: object
+      required: [texto, quando, organizacao]
+      properties:
+        texto: { type: string }
+        quando: { type: string, format: date-time, description: 'Instante com fuso; no passado é recusado' }
+        organizacao: { type: string }
+        tarefa: { type: string }
+        requisito: { type: string }
+    AlteracaoLembrete:
+      type: object
+      properties:
+        texto: { type: string }
+        quando: { type: string, format: date-time }
+        organizacao: { type: string }
+        tarefa: { type: string, description: 'Vazio remove a ligação' }
+        requisito: { type: string, description: 'Vazio remove a ligação' }
+    Adiamento:
+      type: object
+      properties:
+        ate: { type: string, format: date-time }
+        minutos: { type: integer, minimum: 1 }
+    Espera:
+      type: object
+      required: [mensagem]
+      properties:
+        mensagem: { type: string, description: 'O que o agente precisa do Rafael, em uma linha' }
+    EsperaDeSessao:
+      type: object
+      required: [mensagem, desde]
+      properties:
+        mensagem: { type: string }
+        desde: { type: string, format: date-time }
+    Pendencias:
+      type: object
+      required: [gerado_em, horizonte_ate, lembretes, tarefas_em_validacao, sessoes_aguardando, ultimo_evento]
+      properties:
+        gerado_em: { type: string, format: date-time }
+        horizonte_ate: { type: string, format: date-time }
+        lembretes:
+          type: array
+          description: 'Disparados primeiro, depois os que vencem até horizonte_ate, por hora marcada'
+          items: { $ref: '#/components/schemas/Lembrete' }
+        tarefas_em_validacao:
+          type: array
+          items: { $ref: '#/components/schemas/Tarefa' }
+        sessoes_aguardando:
+          type: array
+          description: Sessões ativas cujo agente espera resposta do Rafael
+          items: { $ref: '#/components/schemas/Sessao' }
+        ultimo_evento:
+          type: integer
+          format: int64
+          description: 'Id do último evento quando o retrato foi tirado; serve de cursor para GET /eventos?depois='
+    TipoDeCaptura:
+      type: string
+      enum: [lembrete, tarefa, requisito]
+    Captura:
+      type: object
+      required: [tipo, texto]
+      properties:
+        tipo: { $ref: '#/components/schemas/TipoDeCaptura' }
+        texto:
+          type: string
+          description: 'O que foi ditado, inteiro. Lembrete: o texto e a hora juntos ("ligar para o contador amanhã às 9")'
+        organizacao: { type: string, description: 'Padrão: a configurada no servidor' }
+        chave:
+          type: string
+          description: 'Chave de idempotência do canal (ex.: id da mensagem na fila); repetições não duplicam'
+        dita_em:
+          type: string
+          format: date-time
+          description: 'Quando o pedido foi falado; referência das horas relativas. Padrão: a chegada'
+        simular:
+          type: boolean
+          description: 'Só interpreta e devolve a frase, sem criar nada'
+    Notificacao:
+      type: object
+      description: |
+        Corpo de um gancho (webhook) ou stdin de um comando, configurados em -integracoes (ver
+        docs/integracao.md). Traz o estado atual da entidade do evento, para o consumidor não chamar
+        a API de volta; `atualizado_em` do lembrete ordena versões em upserts idempotentes.
+      required: [evento]
+      properties:
+        evento: { $ref: '#/components/schemas/Evento' }
+        lembrete: { $ref: '#/components/schemas/Lembrete' }
+        tarefa: { $ref: '#/components/schemas/Tarefa' }
+        sessao: { $ref: '#/components/schemas/Sessao' }
