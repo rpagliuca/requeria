@@ -1,6 +1,6 @@
 ---
 name: requerial
-description: "Ciclo de trabalho de um agente de IA no requerial pelas ferramentas MCP: abrir a Sessão de Trabalho, escrever o journal na pasta da sessão, mudar o status da Tarefa, encerrar com resumo para o próximo agente e atender ao pedido de encerramento do lançador. Use ao começar, retomar ou encerrar trabalho numa tarefa do requerial, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA estiver no ambiente, quando o usuário pedir para este chat virar (se promover a) uma tarefa, ou quando as ferramentas mcp__requerial__* estiverem disponíveis. Triggers: requerial, tarefa T-, sessão S-, iniciar_sessao, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
+description: "Ciclo de trabalho de um agente de IA no requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, encerrar com resumo e atender ao pedido de encerramento do lançador. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
 user-invocable: true
 ---
 
@@ -27,6 +27,10 @@ Se as ferramentas não estiverem disponíveis, diga isso ao usuário e pare. Nã
   encerre.
 
 ## Ao começar
+
+**Toda sessão de trabalho é registrada, antes da primeira ação que muda estado**, qualquer que seja
+a origem do chat. Só fica de fora a pergunta rápida que não muda nada; na dúvida, registre.
+Primeiro, `sessao_atual`: se o lançador já abriu a sua sessão, siga o primeiro caminho abaixo.
 
 Há dois caminhos.
 
