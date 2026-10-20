@@ -78,7 +78,7 @@ a integrações:
     },
     {
       "nome": "nuvem",
-      "eventos": ["lembrete_criado", "lembrete_adiado", "lembrete_confirmado", "lembrete_cancelado"],
+      "eventos": ["lembrete_*"],
       "webhook": {
         "url": "https://exemplo/requerial",
         "cabecalhos": { "Authorization": "env:TOKEN_DA_NUVEM" }
