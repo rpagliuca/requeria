@@ -74,6 +74,12 @@ function No({
           <span className="flex-1">
             <span>{r.titulo}</span>
             <span className="ml-2 inline-flex flex-wrap gap-x-2 text-muted-foreground text-xs">
+              {r.atendimento.estado === "nao_atendido" && (
+                <span className="text-red-600 dark:text-red-400">
+                  ✗ não atendido
+                  {r.atendimento.abaixo_nao_atendidos.length > 0 && ` (${r.atendimento.abaixo_nao_atendidos.length} abaixo)`}
+                </span>
+              )}
               {filhos.length > 0 && <span>{abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
               {ativos > 0 && <span className="text-blue-600 dark:text-blue-400">● {ativos} em trabalho</span>}

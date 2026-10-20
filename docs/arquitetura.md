@@ -68,6 +68,15 @@ Exemplo de cadeia:
 
 ## Estado do requisito
 
+Duas premissas:
+
+- **Tarefa aberta ligada a um requisito indica que ele não está atendido.** Vale para cima: se um
+  requisito abaixo na cadeia não está atendido, os de cima também não estão.
+- **Todas as tarefas concluídas não garantem que ele está.** Só uma verificação (Execução) prova.
+
+Enquanto as Execuções não existem, o estado é **Não atendido** (há tarefa aberta nele ou abaixo) ou
+**Não verificado**. Com elas, entram os estados abaixo.
+
 O estado nunca é escrito à mão. O servidor o calcula a partir do log de execuções, da periodicidade
 da verificação e dos commits nos componentes. A primeira regra que casar vence:
 
