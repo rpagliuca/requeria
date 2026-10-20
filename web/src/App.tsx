@@ -31,9 +31,9 @@ export default function App() {
           Tarefas
         </NavLink>
         <NavLink to="/templates" className={aba}>
-          Templates
+          Tarefas Pré-moldadas
           {devidos > 0 && (
-            <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-white text-xs" title={`${devidos} devidos agora`}>
+            <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-white text-xs" title={`${devidos} devidas agora`}>
               {devidos}
             </span>
           )}
