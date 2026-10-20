@@ -87,6 +87,11 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_componentes", Description: "Lista os componentes (repositórios, módulos, lugares, funcionalidades…) com os requisitos e tarefas de cada um, para reaproveitar em vez de duplicar."}, f.listarComponentes)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_componente", Description: "Cria um componente: qualquer coisa reaproveitável a que requisitos e tarefas se referem."}, f.criarComponente)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_componente", Description: "Liga um componente a um requisito ou a uma tarefa (informe um dos dois)."}, f.vincularComponente)
+	mcp.AddTool(s, &mcp.Tool{Name: "opcoes_do_lancador", Description: "Modelos e esforços que o lançador de agentes aceita, e os padrões."}, f.opcoesDoLancador)
+	mcp.AddTool(s, &mcp.Tool{Name: "lancar_agente", Description: "Sobe um agente novo (outro chat, em tmux) para trabalhar numa tarefa: põe a tarefa em andamento e abre a sessão de trabalho dele. Para delegar; nunca para a tarefa deste chat. Recusa tarefa com sessão ativa. Para parar o agente depois, mude o status da tarefa (alterar_tarefa)."}, f.lancarAgente)
+	mcp.AddTool(s, &mcp.Tool{Name: "agentes_ativos", Description: "Sessões de trabalho ativas agora: id, agente, tarefas e início. Para saber quem está trabalhando em quê."}, f.agentesAtivos)
+	mcp.AddTool(s, &mcp.Tool{Name: "listar_templates", Description: "Tarefas pré-moldadas (templates): id, título, organização, periodicidade, se está devida e a instância aberta."}, f.listarTemplates)
+	mcp.AddTool(s, &mcp.Tool{Name: "instanciar_template", Description: "Cria uma tarefa (a fazer) a partir de uma pré-moldada, com o contexto desta vez no topo da descrição e os requisitos dela. Não sobe agente: para isso, lancar_agente na tarefa criada."}, f.instanciarTemplate)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_origens", Description: "Lista as origens de requisitos (pessoas e documentos), para reaproveitar em vez de duplicar."}, f.listarOrigens)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_origem", Description: "Cria uma origem de requisitos: uma pessoa (quem pede) ou um documento (lei, norma, contrato)."}, f.criarOrigem)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
@@ -448,6 +453,42 @@ func opcional(s string) *string {
 	return &s
 }
 
+type Lancamento struct {
+	Tarefa    string `json:"tarefa" jsonschema:"tarefa, como T-0001"`
+	Instrucao string `json:"instrucao,omitempty" jsonschema:"instrução adicional para o agente; o resto ele lê da tarefa e das sessões anteriores"`
+	Modelo    string `json:"modelo,omitempty" jsonschema:"um dos modelos de opcoes_do_lancador; padrão: o configurado"`
+	Esforco   string `json:"esforco,omitempty" jsonschema:"um dos esforços de opcoes_do_lancador; padrão: o configurado"`
+}
+
+type AgenteAtivo struct {
+	Sessao     string   `json:"sessao"`
+	Agente     string   `json:"agente"`
+	Tarefas    []string `json:"tarefas"`
+	IniciadaEm string   `json:"iniciada_em"`
+}
+
+type AgentesAtivos struct {
+	Agentes []AgenteAtivo `json:"agentes"`
+}
+
+type ResumoDeTemplate struct {
+	Id                string  `json:"id"`
+	Titulo            string  `json:"titulo"`
+	Organizacao       string  `json:"organizacao"`
+	PeriodicidadeDias *int    `json:"periodicidade_dias,omitempty"`
+	Devido            bool    `json:"devido"`
+	InstanciaAberta   *string `json:"instancia_aberta,omitempty"`
+}
+
+type Templates struct {
+	Templates []ResumoDeTemplate `json:"templates"`
+}
+
+type Instancia struct {
+	Template string `json:"template" jsonschema:"pré-moldada, como TP-0001"`
+	Contexto string `json:"contexto,omitempty" jsonschema:"informações desta vez (link, quem pediu, o que mudou)"`
+}
+
 type Origens struct {
 	Origens []api.Origem `json:"origens"`
 }
@@ -523,6 +564,52 @@ func (f *Ferramentas) vincularComponente(ctx context.Context, _ *mcp.CallToolReq
 		return nil, Vazio{}, decodificar(resp, err, &api.Tarefa{})
 	}
 	return nil, Vazio{}, fmt.Errorf("informe o requisito ou a tarefa (só um dos dois)")
+}
+
+func (f *Ferramentas) opcoesDoLancador(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, api.OpcoesDeLancamento, error) {
+	var out api.OpcoesDeLancamento
+	resp, err := f.cliente.OpcoesDoLancador(ctx)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) lancarAgente(ctx context.Context, _ *mcp.CallToolRequest, in Lancamento) (*mcp.CallToolResult, api.Tarefa, error) {
+	var out api.Tarefa
+	resp, err := f.cliente.LancarAgente(ctx, in.Tarefa, api.PedidoDeLancamento{Instrucao: opcional(in.Instrucao),
+		Modelo: opcional(in.Modelo), Esforco: opcional(in.Esforco)}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) agentesAtivos(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, AgentesAtivos, error) {
+	ativa := api.Ativa
+	var sessoes []api.Sessao
+	resp, err := f.cliente.ListarSessoes(ctx, &api.ListarSessoesParams{Status: &ativa})
+	if err := decodificar(resp, err, &sessoes); err != nil {
+		return nil, AgentesAtivos{}, err
+	}
+	out := AgentesAtivos{Agentes: []AgenteAtivo{}}
+	for _, x := range sessoes {
+		out.Agentes = append(out.Agentes, AgenteAtivo{x.Id, x.Agente, x.Tarefas, x.IniciadaEm.Format("2006-01-02 15:04")})
+	}
+	return nil, out, nil
+}
+
+func (f *Ferramentas) listarTemplates(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, Templates, error) {
+	var todos []api.Template
+	resp, err := f.cliente.ListarTemplates(ctx)
+	if err := decodificar(resp, err, &todos); err != nil {
+		return nil, Templates{}, err
+	}
+	out := Templates{Templates: []ResumoDeTemplate{}}
+	for _, t := range todos {
+		out.Templates = append(out.Templates, ResumoDeTemplate{t.Id, t.Titulo, t.Organizacao, t.PeriodicidadeDias, t.Devido, t.InstanciaAberta})
+	}
+	return nil, out, nil
+}
+
+func (f *Ferramentas) instanciarTemplate(ctx context.Context, _ *mcp.CallToolRequest, in Instancia) (*mcp.CallToolResult, api.Tarefa, error) {
+	var out api.Tarefa
+	resp, err := f.cliente.InstanciarTemplate(ctx, in.Template, api.PedidoDeInstancia{Contexto: opcional(in.Contexto)}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
 }
 
 func (f *Ferramentas) listarOrigens(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, Origens, error) {

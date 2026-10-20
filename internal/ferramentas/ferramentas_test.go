@@ -1,8 +1,10 @@
 package ferramentas
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -262,7 +264,8 @@ func TestAgenteLancadoAdotaASessaoDoLancador(t *testing.T) {
 }
 
 func TestRequisitosPeloMCP(t *testing.T) {
-	c := novoChat(t, novaAPI(t))
+	endereco := novaAPI(t)
+	c := novoChat(t, endereco)
 	var origem api.Origem
 	c.chamar("criar_origem", map[string]any{"nome": "Lei de dados", "tipo": "documento"}, &origem)
 	var origens Origens
@@ -290,6 +293,29 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	c.chamar("arvore_de_requisitos", map[string]any{}, &arvore)
 	if arvore.Requisitos != 2 {
 		t.Fatalf("árvore pelo MCP: %+v", arvore)
+	}
+	var tp api.Template
+	corpo, _ := json.Marshal(api.NovoTemplate{Titulo: "Revisar", Organizacao: "Exemplo"})
+	resp, err := http.Post(endereco+"/templates", "application/json", bytes.NewReader(corpo))
+	if err != nil || resp.StatusCode != 201 {
+		t.Fatalf("criar template: %v %v", err, resp)
+	}
+	json.NewDecoder(resp.Body).Decode(&tp)
+	resp.Body.Close()
+	var templates Templates
+	c.chamar("listar_templates", map[string]any{}, &templates)
+	if len(templates.Templates) != 1 || templates.Templates[0].Id != tp.Id {
+		t.Fatalf("templates pelo MCP: %+v", templates)
+	}
+	var instancia api.Tarefa
+	c.chamar("instanciar_template", map[string]any{"template": tp.Id, "contexto": "o PR 12"}, &instancia)
+	if instancia.Template == nil || *instancia.Template != tp.Id {
+		t.Fatalf("instância pelo MCP: %+v", instancia)
+	}
+	var ativos AgentesAtivos
+	c.chamar("agentes_ativos", map[string]any{}, &ativos)
+	if ativos.Agentes == nil {
+		t.Fatalf("agentes ativos: %+v", ativos)
 	}
 	var execucao api.Execucao
 	c.chamar("registrar_execucao", map[string]any{"requisito": pai.Id, "evidencia": "conferido", "validade_dias": 30}, &execucao)

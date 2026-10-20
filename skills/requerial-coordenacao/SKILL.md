@@ -37,21 +37,36 @@ bloqueia e o que precisa acontecer para destravar, e registre isso na descriçã
 - `organizacao`: a do pedido (pergunte se não estiver claro);
 - `descricao`: objetivo, contexto e restrições que o agente precisa para começar sem perguntar. Não
   pesquise antes: o agente da tarefa faz a pesquisa dele;
-- `status`: `em_andamento` para começar já (sobe o agente) ou `a_fazer` para só registrar.
+- `requisitos` e `componentes`: o porquê e onde (`buscar_requisitos`, `listar_componentes`);
+- `status`: `a_fazer`. Para pôr outro agente nela, `lancar_agente` (abaixo).
 
-Se este chat tem uma sessão de trabalho aberta, uma tarefa que ele cria em andamento **não** sobe
-agente (o Requerial entende que a sessão vai trabalhar nela). Para delegar a outro agente, crie a
-tarefa sem sessão aberta neste chat, ou crie como `a_fazer` e depois mude para `em_andamento`.
+Uma tarefa que **este chat** cria ou põe em andamento é entendida como trabalho deste chat: não sobe
+agente. Para delegar, use sempre `lancar_agente`.
 
-Depois de pôr em andamento, confira com `obter_tarefa` em cerca de um minuto que `sessao_ativa`
-apareceu. Se não aparecer, o agente não subiu: avise o usuário.
+Para uma tarefa recorrente, procure antes uma pré-moldada: `listar_templates` e
+`instanciar_template(template, contexto)`; o contexto vai no topo da descrição e o agente dá o título.
+
+## Gerenciar agentes
+
+Cada agente custa tokens e roda sozinho em tmux: suba um só quando o usuário pediu (ou aprovou) e
+diga qual, para quê e com qual modelo e esforço.
+
+- **Subir**: `lancar_agente(tarefa, instrucao?, modelo?, esforco?)`. Sem modelo e esforço, vale o
+  padrão do lançador (`opcoes_do_lancador`). A `instrucao` é só o que a tarefa não diz (ex.: o link do
+  PR); o agente lê a tarefa e as sessões anteriores. Recusa tarefa com sessão ativa.
+- **Conferir**: em cerca de um minuto, `obter_tarefa` deve mostrar `sessao_ativa`. Sem ela, o agente
+  não subiu: avise o usuário.
+- **Quem está trabalhando**: `agentes_ativos` (sessão, agente, tarefas).
+- **Parar**: mude o status da tarefa (`alterar_tarefa`: `pausada`, `bloqueada`, `em_validacao`,
+  `concluida`). O agente encerra a sessão com resumo e fecha o próprio tmux. Nunca mande mensagem
+  ao tmux de outro agente nem o feche.
+- **Retomar**: `lancar_agente` de novo; o agente novo começa pelo resumo da última sessão.
 
 ## Pausar, bloquear, validar, concluir ou retomar
 
 - **Parar** (`pausada`, `bloqueada`, `em_validacao`, `concluida`): `alterar_tarefa(id, status)`. Se
   havia agente, ele encerra com resumo sozinho. Não mande mensagens a ele nem feche o tmux dele.
-- **Retomar**: `alterar_tarefa(id, status: "em_andamento")`. Sobe um agente novo, que começa pelo
-  resumo da última sessão.
+- **Retomar**: `lancar_agente(id)`. Sobe um agente novo, que começa pelo resumo da última sessão.
 - **Tarefa com sessão ativa mas sem agente vivo**: encerre pelo frontend (encerramento manual, com
   resumo). Não use a API por fora.
 
