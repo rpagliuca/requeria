@@ -84,6 +84,13 @@ const (
 	Pessoa    TipoOrigem = "pessoa"
 )
 
+// AlteracaoComponente defines model for AlteracaoComponente.
+type AlteracaoComponente struct {
+	Descricao   *string `json:"descricao,omitempty"`
+	Nome        *string `json:"nome,omitempty"`
+	Organizacao *string `json:"organizacao,omitempty"`
+}
+
 // AlteracaoOrigem defines model for AlteracaoOrigem.
 type AlteracaoOrigem struct {
 	Descricao *string     `json:"descricao,omitempty"`
@@ -136,6 +143,17 @@ type AlteracaoTemplate struct {
 type Atencao struct {
 	Detalhe string          `json:"detalhe"`
 	Motivo  MotivoDeAtencao `json:"motivo"`
+}
+
+// Componente Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade).
+type Componente struct {
+	CriadoEm    time.Time `json:"criado_em"`
+	Descricao   string    `json:"descricao"`
+	Id          string    `json:"id"`
+	Nome        string    `json:"nome"`
+	Organizacao string    `json:"organizacao"`
+	Requisitos  []string  `json:"requisitos"`
+	Tarefas     []string  `json:"tarefas"`
 }
 
 // DefinicaoDeOrganizacao defines model for DefinicaoDeOrganizacao.
@@ -251,6 +269,13 @@ type NovaTarefa struct {
 	Titulo      string        `json:"titulo"`
 }
 
+// NovoComponente defines model for NovoComponente.
+type NovoComponente struct {
+	Descricao   *string `json:"descricao,omitempty"`
+	Nome        string  `json:"nome"`
+	Organizacao string  `json:"organizacao"`
+}
+
 // NovoRequisito defines model for NovoRequisito.
 type NovoRequisito struct {
 	// DerivaDe Padrão: o requisito zero (o único sem pais; o primeiro requisito criado é ele)
@@ -335,7 +360,10 @@ type Requisito struct {
 	// Atencao Motivos pelos quais o requisito não está bem cuidado (vazio se está)
 	Atencao      []Atencao `json:"atencao"`
 	AtualizadoEm time.Time `json:"atualizado_em"`
-	CriadoEm     time.Time `json:"criado_em"`
+
+	// Componentes Componentes a que o requisito se refere
+	Componentes []string  `json:"componentes"`
+	CriadoEm    time.Time `json:"criado_em"`
 
 	// DerivaDe Requisitos dos quais este deriva (acima na cadeia)
 	DerivaDe []string `json:"deriva_de"`
@@ -430,10 +458,13 @@ type StatusTarefa string
 // Tarefa defines model for Tarefa.
 type Tarefa struct {
 	AtualizadaEm time.Time `json:"atualizada_em"`
-	CriadaEm     time.Time `json:"criada_em"`
-	Descricao    string    `json:"descricao"`
-	Id           string    `json:"id"`
-	Organizacao  string    `json:"organizacao"`
+
+	// Componentes Componentes em que a tarefa mexe (só no detalhe da tarefa)
+	Componentes *[]string `json:"componentes,omitempty"`
+	CriadaEm    time.Time `json:"criada_em"`
+	Descricao   string    `json:"descricao"`
+	Id          string    `json:"id"`
+	Organizacao string    `json:"organizacao"`
 
 	// Requisitos Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
 	Requisitos *[]string `json:"requisitos,omitempty"`
@@ -490,6 +521,11 @@ type Vinculo struct {
 	Tarefa string `json:"tarefa"`
 }
 
+// VinculoComponente defines model for VinculoComponente.
+type VinculoComponente struct {
+	Componente string `json:"componente"`
+}
+
 // VinculoRequisito defines model for VinculoRequisito.
 type VinculoRequisito struct {
 	Requisito string `json:"requisito"`
@@ -521,6 +557,12 @@ type ListarTarefasParams struct {
 	Organizacao *string       `form:"organizacao,omitempty" json:"organizacao,omitempty"`
 }
 
+// CriarComponenteJSONRequestBody defines body for CriarComponente for application/json ContentType.
+type CriarComponenteJSONRequestBody = NovoComponente
+
+// AlterarComponenteJSONRequestBody defines body for AlterarComponente for application/json ContentType.
+type AlterarComponenteJSONRequestBody = AlteracaoComponente
+
 // ImportarTarefaJSONRequestBody defines body for ImportarTarefa for application/json ContentType.
 type ImportarTarefaJSONRequestBody = ImportacaoTarefa
 
@@ -538,6 +580,9 @@ type CriarRequisitoJSONRequestBody = NovoRequisito
 
 // AlterarRequisitoJSONRequestBody defines body for AlterarRequisito for application/json ContentType.
 type AlterarRequisitoJSONRequestBody = AlteracaoRequisito
+
+// VincularComponenteARequisitoJSONRequestBody defines body for VincularComponenteARequisito for application/json ContentType.
+type VincularComponenteARequisitoJSONRequestBody = VinculoComponente
 
 // DerivarRequisitoJSONRequestBody defines body for DerivarRequisito for application/json ContentType.
 type DerivarRequisitoJSONRequestBody = Derivacao
@@ -568,6 +613,9 @@ type CriarTarefaJSONRequestBody = NovaTarefa
 
 // AlterarTarefaJSONRequestBody defines body for AlterarTarefa for application/json ContentType.
 type AlterarTarefaJSONRequestBody = AlteracaoTarefa
+
+// VincularComponenteATarefaJSONRequestBody defines body for VincularComponenteATarefa for application/json ContentType.
+type VincularComponenteATarefaJSONRequestBody = VinculoComponente
 
 // LancarAgenteJSONRequestBody defines body for LancarAgente for application/json ContentType.
 type LancarAgenteJSONRequestBody = PedidoDeLancamento
@@ -657,6 +705,22 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ListarComponentes request
+	ListarComponentes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarComponenteWithBody request with any body
+	CriarComponenteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarComponente(ctx context.Context, body CriarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterComponente request
+	ObterComponente(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarComponenteWithBody request with any body
+	AlterarComponenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarComponente(ctx context.Context, id Id, body AlterarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarEventos request
 	ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -707,6 +771,14 @@ type ClientInterface interface {
 	AlterarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	AlterarRequisito(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VincularComponenteARequisitoWithBody request with any body
+	VincularComponenteARequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	VincularComponenteARequisito(ctx context.Context, id Id, body VincularComponenteARequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DesvincularComponenteDeRequisito request
+	DesvincularComponenteDeRequisito(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DerivarRequisitoWithBody request with any body
 	DerivarRequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -776,6 +848,14 @@ type ClientInterface interface {
 
 	AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// VincularComponenteATarefaWithBody request with any body
+	VincularComponenteATarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	VincularComponenteATarefa(ctx context.Context, id Id, body VincularComponenteATarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DesvincularComponenteDeTarefa request
+	DesvincularComponenteDeTarefa(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LancarAgenteWithBody request with any body
 	LancarAgenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -812,6 +892,78 @@ type ClientInterface interface {
 	InstanciarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListarComponentes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarComponentesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarComponenteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarComponenteRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarComponente(ctx context.Context, body CriarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarComponenteRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterComponente(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterComponenteRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarComponenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarComponenteRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarComponente(ctx context.Context, id Id, body AlterarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarComponenteRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1032,6 +1184,42 @@ func (c *Client) AlterarRequisitoWithBody(ctx context.Context, id Id, contentTyp
 
 func (c *Client) AlterarRequisito(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAlterarRequisitoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularComponenteARequisitoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularComponenteARequisitoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularComponenteARequisito(ctx context.Context, id Id, body VincularComponenteARequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularComponenteARequisitoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DesvincularComponenteDeRequisito(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDesvincularComponenteDeRequisitoRequest(c.Server, id, componente)
 	if err != nil {
 		return nil, err
 	}
@@ -1354,6 +1542,42 @@ func (c *Client) AlterarTarefa(ctx context.Context, id Id, body AlterarTarefaJSO
 	return c.Client.Do(req)
 }
 
+func (c *Client) VincularComponenteATarefaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularComponenteATarefaRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) VincularComponenteATarefa(ctx context.Context, id Id, body VincularComponenteATarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVincularComponenteATarefaRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DesvincularComponenteDeTarefa(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDesvincularComponenteDeTarefaRequest(c.Server, id, componente)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) LancarAgenteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLancarAgenteRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
@@ -1520,6 +1744,154 @@ func (c *Client) InstanciarTemplate(ctx context.Context, id Id, body InstanciarT
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListarComponentesRequest generates requests for ListarComponentes
+func NewListarComponentesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/componentes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarComponenteRequest calls the generic CriarComponente builder with application/json body
+func NewCriarComponenteRequest(server string, body CriarComponenteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarComponenteRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarComponenteRequestWithBody generates requests for CriarComponente with any type of body
+func NewCriarComponenteRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/componentes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterComponenteRequest generates requests for ObterComponente
+func NewObterComponenteRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/componentes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarComponenteRequest calls the generic AlterarComponente builder with application/json body
+func NewAlterarComponenteRequest(server string, id Id, body AlterarComponenteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarComponenteRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarComponenteRequestWithBody generates requests for AlterarComponente with any type of body
+func NewAlterarComponenteRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/componentes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewListarEventosRequest generates requests for ListarEventos
@@ -2042,6 +2414,94 @@ func NewAlterarRequisitoRequestWithBody(server string, id Id, contentType string
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewVincularComponenteARequisitoRequest calls the generic VincularComponenteARequisito builder with application/json body
+func NewVincularComponenteARequisitoRequest(server string, id Id, body VincularComponenteARequisitoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewVincularComponenteARequisitoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewVincularComponenteARequisitoRequestWithBody generates requests for VincularComponenteARequisito with any type of body
+func NewVincularComponenteARequisitoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/componentes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDesvincularComponenteDeRequisitoRequest generates requests for DesvincularComponenteDeRequisito
+func NewDesvincularComponenteDeRequisitoRequest(server string, id Id, componente string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "componente", runtime.ParamLocationPath, componente)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/componentes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2759,6 +3219,94 @@ func NewAlterarTarefaRequestWithBody(server string, id Id, contentType string, b
 	return req, nil
 }
 
+// NewVincularComponenteATarefaRequest calls the generic VincularComponenteATarefa builder with application/json body
+func NewVincularComponenteATarefaRequest(server string, id Id, body VincularComponenteATarefaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewVincularComponenteATarefaRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewVincularComponenteATarefaRequestWithBody generates requests for VincularComponenteATarefa with any type of body
+func NewVincularComponenteATarefaRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/componentes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDesvincularComponenteDeTarefaRequest generates requests for DesvincularComponenteDeTarefa
+func NewDesvincularComponenteDeTarefaRequest(server string, id Id, componente string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "componente", runtime.ParamLocationPath, componente)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/tarefas/%s/componentes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewLancarAgenteRequest calls the generic LancarAgente builder with application/json body
 func NewLancarAgenteRequest(server string, id Id, body LancarAgenteJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3166,6 +3714,22 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ListarComponentesWithResponse request
+	ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error)
+
+	// CriarComponenteWithBodyWithResponse request with any body
+	CriarComponenteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarComponenteResponse, error)
+
+	CriarComponenteWithResponse(ctx context.Context, body CriarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarComponenteResponse, error)
+
+	// ObterComponenteWithResponse request
+	ObterComponenteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterComponenteResponse, error)
+
+	// AlterarComponenteWithBodyWithResponse request with any body
+	AlterarComponenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarComponenteResponse, error)
+
+	AlterarComponenteWithResponse(ctx context.Context, id Id, body AlterarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarComponenteResponse, error)
+
 	// ListarEventosWithResponse request
 	ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error)
 
@@ -3216,6 +3780,14 @@ type ClientWithResponsesInterface interface {
 	AlterarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error)
 
 	AlterarRequisitoWithResponse(ctx context.Context, id Id, body AlterarRequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarRequisitoResponse, error)
+
+	// VincularComponenteARequisitoWithBodyWithResponse request with any body
+	VincularComponenteARequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularComponenteARequisitoResponse, error)
+
+	VincularComponenteARequisitoWithResponse(ctx context.Context, id Id, body VincularComponenteARequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularComponenteARequisitoResponse, error)
+
+	// DesvincularComponenteDeRequisitoWithResponse request
+	DesvincularComponenteDeRequisitoWithResponse(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*DesvincularComponenteDeRequisitoResponse, error)
 
 	// DerivarRequisitoWithBodyWithResponse request with any body
 	DerivarRequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DerivarRequisitoResponse, error)
@@ -3285,6 +3857,14 @@ type ClientWithResponsesInterface interface {
 
 	AlterarTarefaWithResponse(ctx context.Context, id Id, body AlterarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTarefaResponse, error)
 
+	// VincularComponenteATarefaWithBodyWithResponse request with any body
+	VincularComponenteATarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularComponenteATarefaResponse, error)
+
+	VincularComponenteATarefaWithResponse(ctx context.Context, id Id, body VincularComponenteATarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularComponenteATarefaResponse, error)
+
+	// DesvincularComponenteDeTarefaWithResponse request
+	DesvincularComponenteDeTarefaWithResponse(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*DesvincularComponenteDeTarefaResponse, error)
+
 	// LancarAgenteWithBodyWithResponse request with any body
 	LancarAgenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error)
 
@@ -3321,6 +3901,100 @@ type ClientWithResponsesInterface interface {
 	InstanciarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
 
 	InstanciarTemplateWithResponse(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
+}
+
+type ListarComponentesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Componente
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarComponentesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarComponentesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarComponenteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Componente
+	JSON400      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarComponenteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarComponenteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterComponenteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Componente
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterComponenteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterComponenteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarComponenteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Componente
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarComponenteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarComponenteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListarEventosResponse struct {
@@ -3618,6 +4292,52 @@ func (r AlterarRequisitoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r AlterarRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type VincularComponenteARequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r VincularComponenteARequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VincularComponenteARequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DesvincularComponenteDeRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DesvincularComponenteDeRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DesvincularComponenteDeRequisitoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4008,6 +4728,52 @@ func (r AlterarTarefaResponse) StatusCode() int {
 	return 0
 }
 
+type VincularComponenteATarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r VincularComponenteATarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VincularComponenteATarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DesvincularComponenteDeTarefaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tarefa
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DesvincularComponenteDeTarefaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DesvincularComponenteDeTarefaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type LancarAgenteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4219,6 +4985,58 @@ func (r InstanciarTemplateResponse) StatusCode() int {
 	return 0
 }
 
+// ListarComponentesWithResponse request returning *ListarComponentesResponse
+func (c *ClientWithResponses) ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error) {
+	rsp, err := c.ListarComponentes(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarComponentesResponse(rsp)
+}
+
+// CriarComponenteWithBodyWithResponse request with arbitrary body returning *CriarComponenteResponse
+func (c *ClientWithResponses) CriarComponenteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarComponenteResponse, error) {
+	rsp, err := c.CriarComponenteWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarComponenteResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarComponenteWithResponse(ctx context.Context, body CriarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarComponenteResponse, error) {
+	rsp, err := c.CriarComponente(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarComponenteResponse(rsp)
+}
+
+// ObterComponenteWithResponse request returning *ObterComponenteResponse
+func (c *ClientWithResponses) ObterComponenteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterComponenteResponse, error) {
+	rsp, err := c.ObterComponente(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterComponenteResponse(rsp)
+}
+
+// AlterarComponenteWithBodyWithResponse request with arbitrary body returning *AlterarComponenteResponse
+func (c *ClientWithResponses) AlterarComponenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarComponenteResponse, error) {
+	rsp, err := c.AlterarComponenteWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarComponenteResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarComponenteWithResponse(ctx context.Context, id Id, body AlterarComponenteJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarComponenteResponse, error) {
+	rsp, err := c.AlterarComponente(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarComponenteResponse(rsp)
+}
+
 // ListarEventosWithResponse request returning *ListarEventosResponse
 func (c *ClientWithResponses) ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error) {
 	rsp, err := c.ListarEventos(ctx, params, reqEditors...)
@@ -4382,6 +5200,32 @@ func (c *ClientWithResponses) AlterarRequisitoWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseAlterarRequisitoResponse(rsp)
+}
+
+// VincularComponenteARequisitoWithBodyWithResponse request with arbitrary body returning *VincularComponenteARequisitoResponse
+func (c *ClientWithResponses) VincularComponenteARequisitoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularComponenteARequisitoResponse, error) {
+	rsp, err := c.VincularComponenteARequisitoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularComponenteARequisitoResponse(rsp)
+}
+
+func (c *ClientWithResponses) VincularComponenteARequisitoWithResponse(ctx context.Context, id Id, body VincularComponenteARequisitoJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularComponenteARequisitoResponse, error) {
+	rsp, err := c.VincularComponenteARequisito(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularComponenteARequisitoResponse(rsp)
+}
+
+// DesvincularComponenteDeRequisitoWithResponse request returning *DesvincularComponenteDeRequisitoResponse
+func (c *ClientWithResponses) DesvincularComponenteDeRequisitoWithResponse(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*DesvincularComponenteDeRequisitoResponse, error) {
+	rsp, err := c.DesvincularComponenteDeRequisito(ctx, id, componente, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDesvincularComponenteDeRequisitoResponse(rsp)
 }
 
 // DerivarRequisitoWithBodyWithResponse request with arbitrary body returning *DerivarRequisitoResponse
@@ -4608,6 +5452,32 @@ func (c *ClientWithResponses) AlterarTarefaWithResponse(ctx context.Context, id 
 	return ParseAlterarTarefaResponse(rsp)
 }
 
+// VincularComponenteATarefaWithBodyWithResponse request with arbitrary body returning *VincularComponenteATarefaResponse
+func (c *ClientWithResponses) VincularComponenteATarefaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VincularComponenteATarefaResponse, error) {
+	rsp, err := c.VincularComponenteATarefaWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularComponenteATarefaResponse(rsp)
+}
+
+func (c *ClientWithResponses) VincularComponenteATarefaWithResponse(ctx context.Context, id Id, body VincularComponenteATarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*VincularComponenteATarefaResponse, error) {
+	rsp, err := c.VincularComponenteATarefa(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVincularComponenteATarefaResponse(rsp)
+}
+
+// DesvincularComponenteDeTarefaWithResponse request returning *DesvincularComponenteDeTarefaResponse
+func (c *ClientWithResponses) DesvincularComponenteDeTarefaWithResponse(ctx context.Context, id Id, componente string, reqEditors ...RequestEditorFn) (*DesvincularComponenteDeTarefaResponse, error) {
+	rsp, err := c.DesvincularComponenteDeTarefa(ctx, id, componente, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDesvincularComponenteDeTarefaResponse(rsp)
+}
+
 // LancarAgenteWithBodyWithResponse request with arbitrary body returning *LancarAgenteResponse
 func (c *ClientWithResponses) LancarAgenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LancarAgenteResponse, error) {
 	rsp, err := c.LancarAgenteWithBody(ctx, id, contentType, body, reqEditors...)
@@ -4727,6 +5597,152 @@ func (c *ClientWithResponses) InstanciarTemplateWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseInstanciarTemplateResponse(rsp)
+}
+
+// ParseListarComponentesResponse parses an HTTP response from a ListarComponentesWithResponse call
+func ParseListarComponentesResponse(rsp *http.Response) (*ListarComponentesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarComponentesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Componente
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarComponenteResponse parses an HTTP response from a CriarComponenteWithResponse call
+func ParseCriarComponenteResponse(rsp *http.Response) (*CriarComponenteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarComponenteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Componente
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterComponenteResponse parses an HTTP response from a ObterComponenteWithResponse call
+func ParseObterComponenteResponse(rsp *http.Response) (*ObterComponenteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterComponenteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Componente
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarComponenteResponse parses an HTTP response from a AlterarComponenteWithResponse call
+func ParseAlterarComponenteResponse(rsp *http.Response) (*AlterarComponenteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarComponenteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Componente
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListarEventosResponse parses an HTTP response from a ListarEventosWithResponse call
@@ -5159,6 +6175,72 @@ func ParseAlterarRequisitoResponse(rsp *http.Response) (*AlterarRequisitoRespons
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseVincularComponenteARequisitoResponse parses an HTTP response from a VincularComponenteARequisitoWithResponse call
+func ParseVincularComponenteARequisitoResponse(rsp *http.Response) (*VincularComponenteARequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VincularComponenteARequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDesvincularComponenteDeRequisitoResponse parses an HTTP response from a DesvincularComponenteDeRequisitoWithResponse call
+func ParseDesvincularComponenteDeRequisitoResponse(rsp *http.Response) (*DesvincularComponenteDeRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DesvincularComponenteDeRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Erro
@@ -5812,6 +6894,72 @@ func ParseAlterarTarefaResponse(rsp *http.Response) (*AlterarTarefaResponse, err
 	return response, nil
 }
 
+// ParseVincularComponenteATarefaResponse parses an HTTP response from a VincularComponenteATarefaWithResponse call
+func ParseVincularComponenteATarefaResponse(rsp *http.Response) (*VincularComponenteATarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VincularComponenteATarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDesvincularComponenteDeTarefaResponse parses an HTTP response from a DesvincularComponenteDeTarefaWithResponse call
+func ParseDesvincularComponenteDeTarefaResponse(rsp *http.Response) (*DesvincularComponenteDeTarefaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DesvincularComponenteDeTarefaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseLancarAgenteResponse parses an HTTP response from a LancarAgenteWithResponse call
 func ParseLancarAgenteResponse(rsp *http.Response) (*LancarAgenteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6140,6 +7288,18 @@ func ParseInstanciarTemplateResponse(rsp *http.Response) (*InstanciarTemplateRes
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /componentes)
+	ListarComponentes(w http.ResponseWriter, r *http.Request)
+
+	// (POST /componentes)
+	CriarComponente(w http.ResponseWriter, r *http.Request)
+
+	// (GET /componentes/{id})
+	ObterComponente(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PATCH /componentes/{id})
+	AlterarComponente(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (GET /eventos)
 	ListarEventos(w http.ResponseWriter, r *http.Request, params ListarEventosParams)
 
@@ -6178,6 +7338,12 @@ type ServerInterface interface {
 
 	// (PATCH /requisitos/{id})
 	AlterarRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /requisitos/{id}/componentes)
+	VincularComponenteARequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (DELETE /requisitos/{id}/componentes/{componente})
+	DesvincularComponenteDeRequisito(w http.ResponseWriter, r *http.Request, id Id, componente string)
 
 	// (POST /requisitos/{id}/derivacoes)
 	DerivarRequisito(w http.ResponseWriter, r *http.Request, id Id)
@@ -6227,6 +7393,12 @@ type ServerInterface interface {
 	// (PATCH /tarefas/{id})
 	AlterarTarefa(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (POST /tarefas/{id}/componentes)
+	VincularComponenteATarefa(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (DELETE /tarefas/{id}/componentes/{componente})
+	DesvincularComponenteDeTarefa(w http.ResponseWriter, r *http.Request, id Id, componente string)
+
 	// (POST /tarefas/{id}/lancamento)
 	LancarAgente(w http.ResponseWriter, r *http.Request, id Id)
 
@@ -6263,6 +7435,84 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListarComponentes operation middleware
+func (siw *ServerInterfaceWrapper) ListarComponentes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarComponentes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CriarComponente operation middleware
+func (siw *ServerInterfaceWrapper) CriarComponente(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CriarComponente(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ObterComponente operation middleware
+func (siw *ServerInterfaceWrapper) ObterComponente(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterComponente(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AlterarComponente operation middleware
+func (siw *ServerInterfaceWrapper) AlterarComponente(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AlterarComponente(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListarEventos operation middleware
 func (siw *ServerInterfaceWrapper) ListarEventos(w http.ResponseWriter, r *http.Request) {
@@ -6526,6 +7776,65 @@ func (siw *ServerInterfaceWrapper) AlterarRequisito(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AlterarRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// VincularComponenteARequisito operation middleware
+func (siw *ServerInterfaceWrapper) VincularComponenteARequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VincularComponenteARequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DesvincularComponenteDeRequisito operation middleware
+func (siw *ServerInterfaceWrapper) DesvincularComponenteDeRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "componente" -------------
+	var componente string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "componente", r.PathValue("componente"), &componente, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "componente", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DesvincularComponenteDeRequisito(w, r, id, componente)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6958,6 +8267,65 @@ func (siw *ServerInterfaceWrapper) AlterarTarefa(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// VincularComponenteATarefa operation middleware
+func (siw *ServerInterfaceWrapper) VincularComponenteATarefa(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VincularComponenteATarefa(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DesvincularComponenteDeTarefa operation middleware
+func (siw *ServerInterfaceWrapper) DesvincularComponenteDeTarefa(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "componente" -------------
+	var componente string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "componente", r.PathValue("componente"), &componente, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "componente", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DesvincularComponenteDeTarefa(w, r, id, componente)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // LancarAgente operation middleware
 func (siw *ServerInterfaceWrapper) LancarAgente(w http.ResponseWriter, r *http.Request) {
 
@@ -7290,6 +8658,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/componentes", wrapper.ListarComponentes)
+	m.HandleFunc("POST "+options.BaseURL+"/componentes", wrapper.CriarComponente)
+	m.HandleFunc("GET "+options.BaseURL+"/componentes/{id}", wrapper.ObterComponente)
+	m.HandleFunc("PATCH "+options.BaseURL+"/componentes/{id}", wrapper.AlterarComponente)
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
 	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
@@ -7303,6 +8675,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos", wrapper.CriarRequisito)
 	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}", wrapper.ObterRequisito)
 	m.HandleFunc("PATCH "+options.BaseURL+"/requisitos/{id}", wrapper.AlterarRequisito)
+	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/componentes", wrapper.VincularComponenteARequisito)
+	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/componentes/{componente}", wrapper.DesvincularComponenteDeRequisito)
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/derivacoes", wrapper.DerivarRequisito)
 	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DesfazerDerivacao)
 	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.ListarExecucoes)
@@ -7319,6 +8693,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas", wrapper.CriarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}", wrapper.ObterTarefa)
 	m.HandleFunc("PATCH "+options.BaseURL+"/tarefas/{id}", wrapper.AlterarTarefa)
+	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/componentes", wrapper.VincularComponenteATarefa)
+	m.HandleFunc("DELETE "+options.BaseURL+"/tarefas/{id}/componentes/{componente}", wrapper.DesvincularComponenteDeTarefa)
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/lancamento", wrapper.LancarAgente)
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/requisitos", wrapper.VincularRequisito)
 	m.HandleFunc("DELETE "+options.BaseURL+"/tarefas/{id}/requisitos/{requisito}", wrapper.DesvincularRequisito)

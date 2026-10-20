@@ -51,7 +51,12 @@ func carregarTarefa(c consultor, n int64) (api.Tarefa, error) {
 		return t, err
 	}
 	requisitos, err := requisitosDaTarefa(c, n)
+	if err != nil {
+		return t, err
+	}
 	t.Requisitos = &requisitos
+	componentes, err := idsLigados(c, idComponente, `SELECT componente_id FROM tarefa_componente WHERE tarefa_id = ? ORDER BY componente_id`, n)
+	t.Componentes = &componentes
 	return t, err
 }
 

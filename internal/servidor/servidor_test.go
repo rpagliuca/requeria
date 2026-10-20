@@ -589,3 +589,29 @@ func TestPrioridade(t *testing.T) {
 		t.Fatalf("vazio volta a não triado: %+v", limpo)
 	}
 }
+
+func TestComponentes(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var r api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &r)
+	tarefa := a.tarefa("Mexer no módulo")
+	var c api.Componente
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacao: org}, 201, &c)
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacao: org}, 409, nil)
+	a.chamar("POST", "/requisitos/"+r.Id+"/componentes", "", api.VinculoComponente{Componente: c.Id}, 200, &r)
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/componentes", "", api.VinculoComponente{Componente: c.Id}, 200, &tarefa)
+	if len(r.Componentes) != 1 || tarefa.Componentes == nil || len(*tarefa.Componentes) != 1 {
+		t.Fatalf("vínculos: %+v %+v", r.Componentes, tarefa.Componentes)
+	}
+	a.chamar("GET", "/componentes/"+c.Id, "", nil, 200, &c)
+	if len(c.Requisitos) != 1 || len(c.Tarefas) != 1 {
+		t.Fatalf("componente: %+v", c)
+	}
+	var sem api.Requisito
+	a.chamar("DELETE", "/requisitos/"+r.Id+"/componentes/"+c.Id, "", nil, 200, &sem)
+	if len(sem.Componentes) != 0 {
+		t.Fatalf("desvinculado: %+v", sem.Componentes)
+	}
+	a.chamar("POST", "/requisitos/"+r.Id+"/componentes", "", api.VinculoComponente{Componente: "C-0099"}, 404, nil)
+}
