@@ -61,6 +61,9 @@ func (s *Servidor) LancarAgente(w http.ResponseWriter, r *http.Request, id api.I
 			}
 		}
 		dados := map[string]any{"modelo": pedido.Modelo, "esforco": pedido.Esforco}
+		if pedido.Nome != nil {
+			dados["nome"] = *pedido.Nome
+		}
 		if pedido.Instrucao != nil && !vazio(*pedido.Instrucao) {
 			dados["instrucao"] = *pedido.Instrucao
 		}
@@ -83,8 +86,8 @@ const autorLancador = "lancador"
 
 // AbrirSessaoLancada abre a sessão de um agente que o lançador vai subir: quem lança já sabe a
 // tarefa, o agente e o chat, então a sessão existe antes do agente. O token vai para o agente pelo
-// ambiente.
-func (s *Servidor) AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error) {
+// ambiente; o nome é o do tmux em que ele vai rodar.
+func (s *Servidor) AbrirSessaoLancada(tarefa, agente, servidor, chat, nome string) (api.SessaoCriada, error) {
 	var criada api.SessaoCriada
 	t, err := numero(tarefa, "T")
 	if err != nil {
@@ -98,12 +101,15 @@ func (s *Servidor) AbrirSessaoLancada(tarefa, agente, servidor, chat string) (ap
 		if err != nil {
 			return err
 		}
+		if _, err := tx.Exec(`UPDATE sessoes SET nome = ? WHERE id = ?`, nome, n); err != nil {
+			return err
+		}
 		if criada.Sessao, err = carregarSessao(tx, n); err != nil {
 			return err
 		}
 		criada.Token = token
 		return s.registrarEvento(tx, autorLancador, criada.Sessao.Id, "sessao_iniciada", map[string]any{
-			"agente": agente, "tipo_agente": api.Ia, "servidor": servidor, "tarefas": criada.Sessao.Tarefas, "chat": chat,
+			"agente": agente, "tipo_agente": api.Ia, "servidor": servidor, "tarefas": criada.Sessao.Tarefas, "chat": chat, "nome": nome,
 		})
 	})
 	return criada, err

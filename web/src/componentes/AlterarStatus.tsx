@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,6 +54,7 @@ function TelaDeStatus({ tarefa, fechar }: { tarefa: Tarefa; fechar: () => void }
   const opcoes = useOpcoesDoLancador().data
   const [destino, setDestino] = useState<StatusTarefa>(tarefa.status)
   const [instrucao, setInstrucao] = useState("")
+  const [nome, setNome] = useState("")
   const [modelo, setModelo] = useState(opcoes?.modelo_padrao ?? "")
   const [esforco, setEsforco] = useState(opcoes?.esforco_padrao ?? PADRAO)
 
@@ -66,7 +68,12 @@ function TelaDeStatus({ tarefa, fechar }: { tarefa: Tarefa; fechar: () => void }
   const confirmar = () => {
     if (iniciar) {
       lancar.mutate(
-        { instrucao: instrucao.trim() || undefined, modelo: modelo || undefined, esforco: esforco === PADRAO ? undefined : esforco },
+        {
+          instrucao: instrucao.trim() || undefined,
+          nome: nome.trim() || undefined,
+          modelo: modelo || undefined,
+          esforco: esforco === PADRAO ? undefined : esforco,
+        },
         { onSuccess: fechar },
       )
     } else {
@@ -102,6 +109,15 @@ function TelaDeStatus({ tarefa, fechar }: { tarefa: Tarefa; fechar: () => void }
               placeholder="O que mudou ou o que fazer agora. O resto o agente lê da tarefa e das sessões anteriores."
               value={instrucao}
               onChange={(e) => setInstrucao(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nome">Nome do agente (opcional)</Label>
+            <Input
+              id="nome"
+              placeholder="O assunto em poucas palavras, como dados-privado-joao. Sem ele, sai do título."
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
             />
           </div>
           <div className="flex flex-wrap gap-3">

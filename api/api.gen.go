@@ -153,6 +153,9 @@ type AlteracaoRequisito struct {
 type AlteracaoSessao struct {
 	Artefatos *[]string `json:"artefatos,omitempty"`
 	Journal   *string   `json:"journal,omitempty"`
+
+	// Nome Nome curto novo; o lançador renomeia o tmux e o remote-control do agente
+	Nome *string `json:"nome,omitempty"`
 }
 
 // AlteracaoTarefa defines model for AlteracaoTarefa.
@@ -480,6 +483,9 @@ type PedidoDeLancamento struct {
 
 	// Modelo Um dos modelos do lançador; padrão: o primeiro
 	Modelo *string `json:"modelo,omitempty"`
+
+	// Nome Nome curto da sessão do agente (tmux e remote-control), dizendo o assunto do trabalho; padrão: derivado do título
+	Nome *string `json:"nome,omitempty"`
 }
 
 // Pendencias defines model for Pendencias.
@@ -598,6 +604,9 @@ type Sessao struct {
 	// Journal Localizador: <maquina>:<caminho> ou github.com/<dono>/<repo>@<commit>:<caminho>
 	Journal            *string             `json:"journal,omitempty"`
 	MotivoEncerramento *MotivoEncerramento `json:"motivo_encerramento,omitempty"`
+
+	// Nome Nome curto do agente (tmux e remote-control), que diz o assunto do trabalho
+	Nome *string `json:"nome,omitempty"`
 
 	// Resumo Resumo gravado no encerramento desta sessão
 	Resumo *string `json:"resumo,omitempty"`

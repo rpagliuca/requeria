@@ -32,7 +32,7 @@ export function Sessoes() {
     return (data ?? [])
       .filter((s) => status.includes(s.status))
       .filter((s) => {
-        const alvo = `${s.id} ${s.agente} ${s.servidor} ${s.tarefas.map((t) => `${t} ${titulos.get(t) ?? ""}`).join(" ")} ${s.journal ?? ""}`.toLowerCase()
+        const alvo = `${s.id} ${s.nome ?? ""} ${s.agente} ${s.servidor} ${s.tarefas.map((t) => `${t} ${titulos.get(t) ?? ""}`).join(" ")} ${s.journal ?? ""}`.toLowerCase()
         return termos.every((termo) => alvo.includes(termo))
       })
       .sort((a, b) => (b.encerrada_em ?? b.iniciada_em).localeCompare(a.encerrada_em ?? a.iniciada_em))
@@ -75,6 +75,7 @@ export function Sessoes() {
                   <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground text-xs">
                     <span className="font-mono">{s.id}</span>
                     <span className="font-mono">{s.tarefas.join(", ")}</span>
+                    {s.nome && <span className="font-mono">{s.nome}</span>}
                     <span>{s.agente}</span>
                     <span>{s.servidor}</span>
                     <span>

@@ -638,7 +638,7 @@ paths:
         '404': { $ref: '#/components/responses/Erro' }
     patch:
       operationId: alterarSessao
-      description: Atualiza os localizadores do journal e dos artefatos. O agente não pode ser alterado.
+      description: Atualiza os localizadores do journal e dos artefatos, e o nome curto. O agente não pode ser alterado.
       security:
         - tokenDaSessao: []
       requestBody:
@@ -1394,6 +1394,7 @@ components:
         instrucao: { type: string, description: 'Instrução adicional de reabertura, somada ao prompt padrão; o resto do contexto o agente lê da tarefa e das sessões anteriores' }
         modelo: { type: string, description: 'Um dos modelos do lançador; padrão: o primeiro' }
         esforco: { type: string, description: 'Um dos esforços do lançador; padrão: o configurado' }
+        nome: { type: string, description: 'Nome curto da sessão do agente (tmux e remote-control), dizendo o assunto do trabalho; padrão: derivado do título' }
     OpcoesDeLancamento:
       type: object
       required: [modelos, esforcos, modelo_padrao]
@@ -1417,6 +1418,7 @@ components:
           description: Provider, modelo e esforço, ou o nome de um humano. Imutável.
           example: Claude Opus 5.5 Medium
         tipo_agente: { $ref: '#/components/schemas/TipoAgente' }
+        nome: { type: string, description: 'Nome curto do agente (tmux e remote-control), que diz o assunto do trabalho', example: dados-privado-joao }
         chat: { type: string, description: Identificador do chat do agente }
         servidor: { type: string, description: Máquina onde a sessão roda }
         anterior: { type: string, example: S-0001 }
@@ -1454,6 +1456,7 @@ components:
       type: object
       properties:
         journal: { type: string }
+        nome: { type: string, description: 'Nome curto novo; o lançador renomeia o tmux e o remote-control do agente' }
         artefatos:
           type: array
           items: { type: string }

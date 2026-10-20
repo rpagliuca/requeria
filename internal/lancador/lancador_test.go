@@ -56,6 +56,9 @@ func (f *tmuxFalso) executar(args ...string) (string, error) {
 		return "500 manual\n600 outra", nil
 	case "kill-session":
 		delete(f.sessoes, alvo())
+	case "rename-session":
+		f.sessoes[args[len(args)-1]] = f.sessoes[alvo()]
+		delete(f.sessoes, alvo())
 	}
 	return "", nil
 }
@@ -90,11 +93,11 @@ func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
 	}
 
 	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Pausada, Autor: "local"})
-	if f.sessoes["revisao-backup-fotos"] != "T-0007" {
+	if f.sessoes["backup-fotos"] != "T-0007" {
 		t.Fatalf("agente não subiu como esperado: %v", f.sessoes)
 	}
 	ultima := f.chamadas[len(f.chamadas)-1]
-	if !strings.Contains(ultima, "-c /journals") || !strings.Contains(ultima, "agente --nome revisao-backup-fotos") ||
+	if !strings.Contains(ultima, "-c /journals") || !strings.Contains(ultima, "agente --nome backup-fotos") ||
 		!strings.Contains(ultima, "tarefa T-0007") {
 		t.Fatalf("comando inesperado: %s", ultima)
 	}
@@ -102,7 +105,7 @@ func TestSobeAgenteAoEntrarEmAndamento(t *testing.T) {
 	// Um tmux que sobrou da tarefa é fechado antes de subir o agente novo.
 	tarefa.SessaoAtiva = nil
 	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Concluida, Autor: "local"})
-	if len(f.sessoes) != 2 || f.sessoes["revisao-backup-fotos"] != "T-0007" {
+	if len(f.sessoes) != 2 || f.sessoes["backup-fotos"] != "T-0007" {
 		t.Fatalf("tmux antigo não foi substituído: %v", f.sessoes)
 	}
 
@@ -142,9 +145,12 @@ func TestAvisaAgenteAoSairDeAndamento(t *testing.T) {
 
 func TestNomeCurto(t *testing.T) {
 	casos := map[string]string{
-		"Revisão do backup de fotos":    "revisao-backup-fotos",
-		"Usina — causa raiz das perdas": "usina-causa-raiz",
+		"Revisão do backup de fotos":    "backup-fotos",
+		"Usina — causa raiz das perdas": "usina-causa-raiz-perdas",
 		"AD":                            "tarefa",
+		"Retomar implantação de Samba com Active Directory (AD) no cartório": "samba-active-directory",
+		"Criar atalhos da Siri": "atalhos-siri",
+		"Revisar proposta":      "proposta",
 	}
 	for titulo, esperado := range casos {
 		if obtido := nomeCurto(titulo); obtido != esperado {
@@ -195,8 +201,8 @@ type sessoesFalsas struct {
 	encerradas []string
 }
 
-func (s *sessoesFalsas) AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error) {
-	s.abertas = append(s.abertas, tarefa+"|"+agente+"|"+chat)
+func (s *sessoesFalsas) AbrirSessaoLancada(tarefa, agente, servidor, chat, nome string) (api.SessaoCriada, error) {
+	s.abertas = append(s.abertas, tarefa+"|"+agente+"|"+chat+"|"+nome)
 	return api.SessaoCriada{Sessao: api.Sessao{Id: "S-0042"}, Token: "segredo"}, nil
 }
 
@@ -228,7 +234,7 @@ func TestLancadorAbreASessaoAntesDoAgente(t *testing.T) {
 		t.Fatalf("sessão não aberta: %v", sessoes.abertas)
 	}
 	partes := strings.Split(sessoes.abertas[0], "|")
-	if partes[0] != "T-0001" || partes[1] != "Claude Opus 5.5 Medium" || len(partes[2]) != 36 {
+	if partes[0] != "T-0001" || partes[1] != "Claude Opus 5.5 Medium" || len(partes[2]) != 36 || partes[3] != "backup" {
 		t.Fatalf("sessão aberta com dados inesperados: %v", partes)
 	}
 	ultima := f.chamadas[len(f.chamadas)-1]
@@ -259,4 +265,59 @@ func TestAvisaAgenteIniciadoAMaoPeloChat(t *testing.T) {
 		}
 	}
 	t.Fatalf("o agente iniciado à mão não foi avisado: %v", f.chamadas)
+}
+
+func TestNomeDadoPorQuemLanca(t *testing.T) {
+	l, err := Novo(Config{Diretorio: "/journals", Comando: []string{"agente", "--remote-control", "{nome}"},
+		Modelos: []Modelo{{Nome: "Modelo A"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &tmuxFalso{sessoes: map[string]string{}}
+	l.executar = f.executar
+	sessoes := &sessoesFalsas{}
+	l.sessoes = sessoes
+
+	vazio := api.PedidoDeLancamento{Nome: ptr("—")}
+	if l.Validar(&vazio) == nil {
+		t.Fatal("aceitou nome sem letra nem número")
+	}
+	pedido := api.PedidoDeLancamento{Nome: ptr("Dados-privado do João")}
+	if err := l.Validar(&pedido); err != nil || *pedido.Nome != "dados-privado-do-joao" {
+		t.Fatalf("nome não normalizado: %v %v", pedido.Nome, err)
+	}
+	tarefa := api.Tarefa{Id: "T-0136", Titulo: "Retomar implantação de Samba com Active Directory (AD) no cartório", Status: api.EmAndamento}
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.Pausada, Autor: "local", Lancamento: &pedido})
+	if _, ok := f.sessoes["dados-privado-do-joao"]; !ok {
+		t.Fatalf("tmux sem o nome dado: %v", f.sessoes)
+	}
+	if !strings.HasSuffix(sessoes.abertas[0], "|dados-privado-do-joao") ||
+		!strings.Contains(f.chamadas[len(f.chamadas)-1], "--remote-control dados-privado-do-joao") {
+		t.Fatalf("nome não chegou à sessão e ao agente: %v %s", sessoes.abertas, f.chamadas[len(f.chamadas)-1])
+	}
+}
+
+func TestRenomeiaOAgenteVivo(t *testing.T) {
+	l, f := novoLancador(t)
+	l.sessoes = &sessoesFalsas{}
+	l.processoDoChat = func(string) int { return 0 }
+	f.sessoes["retomar-implantacao"] = "T-0136"
+
+	l.Renomeou(api.Sessao{Id: "S-0185", Nome: ptr("dados-privado-joao"), Tarefas: []string{"T-0136"}})
+	if f.sessoes["dados-privado-joao"] != "T-0136" {
+		t.Fatalf("tmux não renomeado: %v", f.sessoes)
+	}
+	n := len(f.chamadas)
+	if f.chamadas[n-2] != "send-keys -t =dados-privado-joao: -l /rename dados-privado-joao" ||
+		f.chamadas[n-1] != "send-keys -t =dados-privado-joao: Enter" {
+		t.Fatalf("/rename não enviado: %v", f.chamadas)
+	}
+
+	// Mesmo nome: só reaplica o /rename, sem mexer no tmux.
+	l.Renomeou(api.Sessao{Id: "S-0185", Nome: ptr("dados-privado-joao"), Tarefas: []string{"T-0136"}})
+	for _, c := range f.chamadas[n:] {
+		if strings.HasPrefix(c, "rename-session") {
+			t.Fatalf("renomeou o tmux sem precisar: %v", f.chamadas[n:])
+		}
+	}
 }

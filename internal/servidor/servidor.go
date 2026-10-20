@@ -29,6 +29,7 @@ type Servidor struct {
 	integracao       Integracao
 	aoMudarStatus    []func(MudancaDeStatus)
 	aoEncerrarSessao []func(api.Sessao)
+	aoRenomearSessao []func(api.Sessao)
 }
 
 // MudancaDeStatus descreve uma tarefa que mudou de status, já gravada no banco.
@@ -62,6 +63,18 @@ func (s *Servidor) AoMudarStatus(f func(MudancaDeStatus)) {
 // AoEncerrarSessao registra f para ser chamada depois que uma sessão termina, por qualquer motivo.
 func (s *Servidor) AoEncerrarSessao(f func(api.Sessao)) {
 	s.aoEncerrarSessao = append(s.aoEncerrarSessao, f)
+}
+
+// AoRenomearSessao registra f para ser chamada depois que uma sessão ativa ganha nome curto novo.
+// É por aqui que o lançador renomeia o tmux e o remote-control do agente.
+func (s *Servidor) AoRenomearSessao(f func(api.Sessao)) {
+	s.aoRenomearSessao = append(s.aoRenomearSessao, f)
+}
+
+func (s *Servidor) avisarRenomeacao(x api.Sessao) {
+	for _, f := range s.aoRenomearSessao {
+		f(x)
+	}
 }
 
 func (s *Servidor) avisarEncerramento(x api.Sessao) {
