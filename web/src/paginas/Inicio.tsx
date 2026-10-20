@@ -4,7 +4,8 @@ import { Link } from "react-router-dom"
 import { type Requisito, type Tarefa, useRequisitos, useSessoes, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
 import { Secao } from "@/componentes/Secao"
-import { Trilha, descendentes, trilhasAteOZero } from "@/componentes/trilhas"
+import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
+import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 
 // A home: o que está sendo trabalhado agora, sempre com a cadeia até o zero, e a navegação a partir dele.
 export function Inicio() {
@@ -113,7 +114,7 @@ function CartaoTrabalhado({
   )
 }
 
-// O zero e os filhos dele; cada filho mostra quantos requisitos há abaixo e se há trabalho ali agora.
+// O zero aberto, com os filhos; cada clique abre o nível seguinte.
 function Navegacao({
   zero,
   porId,
@@ -123,29 +124,5 @@ function Navegacao({
   porId: Map<string, Requisito>
   trabalhados: Map<string, Tarefa[]>
 }) {
-  return (
-    <div className="space-y-3">
-      <Link to={`/requisitos/${zero.id}`} className="block font-semibold text-lg hover:underline">
-        {zero.titulo}
-      </Link>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {zero.derivados.map((fid) => {
-          const f = porId.get(fid)
-          if (!f) return null
-          const abaixo = descendentes(fid, porId)
-          const ativos = [fid, ...abaixo].filter((x) => trabalhados.has(x)).length
-          return (
-            <Link key={fid} to={`/requisitos/${fid}`} className="block rounded-md border p-3 hover:bg-muted/50">
-              <div className="font-medium">{f.titulo}</div>
-              <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground text-xs">
-                <span>{f.organizacao}</span>
-                <span>{abaixo.size} requisitos abaixo</span>
-                {ativos > 0 && <span className="text-blue-600 dark:text-blue-400">● {ativos} em trabalho</span>}
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-    </div>
-  )
+  return <GrafoDeRequisitos raizes={[zero.id]} porId={porId} emTrabalho={new Set(trabalhados.keys())} abertosNoInicio={[zero.id]} />
 }

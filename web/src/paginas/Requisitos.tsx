@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { Link } from "react-router-dom"
 
 import { useOrigens, useRequisitos } from "@/api/cliente"
-import { ArvoreDeRequisitos } from "@/componentes/ArvoreDeRequisitos"
+import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { Estado } from "@/componentes/Estado"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
@@ -68,7 +68,7 @@ export function Requisitos() {
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        {filtrando ? `${filtrados.length} requisitos` : `${data?.length ?? 0} requisitos, em cadeia`} ·{" "}
+        {filtrando ? `${filtrados.length} requisitos` : `${data?.length ?? 0} requisitos · clique para abrir os que derivam de cada um`} ·{" "}
         <Link to="/origens" className="underline">
           origens
         </Link>
@@ -97,7 +97,7 @@ export function Requisitos() {
           <p className="text-muted-foreground text-sm">Nenhum requisito ainda.</p>
         ) : (
           <div className="rounded-md border p-2">
-            <ArvoreDeRequisitos raizes={raizes} porId={porId} sentido="abaixo" />
+            <GrafoDeRequisitos raizes={raizes} porId={porId} abertosNoInicio={raizes} />
           </div>
         ))}
     </div>
