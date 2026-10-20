@@ -78,8 +78,9 @@ de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
   requisitos intermediários (cada um também uma afirmação testável). Não é bloqueado; o requisito
   só passa a pedir atenção.
 - O `estado` é calculado e limitado pelo menos maduro abaixo (`limitado_por` diz quem). Do menos
-  ao mais maduro: `nao_atendido` (tarefa aberta fora de andamento), `em_trabalho`, `nao_validado`
-  (sem tarefa aberta nem execução), `validacao_expirada`, `validado`. `estado_proprio` ignora os de
+  ao mais maduro: `nao_atendido` (tarefa aberta fora de andamento, ou nem tarefa nem execução),
+  `em_trabalho`, `nao_validado` (tarefas todas concluídas, sem execução), `validacao_expirada`,
+  `validado`. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles. `estado_proprio` ignora os de
   baixo. Tarefas concluídas **não** provam nada.
 - `registrar_execucao` registra uma verificação de conformidade, com a evidência e a validade em
   dias. Só registre o que foi verificado de fato, agora; nunca porque as tarefas acabaram.

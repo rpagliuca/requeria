@@ -75,13 +75,14 @@ Duas premissas:
 
 O estado nunca é escrito à mão. O **estado próprio** vem das tarefas ligadas e da última execução;
 o **estado** é o menos maduro entre o próprio e o de cada requisito abaixo (e as tarefas, a menos
-madura delas manda). Do menos ao mais maduro:
+madura delas manda). Um requisito sem tarefa e sem execução que se desdobra em outros é decidido só
+por eles. Do menos ao mais maduro:
 
 | Estado próprio | Regra |
 |---|---|
-| **Não atendido** | Alguma tarefa ligada está aberta fora de andamento |
+| **Não atendido** | Alguma tarefa ligada está aberta fora de andamento, ou não há tarefa nem execução |
 | **Em trabalho** | Tarefas abertas, todas em andamento |
-| **Não validado** | Nenhuma tarefa aberta e nenhuma execução |
+| **Não validado** | Todas as tarefas ligadas concluídas e nenhuma execução |
 | **Validação expirada** | A última execução passou do prazo de validade |
 | **Validado** | A última execução está no prazo (ou não tem prazo) |
 

@@ -298,7 +298,10 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	x.EstadoProprio = l.estadoProprio(n)
 	x.Estado = l.estado(n)
 	x.LimitadoPor = []string{}
-	if maturidade[x.Estado] < maturidade[x.EstadoProprio] {
+	if l.soPelosDerivados(n) {
+		x.EstadoProprio = x.Estado
+	}
+	if maturidade[x.Estado] < maturidade[l.estadoProprio(n)] {
 		for _, f := range l.filhosN[n] {
 			if l.estado(f) == x.Estado {
 				x.LimitadoPor = append(x.LimitadoPor, idRequisito(f))
@@ -320,9 +323,17 @@ func menosMaduro(a, b api.EstadoDoRequisito) api.EstadoDoRequisito {
 	return a
 }
 
+// soPelosDerivados: sem tarefa e sem execução, um requisito que se desdobra em outros é verificado
+// por eles; o estado dele é o dos derivados.
+func (l ligacoes) soPelosDerivados(n int64) bool {
+	_, executado := l.ultimas[n]
+	return len(l.trabalho[n]) == 0 && !executado && len(l.filhosN[n]) > 0
+}
+
 // estadoProprio vem só das tarefas ligadas e da última execução. A tarefa menos madura manda:
 // aberta fora de andamento ⇒ não atendido; em andamento ⇒ em trabalho. Tarefas concluídas não provam
-// nada: sem tarefa aberta, quem decide é a última execução.
+// nada: sem tarefa aberta, quem decide é a última execução. Sem tarefa e sem execução, não há nada
+// que indique atendimento: não atendido (ou, com derivados, neutro: decidem eles).
 func (l ligacoes) estadoProprio(n int64) api.EstadoDoRequisito {
 	e := api.Validado
 	aberta := false
@@ -340,6 +351,10 @@ func (l ligacoes) estadoProprio(n int64) api.EstadoDoRequisito {
 	}
 	ultima, ok := l.ultimas[n]
 	switch {
+	case !ok && l.soPelosDerivados(n):
+		return api.Validado
+	case !ok && len(l.trabalho[n]) == 0:
+		return api.NaoAtendido
 	case !ok:
 		return api.NaoValidado
 	case ultima.ValidaAte != nil && !ultima.ValidaAte.After(l.agora):
