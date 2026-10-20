@@ -317,7 +317,12 @@ func (s *Servidor) InstanciarTemplate(w http.ResponseWriter, r *http.Request, id
 		if pedido.Titulo != nil && !vazio(*pedido.Titulo) {
 			titulo = strings.TrimSpace(*pedido.Titulo)
 		}
-		if criada, err = s.inserirTarefa(tx, quem, titulo, tp.Descricao, tp.Organizacao, api.AFazer, n); err != nil {
+		descricao := tp.Descricao
+		if pedido.Contexto != nil && !vazio(*pedido.Contexto) {
+			descricao = "## Contexto desta instância\n\n" + strings.TrimSpace(*pedido.Contexto) +
+				"\n\nAo começar, dê a esta tarefa um título específico a partir do contexto (alterar_tarefa).\n\n## Instruções do template\n\n" + tp.Descricao
+		}
+		if criada, err = s.inserirTarefa(tx, quem, titulo, descricao, tp.Organizacao, api.AFazer, n); err != nil {
 			return err
 		}
 		for _, rid := range tp.Requisitos {

@@ -890,7 +890,8 @@ components:
     PedidoDeInstancia:
       type: object
       properties:
-        titulo: { type: string, description: 'Padrão: o título do template com a data' }
+        contexto: { type: string, description: 'Informações desta instância; vão para o topo da descrição da tarefa' }
+        titulo: { type: string, description: 'Padrão: o título do template com a data (o agente dá um título específico ao começar)' }
     Organizacao:
       type: object
       required: [nome]

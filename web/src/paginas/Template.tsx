@@ -13,8 +13,8 @@ import { Texto } from "@/componentes/Texto"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 export function Template() {
   const { id = "" } = useParams()
@@ -46,7 +46,7 @@ export function Template() {
             </span>
           )}
           <Editar id={t.id} />
-          <Instanciar id={t.id} titulo={t.titulo} />
+          <Instanciar id={t.id} />
         </div>
         {t.instancia_aberta && (
           <p className="text-sm">
@@ -137,13 +137,13 @@ function Editar({ id }: { id: string }) {
   )
 }
 
-// Cria a tarefa (a fazer) a partir do template; para pôr um agente nela, "Alterar status" na tarefa.
-function Instanciar({ id, titulo }: { id: string; titulo: string }) {
+// Cria a tarefa (a fazer) a partir do template, com o contexto desta vez; o agente dá o título.
+// Para pôr um agente nela, "Alterar status" na tarefa.
+function Instanciar({ id }: { id: string }) {
   const instanciar = useInstanciarTemplate(id)
   const navegar = useNavigate()
   const [aberto, setAberto] = useState(false)
-  const [nome, setNome] = useState("")
-  const padrao = `${titulo} — ${new Date().toLocaleDateString("sv-SE")}`
+  const [contexto, setContexto] = useState("")
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
@@ -156,18 +156,24 @@ function Instanciar({ id, titulo }: { id: string; titulo: string }) {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault()
-            instanciar.mutate(nome.trim() || undefined, { onSuccess: (t) => navegar(`/tarefas/${t.id}`) })
+            instanciar.mutate(contexto.trim() || undefined, { onSuccess: (t) => navegar(`/tarefas/${t.id}`) })
           }}
         >
           <DialogHeader>
             <DialogTitle>Nova tarefa a partir da pré-moldada {id}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="inst-titulo">Título</Label>
-            <Input id="inst-titulo" placeholder={padrao} value={nome} onChange={(e) => setNome(e.target.value)} />
+            <Label htmlFor="inst-contexto">Contexto desta vez</Label>
+            <Textarea
+              id="inst-contexto"
+              rows={5}
+              placeholder="Ex.: link do PR, quem pediu, o que mudou desde a última vez…"
+              value={contexto}
+              onChange={(e) => setContexto(e.target.value)}
+            />
           </div>
           <p className="text-muted-foreground text-sm">
-            A tarefa nasce a fazer, com as instruções e os requisitos da pré-moldada. Para pôr um agente nela, use Alterar status.
+            A tarefa nasce a fazer, com o contexto no topo, as instruções e os requisitos da pré-moldada; o agente dá o título ao começar. Para pôr um agente nela, use Alterar status.
           </p>
           {instanciar.error && <p className="text-destructive text-sm">{instanciar.error.message}</p>}
           <DialogFooter>

@@ -525,6 +525,11 @@ func TestTemplates(t *testing.T) {
 	// Concluída a instância, só volta a ser devido depois da periodicidade.
 	concluida := api.Concluida
 	a.chamar("PATCH", "/tarefas/"+tarefa.Id, "", api.AlteracaoTarefa{Status: &concluida}, 200, nil)
+	var comContexto api.Tarefa
+	a.chamar("POST", "/templates/"+sobDemanda.Id+"/instancias", "", api.PedidoDeInstancia{Contexto: ptr("o backup de ontem")}, 201, &comContexto)
+	if !strings.HasPrefix(comContexto.Descricao, "## Contexto desta instância\n\no backup de ontem") {
+		t.Fatalf("contexto no topo da descrição: %q", comContexto.Descricao)
+	}
 	var depois, sob api.Template
 	a.chamar("GET", "/templates/"+revisao.Id, "", nil, 200, &depois)
 	if depois.Devido || depois.ProximaEm == nil || depois.InstanciaAberta != nil {
