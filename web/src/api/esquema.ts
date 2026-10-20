@@ -59,6 +59,151 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/origens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listarOrigens"];
+        put?: never;
+        post: operations["criarOrigem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/origens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["obterOrigem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["alterarOrigem"];
+        trace?: never;
+    };
+    "/requisitos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Todos os requisitos, com as ligações (origem, cadeia e tarefas) em identificadores. */
+        get: operations["listarRequisitos"];
+        put?: never;
+        post: operations["criarRequisito"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/requisitos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["obterRequisito"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["alterarRequisito"];
+        trace?: never;
+    };
+    "/requisitos/{id}/derivacoes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Registra que o requisito deriva de outro. Recusa ciclos. */
+        post: operations["derivarRequisito"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/requisitos/{id}/derivacoes/{pai}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                pai: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["desfazerDerivacao"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tarefas/{id}/requisitos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Registra que a tarefa tenta atender o requisito. */
+        post: operations["vincularRequisito"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tarefas/{id}/requisitos/{requisito}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                requisito: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["desvincularRequisito"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/lancador": {
         parameters: {
             query?: never;
@@ -270,6 +415,8 @@ export interface components {
             resumo: string;
             /** @example S-0001 */
             sessao_ativa?: string;
+            /** @description Requisitos que a tarefa tenta atender (só na leitura de uma tarefa) */
+            requisitos?: string[];
             /** Format: date-time */
             criada_em: string;
             /** Format: date-time */
@@ -287,6 +434,69 @@ export interface components {
             organizacao?: string;
             status?: components["schemas"]["StatusTarefa"];
             resumo?: string;
+        };
+        Origem: {
+            /** @example O-0001 */
+            id: string;
+            /** @description Pessoa (quem pede) ou documento (lei, norma, contrato) */
+            nome: string;
+            tipo: components["schemas"]["TipoOrigem"];
+            descricao: string;
+            /** Format: date-time */
+            criada_em: string;
+        };
+        /** @enum {string} */
+        TipoOrigem: "pessoa" | "documento";
+        NovaOrigem: {
+            nome: string;
+            tipo: components["schemas"]["TipoOrigem"];
+            descricao?: string;
+        };
+        AlteracaoOrigem: {
+            nome?: string;
+            tipo?: components["schemas"]["TipoOrigem"];
+            descricao?: string;
+        };
+        Requisito: {
+            /** @example R-0001 */
+            id: string;
+            titulo: string;
+            descricao: string;
+            organizacao: string;
+            /** @example O-0001 */
+            origem?: string;
+            /** @description Requisitos dos quais este deriva (acima na cadeia) */
+            deriva_de: string[];
+            /** @description Requisitos que derivam deste (abaixo na cadeia) */
+            derivados: string[];
+            /** @description Tarefas que tentam atender este requisito */
+            tarefas: string[];
+            /** Format: date-time */
+            criado_em: string;
+            /** Format: date-time */
+            atualizado_em: string;
+        };
+        NovoRequisito: {
+            titulo: string;
+            descricao?: string;
+            /** @description Padrão: a do primeiro requisito em deriva_de */
+            organizacao?: string;
+            origem?: string;
+            deriva_de?: string[];
+        };
+        AlteracaoRequisito: {
+            titulo?: string;
+            descricao?: string;
+            organizacao?: string;
+            /** @description Vazio remove a origem */
+            origem?: string;
+        };
+        Derivacao: {
+            /** @description Requisito do qual este deriva */
+            pai: string;
+        };
+        VinculoRequisito: {
+            requisito: string;
         };
         PedidoDeLancamento: {
             /** @description Instrução adicional de reabertura, somada ao prompt padrão; o resto do contexto o agente lê da tarefa e das sessões anteriores */
@@ -542,6 +752,308 @@ export interface operations {
             400: components["responses"]["Erro"];
             404: components["responses"]["Erro"];
             409: components["responses"]["Erro"];
+        };
+    };
+    listarOrigens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Origens, por nome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Origem"][];
+                };
+            };
+        };
+    };
+    criarOrigem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovaOrigem"];
+            };
+        };
+        responses: {
+            /** @description Origem criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Origem"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    obterOrigem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Origem */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Origem"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    alterarOrigem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlteracaoOrigem"];
+            };
+        };
+        responses: {
+            /** @description Origem alterada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Origem"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    listarRequisitos: {
+        parameters: {
+            query?: {
+                organizacao?: string;
+                origem?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requisitos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"][];
+                };
+            };
+        };
+    };
+    criarRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovoRequisito"];
+            };
+        };
+        responses: {
+            /** @description Requisito criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    obterRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requisito */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    alterarRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlteracaoRequisito"];
+            };
+        };
+        responses: {
+            /** @description Requisito alterado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    derivarRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Derivacao"];
+            };
+        };
+        responses: {
+            /** @description Requisito com a derivação */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    desfazerDerivacao: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                pai: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requisito sem a derivação */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    vincularRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VinculoRequisito"];
+            };
+        };
+        responses: {
+            /** @description Tarefa com o vínculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    desvincularRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                requisito: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tarefa sem o vínculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            404: components["responses"]["Erro"];
         };
     };
     opcoesDoLancador: {

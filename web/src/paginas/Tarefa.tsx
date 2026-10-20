@@ -6,6 +6,7 @@ import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
 import { Eventos } from "@/componentes/Eventos"
 import { Data } from "@/componentes/rotulos"
+import { RequisitosDaTarefa } from "@/componentes/RequisitosDaTarefa"
 import { Secao } from "@/componentes/Secao"
 import { Texto } from "@/componentes/Texto"
 
@@ -41,6 +42,9 @@ export function Tarefa() {
         </div>
       </header>
 
+      <Secao titulo="Requisitos que ela tenta atender">
+        <RequisitosDaTarefa tarefa={t} />
+      </Secao>
       <Secao titulo="Resumo para retomar">
         <Texto>{t.resumo}</Texto>
       </Secao>
