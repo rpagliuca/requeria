@@ -134,10 +134,11 @@ type Erro struct {
 	Mensagem string `json:"mensagem"`
 }
 
-// EstadoDoRequisito Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
-// em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
-// está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
-// validacao_expirada se o prazo passou, nao_validado se não há execução.
+// EstadoDoRequisito Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
+// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
+// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
+// requisito abaixo.
 type EstadoDoRequisito string
 
 // Evento defines model for Evento.
@@ -287,14 +288,25 @@ type Requisito struct {
 	Derivados []string `json:"derivados"`
 	Descricao string   `json:"descricao"`
 
-	// Estado Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
-	// em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
-	// está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
-	// validacao_expirada se o prazo passou, nao_validado se não há execução.
-	Estado      EstadoDoRequisito `json:"estado"`
-	Id          string            `json:"id"`
-	Organizacao string            `json:"organizacao"`
-	Origem      *string           `json:"origem,omitempty"`
+	// Estado Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
+	// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
+	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
+	// requisito abaixo.
+	Estado EstadoDoRequisito `json:"estado"`
+
+	// EstadoProprio Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
+	// andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
+	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
+	// requisito abaixo.
+	EstadoProprio EstadoDoRequisito `json:"estado_proprio"`
+	Id            string            `json:"id"`
+
+	// LimitadoPor Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio
+	LimitadoPor []string `json:"limitado_por"`
+	Organizacao string   `json:"organizacao"`
+	Origem      *string  `json:"origem,omitempty"`
 
 	// Tarefas Tarefas que tentam atender este requisito
 	Tarefas []string `json:"tarefas"`

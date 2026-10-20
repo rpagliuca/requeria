@@ -73,17 +73,17 @@ Duas premissas:
 - **Tarefa aberta ligada a um requisito indica que ele não está atendido.**
 - **Todas as tarefas concluídas não garantem que ele está.** Só uma verificação (Execução) prova.
 
-O estado nunca é escrito à mão, e é só do próprio requisito: o de um pai não herda o dos filhos (a
-tela mostra a cadeia, então o filho pendente aparece sob ele). O servidor o calcula pelas tarefas
-ligadas e pela última execução. A primeira regra que casar vence:
+O estado nunca é escrito à mão. O **estado próprio** vem das tarefas ligadas e da última execução;
+o **estado** é o menos maduro entre o próprio e o de cada requisito abaixo (e as tarefas, a menos
+madura delas manda). Do menos ao mais maduro:
 
-| Estado | Regra |
+| Estado próprio | Regra |
 |---|---|
-| **Em trabalho** | Alguma tarefa ligada está em andamento |
-| **Não atendido** | Alguma tarefa ligada não está concluída |
+| **Não atendido** | Alguma tarefa ligada está aberta fora de andamento |
+| **Em trabalho** | Tarefas abertas, todas em andamento |
+| **Não validado** | Nenhuma tarefa aberta e nenhuma execução |
 | **Validação expirada** | A última execução passou do prazo de validade |
 | **Validado** | A última execução está no prazo (ou não tem prazo) |
-| **Não validado** | Todas as tarefas concluídas (ou nenhuma), e nenhuma execução |
 
 Execução é a verificação de conformidade, inclusive manual: evidência (o que foi verificado e como),
 quando e a validade em dias. Para mudar o estado, registra-se uma nova execução.

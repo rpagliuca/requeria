@@ -77,9 +77,10 @@ de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
 - **Boa prática: no máximo 5 requisitos derivados de cada um.** Passou disso, agrupe-os sob
   requisitos intermediários (cada um também uma afirmação testável). Não é bloqueado; o requisito
   só passa a pedir atenção.
-- O campo `estado` é calculado, só pelo próprio requisito: tarefa em andamento ⇒ `em_trabalho`;
-  outra tarefa aberta ⇒ `nao_atendido`; sem tarefa aberta, a última execução decide: `validado`,
-  `validacao_expirada` ou, sem execução, `nao_validado`. Tarefas concluídas **não** provam nada.
+- O `estado` é calculado e limitado pelo menos maduro abaixo (`limitado_por` diz quem). Do menos
+  ao mais maduro: `nao_atendido` (tarefa aberta fora de andamento), `em_trabalho`, `nao_validado`
+  (sem tarefa aberta nem execução), `validacao_expirada`, `validado`. `estado_proprio` ignora os de
+  baixo. Tarefas concluídas **não** provam nada.
 - `registrar_execucao` registra uma verificação de conformidade, com a evidência e a validade em
   dias. Só registre o que foi verificado de fato, agora; nunca porque as tarefas acabaram.
 - O campo `atencao` de cada requisito diz o que falta para ele estar bem cuidado (muitos filhos,

@@ -495,6 +495,9 @@ export interface components {
             /** @description Motivos pelos quais o requisito não está bem cuidado (vazio se está) */
             atencao: components["schemas"]["Atencao"][];
             estado: components["schemas"]["EstadoDoRequisito"];
+            estado_proprio: components["schemas"]["EstadoDoRequisito"];
+            /** @description Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio */
+            limitado_por: string[];
             /** @description Tarefas ligadas a este requisito que não estão concluídas */
             tarefas_abertas: string[];
             ultima_execucao?: components["schemas"]["Execucao"];
@@ -504,14 +507,15 @@ export interface components {
             atualizado_em: string;
         };
         /**
-         * @description Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
-         *     em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
-         *     está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
-         *     validacao_expirada se o prazo passou, nao_validado se não há execução.
+         * @description Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
+         *     andamento), em_trabalho (tarefa em andamento), nao_validado (sem tarefa aberta nem execução),
+         *     validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
+         *     tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
+         *     requisito abaixo.
          *
          * @enum {string}
          */
-        EstadoDoRequisito: "em_trabalho" | "nao_atendido" | "nao_validado" | "validado" | "validacao_expirada";
+        EstadoDoRequisito: "nao_atendido" | "em_trabalho" | "nao_validado" | "validacao_expirada" | "validado";
         Execucao: {
             /** @example E-0001 */
             id: string;
