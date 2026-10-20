@@ -30,12 +30,15 @@ export function GrafoDeRequisitos({
   raizes,
   porId,
   recorte,
+  memoria,
 }: {
   raizes: string[]
   porId: Map<string, Requisito>
   recorte?: Recorte
+  // Com memória, os nós abertos sobrevivem à ida a uma tarefa e à volta.
+  memoria?: string
 }) {
-  const [abertos, setAbertos] = useState<Set<string>>(() => new Set())
+  const [abertos, setAbertos] = useState<Set<string>>(() => new Set(lerAbertos(memoria)))
   const tarefas = useTarefas()
   const tarefasPorId = new Map((tarefas.data ?? []).map((t) => [t.id, t]))
   const alternar = (chave: string) =>
@@ -43,6 +46,7 @@ export function GrafoDeRequisitos({
       const novo = new Set(atual)
       if (novo.has(chave)) novo.delete(chave)
       else novo.add(chave)
+      gravarAbertos(memoria, novo)
       return novo
     })
   const aberto = (chave: string) => abertos.has(chave)
@@ -55,6 +59,24 @@ export function GrafoDeRequisitos({
       ))}
     </ul>
   )
+}
+
+function lerAbertos(memoria?: string): string[] {
+  if (!memoria) return []
+  try {
+    return JSON.parse(sessionStorage.getItem(`grafo:${memoria}`) ?? "[]")
+  } catch {
+    return []
+  }
+}
+
+function gravarAbertos(memoria: string | undefined, abertos: Set<string>) {
+  if (!memoria) return
+  try {
+    sessionStorage.setItem(`grafo:${memoria}`, JSON.stringify([...abertos]))
+  } catch {
+    // sem armazenamento, o grafo só volta colapsado
+  }
 }
 
 const abertaPrimeiro = (t?: Tarefa) => (t?.status === "concluida" ? 1 : 0)

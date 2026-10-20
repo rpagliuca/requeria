@@ -16,6 +16,9 @@ export type AlteracaoRequisito = components["schemas"]["AlteracaoRequisito"]
 export type EstadoDoRequisito = components["schemas"]["EstadoDoRequisito"]
 export type Execucao = components["schemas"]["Execucao"]
 export type NovaExecucao = components["schemas"]["NovaExecucao"]
+export type Template = components["schemas"]["Template"]
+export type NovoTemplate = components["schemas"]["NovoTemplate"]
+export type AlteracaoTemplate = components["schemas"]["AlteracaoTemplate"]
 export type NovaOrigem = components["schemas"]["NovaOrigem"]
 export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
 export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
@@ -113,3 +116,14 @@ export const useVincularRequisito = (tarefa: string) =>
 
 export const useDesvincularRequisito = (tarefa: string) =>
   useEscrita((requisito: string) => obter<Tarefa>(`/tarefas/${tarefa}/requisitos/${requisito}`, "DELETE"))
+
+export const useTemplates = () =>
+  useQuery({ queryKey: ["templates"], queryFn: () => obter<Template[]>("/templates"), refetchInterval: atualizacao })
+
+export const useCriarTemplate = () => useEscrita((novo: NovoTemplate) => obter<Template>("/templates", "POST", novo))
+
+export const useAlterarTemplate = (id: string) =>
+  useEscrita((alteracao: AlteracaoTemplate) => obter<Template>(`/templates/${id}`, "PATCH", alteracao))
+
+export const useInstanciarTemplate = (id: string) =>
+  useEscrita((titulo?: string) => obter<Tarefa>(`/templates/${id}/instancias`, "POST", { titulo }))

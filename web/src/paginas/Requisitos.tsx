@@ -124,7 +124,7 @@ export function Requisitos() {
           <p className="text-muted-foreground text-sm">Nenhum requisito com esses filtros.</p>
         ) : (
           <div className="rounded-md border p-2">
-            <GrafoDeRequisitos key={params.toString()} raizes={raizes} porId={porId} recorte={recorte} />
+            <GrafoDeRequisitos key={params.toString()} memoria={`requisitos?${params.toString()}`} raizes={raizes} porId={porId} recorte={recorte} />
           </div>
         ))}
     </div>

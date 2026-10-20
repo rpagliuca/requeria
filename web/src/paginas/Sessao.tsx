@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { useSessao, useTarefas } from "@/api/cliente"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
+import { Voltar } from "@/componentes/Voltar"
 import { Eventos } from "@/componentes/Eventos"
 import { StatusDaTarefa } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
@@ -19,9 +20,7 @@ export function Sessao() {
 
   return (
     <div className="space-y-6">
-      <Link to="/sessoes" className="text-muted-foreground text-sm hover:underline">
-        ← Sessões
-      </Link>
+      <Voltar para="/sessoes" rotulo="Sessões" />
       <h1 className="font-semibold text-xl">
         <TituloDasTarefas ids={s.tarefas} link={false} />
       </h1>

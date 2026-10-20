@@ -270,6 +270,79 @@ paths:
               schema: { $ref: '#/components/schemas/Execucao' }
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
+  /templates:
+    get:
+      operationId: listarTemplates
+      description: Templates de tarefa, com a última instância e se estão devidos agora.
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Template' }
+    post:
+      operationId: criarTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovoTemplate' }
+      responses:
+        '201':
+          description: Template criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /templates/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: obterTemplate
+      responses:
+        '200':
+          description: Template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '404': { $ref: '#/components/responses/Erro' }
+    patch:
+      operationId: alterarTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlteracaoTemplate' }
+      responses:
+        '200':
+          description: Template alterado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+  /templates/{id}/instancias:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: instanciarTemplate
+      description: Cria uma tarefa a partir do template (a fazer), ligada aos mesmos requisitos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PedidoDeInstancia' }
+      responses:
+        '201':
+          description: Tarefa criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/requisitos:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -565,12 +638,66 @@ components:
           type: string
           description: Estado para retomar, gravado no encerramento de cada sessão
         sessao_ativa: { type: string, example: S-0001 }
+        template: { type: string, example: TP-0001, description: 'Template do qual a tarefa foi instanciada' }
         requisitos:
           type: array
           description: Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
           items: { type: string }
         criada_em: { type: string, format: date-time }
         atualizada_em: { type: string, format: date-time }
+    Template:
+      type: object
+      description: |
+        Tarefa que sempre precisa ser executada, sob demanda (sem periodicidade) ou periódica. Nada é
+        instanciado automaticamente: periódico com a última instância mais antiga que a periodicidade
+        (ou nunca instanciado), e sem instância aberta, está devido.
+      required: [id, titulo, descricao, organizacao, requisitos, instancias, devido, criado_em, atualizado_em]
+      properties:
+        id: { type: string, example: TP-0001 }
+        titulo: { type: string }
+        descricao: { type: string, description: 'Instruções; vira a descrição de cada instância' }
+        organizacao: { type: string }
+        periodicidade_dias: { type: integer, description: 'Sem ele, sob demanda' }
+        requisitos:
+          type: array
+          description: Requisitos aos quais cada instância é ligada
+          items: { type: string }
+        instancias:
+          type: array
+          description: Tarefas instanciadas, da mais recente para a mais antiga
+          items: { type: string }
+        ultima_instancia_em: { type: string, format: date-time }
+        instancia_aberta: { type: string, description: 'Instância ainda não concluída, se houver' }
+        proxima_em: { type: string, format: date-time, description: 'Quando a próxima instância é devida (periódicos)' }
+        devido: { type: boolean }
+        criado_em: { type: string, format: date-time }
+        atualizado_em: { type: string, format: date-time }
+    NovoTemplate:
+      type: object
+      required: [titulo, organizacao]
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        periodicidade_dias: { type: integer, minimum: 1 }
+        requisitos:
+          type: array
+          items: { type: string }
+    AlteracaoTemplate:
+      type: object
+      properties:
+        titulo: { type: string }
+        descricao: { type: string }
+        organizacao: { type: string }
+        periodicidade_dias: { type: integer, minimum: 0, description: '0 torna sob demanda' }
+        requisitos:
+          type: array
+          description: Substitui a lista inteira
+          items: { type: string }
+    PedidoDeInstancia:
+      type: object
+      properties:
+        titulo: { type: string, description: 'Padrão: o título do template com a data' }
     NovaTarefa:
       type: object
       required: [titulo, organizacao]

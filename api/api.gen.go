@@ -108,6 +108,19 @@ type AlteracaoTarefa struct {
 	Titulo      *string       `json:"titulo,omitempty"`
 }
 
+// AlteracaoTemplate defines model for AlteracaoTemplate.
+type AlteracaoTemplate struct {
+	Descricao   *string `json:"descricao,omitempty"`
+	Organizacao *string `json:"organizacao,omitempty"`
+
+	// PeriodicidadeDias 0 torna sob demanda
+	PeriodicidadeDias *int `json:"periodicidade_dias,omitempty"`
+
+	// Requisitos Substitui a lista inteira
+	Requisitos *[]string `json:"requisitos,omitempty"`
+	Titulo     *string   `json:"titulo,omitempty"`
+}
+
 // Atencao defines model for Atencao.
 type Atencao struct {
 	Detalhe string          `json:"detalhe"`
@@ -234,6 +247,15 @@ type NovoRequisito struct {
 	Titulo      string  `json:"titulo"`
 }
 
+// NovoTemplate defines model for NovoTemplate.
+type NovoTemplate struct {
+	Descricao         *string   `json:"descricao,omitempty"`
+	Organizacao       string    `json:"organizacao"`
+	PeriodicidadeDias *int      `json:"periodicidade_dias,omitempty"`
+	Requisitos        *[]string `json:"requisitos,omitempty"`
+	Titulo            string    `json:"titulo"`
+}
+
 // OpcoesDeLancamento defines model for OpcoesDeLancamento.
 type OpcoesDeLancamento struct {
 	EsforcoPadrao *string  `json:"esforco_padrao,omitempty"`
@@ -251,6 +273,12 @@ type Origem struct {
 	// Nome Pessoa (quem pede) ou documento (lei, norma, contrato)
 	Nome string     `json:"nome"`
 	Tipo TipoOrigem `json:"tipo"`
+}
+
+// PedidoDeInstancia defines model for PedidoDeInstancia.
+type PedidoDeInstancia struct {
+	// Titulo Padrão: o título do template com a data
+	Titulo *string `json:"titulo,omitempty"`
 }
 
 // PedidoDeLancamento defines model for PedidoDeLancamento.
@@ -384,7 +412,41 @@ type Tarefa struct {
 	Resumo      string       `json:"resumo"`
 	SessaoAtiva *string      `json:"sessao_ativa,omitempty"`
 	Status      StatusTarefa `json:"status"`
-	Titulo      string       `json:"titulo"`
+
+	// Template Template do qual a tarefa foi instanciada
+	Template *string `json:"template,omitempty"`
+	Titulo   string  `json:"titulo"`
+}
+
+// Template Tarefa que sempre precisa ser executada, sob demanda (sem periodicidade) ou periódica. Nada é
+// instanciado automaticamente: periódico com a última instância mais antiga que a periodicidade
+// (ou nunca instanciado), e sem instância aberta, está devido.
+type Template struct {
+	AtualizadoEm time.Time `json:"atualizado_em"`
+	CriadoEm     time.Time `json:"criado_em"`
+
+	// Descricao Instruções; vira a descrição de cada instância
+	Descricao string `json:"descricao"`
+	Devido    bool   `json:"devido"`
+	Id        string `json:"id"`
+
+	// InstanciaAberta Instância ainda não concluída, se houver
+	InstanciaAberta *string `json:"instancia_aberta,omitempty"`
+
+	// Instancias Tarefas instanciadas, da mais recente para a mais antiga
+	Instancias  []string `json:"instancias"`
+	Organizacao string   `json:"organizacao"`
+
+	// PeriodicidadeDias Sem ele, sob demanda
+	PeriodicidadeDias *int `json:"periodicidade_dias,omitempty"`
+
+	// ProximaEm Quando a próxima instância é devida (periódicos)
+	ProximaEm *time.Time `json:"proxima_em,omitempty"`
+
+	// Requisitos Requisitos aos quais cada instância é ligada
+	Requisitos        []string   `json:"requisitos"`
+	Titulo            string     `json:"titulo"`
+	UltimaInstanciaEm *time.Time `json:"ultima_instancia_em,omitempty"`
 }
 
 // TipoAgente defines model for TipoAgente.
@@ -479,6 +541,15 @@ type LancarAgenteJSONRequestBody = PedidoDeLancamento
 
 // VincularRequisitoJSONRequestBody defines body for VincularRequisito for application/json ContentType.
 type VincularRequisitoJSONRequestBody = VinculoRequisito
+
+// CriarTemplateJSONRequestBody defines body for CriarTemplate for application/json ContentType.
+type CriarTemplateJSONRequestBody = NovoTemplate
+
+// AlterarTemplateJSONRequestBody defines body for AlterarTemplate for application/json ContentType.
+type AlterarTemplateJSONRequestBody = AlteracaoTemplate
+
+// InstanciarTemplateJSONRequestBody defines body for InstanciarTemplate for application/json ContentType.
+type InstanciarTemplateJSONRequestBody = PedidoDeInstancia
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -679,6 +750,27 @@ type ClientInterface interface {
 
 	// ListarSessoesDaTarefa request
 	ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarTemplates request
+	ListarTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarTemplateWithBody request with any body
+	CriarTemplateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarTemplate(ctx context.Context, body CriarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterTemplate request
+	ObterTemplate(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarTemplateWithBody request with any body
+	AlterarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarTemplate(ctx context.Context, id Id, body AlterarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// InstanciarTemplateWithBody request with any body
+	InstanciarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListarEventos(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1247,6 +1339,102 @@ func (c *Client) DesvincularRequisito(ctx context.Context, id Id, requisito stri
 
 func (c *Client) ListarSessoesDaTarefa(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListarSessoesDaTarefaRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarTemplates(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarTemplatesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarTemplateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarTemplateRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarTemplate(ctx context.Context, body CriarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarTemplateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterTemplate(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterTemplateRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarTemplateRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarTemplate(ctx context.Context, id Id, body AlterarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarTemplateRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstanciarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstanciarTemplateRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInstanciarTemplateRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2589,6 +2777,201 @@ func NewListarSessoesDaTarefaRequest(server string, id Id) (*http.Request, error
 	return req, nil
 }
 
+// NewListarTemplatesRequest generates requests for ListarTemplates
+func NewListarTemplatesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/templates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarTemplateRequest calls the generic CriarTemplate builder with application/json body
+func NewCriarTemplateRequest(server string, body CriarTemplateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarTemplateRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarTemplateRequestWithBody generates requests for CriarTemplate with any type of body
+func NewCriarTemplateRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/templates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterTemplateRequest generates requests for ObterTemplate
+func NewObterTemplateRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/templates/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarTemplateRequest calls the generic AlterarTemplate builder with application/json body
+func NewAlterarTemplateRequest(server string, id Id, body AlterarTemplateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarTemplateRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarTemplateRequestWithBody generates requests for AlterarTemplate with any type of body
+func NewAlterarTemplateRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/templates/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewInstanciarTemplateRequest calls the generic InstanciarTemplate builder with application/json body
+func NewInstanciarTemplateRequest(server string, id Id, body InstanciarTemplateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewInstanciarTemplateRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewInstanciarTemplateRequestWithBody generates requests for InstanciarTemplate with any type of body
+func NewInstanciarTemplateRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/templates/%s/instancias", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -2758,6 +3141,27 @@ type ClientWithResponsesInterface interface {
 
 	// ListarSessoesDaTarefaWithResponse request
 	ListarSessoesDaTarefaWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarSessoesDaTarefaResponse, error)
+
+	// ListarTemplatesWithResponse request
+	ListarTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarTemplatesResponse, error)
+
+	// CriarTemplateWithBodyWithResponse request with any body
+	CriarTemplateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarTemplateResponse, error)
+
+	CriarTemplateWithResponse(ctx context.Context, body CriarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarTemplateResponse, error)
+
+	// ObterTemplateWithResponse request
+	ObterTemplateWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterTemplateResponse, error)
+
+	// AlterarTemplateWithBodyWithResponse request with any body
+	AlterarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarTemplateResponse, error)
+
+	AlterarTemplateWithResponse(ctx context.Context, id Id, body AlterarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTemplateResponse, error)
+
+	// InstanciarTemplateWithBodyWithResponse request with any body
+	InstanciarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
+
+	InstanciarTemplateWithResponse(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
 }
 
 type ListarEventosResponse struct {
@@ -3493,6 +3897,123 @@ func (r ListarSessoesDaTarefaResponse) StatusCode() int {
 	return 0
 }
 
+type ListarTemplatesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Template
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarTemplatesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarTemplatesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarTemplateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Template
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarTemplateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarTemplateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterTemplateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Template
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterTemplateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterTemplateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarTemplateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Template
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarTemplateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarTemplateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type InstanciarTemplateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Tarefa
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r InstanciarTemplateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InstanciarTemplateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // ListarEventosWithResponse request returning *ListarEventosResponse
 func (c *ClientWithResponses) ListarEventosWithResponse(ctx context.Context, params *ListarEventosParams, reqEditors ...RequestEditorFn) (*ListarEventosResponse, error) {
 	rsp, err := c.ListarEventos(ctx, params, reqEditors...)
@@ -3906,6 +4427,75 @@ func (c *ClientWithResponses) ListarSessoesDaTarefaWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseListarSessoesDaTarefaResponse(rsp)
+}
+
+// ListarTemplatesWithResponse request returning *ListarTemplatesResponse
+func (c *ClientWithResponses) ListarTemplatesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarTemplatesResponse, error) {
+	rsp, err := c.ListarTemplates(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarTemplatesResponse(rsp)
+}
+
+// CriarTemplateWithBodyWithResponse request with arbitrary body returning *CriarTemplateResponse
+func (c *ClientWithResponses) CriarTemplateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarTemplateResponse, error) {
+	rsp, err := c.CriarTemplateWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarTemplateResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarTemplateWithResponse(ctx context.Context, body CriarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarTemplateResponse, error) {
+	rsp, err := c.CriarTemplate(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarTemplateResponse(rsp)
+}
+
+// ObterTemplateWithResponse request returning *ObterTemplateResponse
+func (c *ClientWithResponses) ObterTemplateWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterTemplateResponse, error) {
+	rsp, err := c.ObterTemplate(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterTemplateResponse(rsp)
+}
+
+// AlterarTemplateWithBodyWithResponse request with arbitrary body returning *AlterarTemplateResponse
+func (c *ClientWithResponses) AlterarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarTemplateResponse, error) {
+	rsp, err := c.AlterarTemplateWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarTemplateResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarTemplateWithResponse(ctx context.Context, id Id, body AlterarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarTemplateResponse, error) {
+	rsp, err := c.AlterarTemplate(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarTemplateResponse(rsp)
+}
+
+// InstanciarTemplateWithBodyWithResponse request with arbitrary body returning *InstanciarTemplateResponse
+func (c *ClientWithResponses) InstanciarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error) {
+	rsp, err := c.InstanciarTemplateWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstanciarTemplateResponse(rsp)
+}
+
+func (c *ClientWithResponses) InstanciarTemplateWithResponse(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error) {
+	rsp, err := c.InstanciarTemplate(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInstanciarTemplateResponse(rsp)
 }
 
 // ParseListarEventosResponse parses an HTTP response from a ListarEventosWithResponse call
@@ -5071,6 +5661,185 @@ func ParseListarSessoesDaTarefaResponse(rsp *http.Response) (*ListarSessoesDaTar
 	return response, nil
 }
 
+// ParseListarTemplatesResponse parses an HTTP response from a ListarTemplatesWithResponse call
+func ParseListarTemplatesResponse(rsp *http.Response) (*ListarTemplatesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarTemplatesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarTemplateResponse parses an HTTP response from a CriarTemplateWithResponse call
+func ParseCriarTemplateResponse(rsp *http.Response) (*CriarTemplateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarTemplateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterTemplateResponse parses an HTTP response from a ObterTemplateWithResponse call
+func ParseObterTemplateResponse(rsp *http.Response) (*ObterTemplateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterTemplateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarTemplateResponse parses an HTTP response from a AlterarTemplateWithResponse call
+func ParseAlterarTemplateResponse(rsp *http.Response) (*AlterarTemplateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarTemplateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseInstanciarTemplateResponse parses an HTTP response from a InstanciarTemplateWithResponse call
+func ParseInstanciarTemplateResponse(rsp *http.Response) (*InstanciarTemplateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InstanciarTemplateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Tarefa
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -5166,6 +5935,21 @@ type ServerInterface interface {
 
 	// (GET /tarefas/{id}/sessoes)
 	ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /templates)
+	ListarTemplates(w http.ResponseWriter, r *http.Request)
+
+	// (POST /templates)
+	CriarTemplate(w http.ResponseWriter, r *http.Request)
+
+	// (GET /templates/{id})
+	ObterTemplate(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PATCH /templates/{id})
+	AlterarTemplate(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /templates/{id}/instancias)
+	InstanciarTemplate(w http.ResponseWriter, r *http.Request, id Id)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -5941,6 +6725,109 @@ func (siw *ServerInterfaceWrapper) ListarSessoesDaTarefa(w http.ResponseWriter, 
 	handler.ServeHTTP(w, r)
 }
 
+// ListarTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListarTemplates(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarTemplates(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CriarTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CriarTemplate(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CriarTemplate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ObterTemplate operation middleware
+func (siw *ServerInterfaceWrapper) ObterTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AlterarTemplate operation middleware
+func (siw *ServerInterfaceWrapper) AlterarTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AlterarTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// InstanciarTemplate operation middleware
+func (siw *ServerInterfaceWrapper) InstanciarTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.InstanciarTemplate(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -6092,6 +6979,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/tarefas/{id}/requisitos", wrapper.VincularRequisito)
 	m.HandleFunc("DELETE "+options.BaseURL+"/tarefas/{id}/requisitos/{requisito}", wrapper.DesvincularRequisito)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas/{id}/sessoes", wrapper.ListarSessoesDaTarefa)
+	m.HandleFunc("GET "+options.BaseURL+"/templates", wrapper.ListarTemplates)
+	m.HandleFunc("POST "+options.BaseURL+"/templates", wrapper.CriarTemplate)
+	m.HandleFunc("GET "+options.BaseURL+"/templates/{id}", wrapper.ObterTemplate)
+	m.HandleFunc("PATCH "+options.BaseURL+"/templates/{id}", wrapper.AlterarTemplate)
+	m.HandleFunc("POST "+options.BaseURL+"/templates/{id}/instancias", wrapper.InstanciarTemplate)
 
 	return m
 }
