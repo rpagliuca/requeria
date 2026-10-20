@@ -86,9 +86,11 @@ const (
 
 // AlteracaoComponente defines model for AlteracaoComponente.
 type AlteracaoComponente struct {
-	Descricao   *string `json:"descricao,omitempty"`
-	Nome        *string `json:"nome,omitempty"`
-	Organizacao *string `json:"organizacao,omitempty"`
+	Descricao *string `json:"descricao,omitempty"`
+	Nome      *string `json:"nome,omitempty"`
+
+	// Organizacoes Substitui a lista inteira (pelo menos uma)
+	Organizacoes *[]string `json:"organizacoes,omitempty"`
 }
 
 // AlteracaoOrigem defines model for AlteracaoOrigem.
@@ -153,13 +155,15 @@ type Atencao struct {
 
 // Componente Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade).
 type Componente struct {
-	CriadoEm    time.Time `json:"criado_em"`
-	Descricao   string    `json:"descricao"`
-	Id          string    `json:"id"`
-	Nome        string    `json:"nome"`
-	Organizacao string    `json:"organizacao"`
-	Requisitos  []string  `json:"requisitos"`
-	Tarefas     []string  `json:"tarefas"`
+	CriadoEm  time.Time `json:"criado_em"`
+	Descricao string    `json:"descricao"`
+	Id        string    `json:"id"`
+	Nome      string    `json:"nome"`
+
+	// Organizacoes Organizações a que o componente pertence (pelo menos uma)
+	Organizacoes []string `json:"organizacoes"`
+	Requisitos   []string `json:"requisitos"`
+	Tarefas      []string `json:"tarefas"`
 }
 
 // DefinicaoDeOrganizacao defines model for DefinicaoDeOrganizacao.
@@ -282,9 +286,9 @@ type NovaTarefa struct {
 
 // NovoComponente defines model for NovoComponente.
 type NovoComponente struct {
-	Descricao   *string `json:"descricao,omitempty"`
-	Nome        string  `json:"nome"`
-	Organizacao string  `json:"organizacao"`
+	Descricao    *string  `json:"descricao,omitempty"`
+	Nome         string   `json:"nome"`
+	Organizacoes []string `json:"organizacoes"`
 }
 
 // NovoRequisito defines model for NovoRequisito.

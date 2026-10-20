@@ -385,6 +385,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/busca/requisitos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Busca por palavras no título (peso maior) e na descrição, sem acento e com prefixo (backup acha
+         *     backups). Devolve só o resumo dos mais relevantes, para gastar poucos tokens.
+         *      */
+        get: operations["buscarRequisitos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/arvore/requisitos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A cadeia em texto, um requisito por linha ("R-0001 título"), indentada pela derivação. Começa no
+         *     zero da organização (ou no geral); com componente, só os requisitos dele e os ancestrais.
+         *      */
+        get: operations["arvoreDeRequisitos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/requisitos": {
         parameters: {
             query?: never;
@@ -717,7 +755,8 @@ export interface components {
             id: string;
             nome: string;
             descricao: string;
-            organizacao: string;
+            /** @description Organizações a que o componente pertence (pelo menos uma) */
+            organizacoes: string[];
             requisitos: string[];
             tarefas: string[];
             /** Format: date-time */
@@ -726,22 +765,38 @@ export interface components {
         NovoComponente: {
             nome: string;
             descricao?: string;
-            organizacao: string;
+            organizacoes: string[];
         };
         AlteracaoComponente: {
             nome?: string;
             descricao?: string;
-            organizacao?: string;
+            /** @description Substitui a lista inteira (pelo menos uma) */
+            organizacoes?: string[];
         };
         VinculoComponente: {
             /** @example C-0001 */
             componente: string;
+        };
+        ResumoDeRequisito: {
+            id: string;
+            titulo: string;
+            organizacao: string;
+            estado: components["schemas"]["EstadoDoRequisito"];
+            componentes: string[];
+        };
+        ArvoreDeRequisitos: {
+            texto: string;
+            requisitos: number;
         };
         NovaTarefa: {
             titulo: string;
             descricao?: string;
             organizacao: string;
             status?: components["schemas"]["StatusTarefa"];
+            /** @description Requisitos que ela tenta atender, já vinculados na criação */
+            requisitos?: string[];
+            /** @description Componentes em que ela mexe, já vinculados na criação */
+            componentes?: string[];
         };
         AlteracaoTarefa: {
             titulo?: string;
@@ -790,6 +845,8 @@ export interface components {
             atencao: components["schemas"]["Atencao"][];
             estado: components["schemas"]["EstadoDoRequisito"];
             prioridade?: components["schemas"]["Prioridade"];
+            /** @description Só ao obter um requisito: cada caminho do zero até ele, em títulos ("R-0001 … › R-0003 …") */
+            trilhas?: string[];
             /** @description Componentes a que o requisito se refere */
             componentes: string[];
             estado_proprio: components["schemas"]["EstadoDoRequisito"];
@@ -1804,6 +1861,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    buscarRequisitos: {
+        parameters: {
+            query: {
+                q: string;
+                organizacao?: string;
+                componente?: string;
+                limite?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requisitos encontrados, do mais ao menos relevante */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumoDeRequisito"][];
+                };
+            };
+        };
+    };
+    arvoreDeRequisitos: {
+        parameters: {
+            query?: {
+                organizacao?: string;
+                componente?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Árvore */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArvoreDeRequisitos"];
                 };
             };
             404: components["responses"]["Erro"];

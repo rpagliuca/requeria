@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
-import { useAlterarComponente, useComponentes, useRequisitos, useTarefas } from "@/api/cliente"
+import { useAlterarComponente, useComponentes, useOrganizacoes, useRequisitos, useTarefas } from "@/api/cliente"
+import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { EstadoDoRequisito, PrioridadeDoRequisito, StatusDaTarefa } from "@/componentes/rotulos"
@@ -33,11 +34,11 @@ export function Componente() {
         <h1 className="font-semibold text-xl">{c.nome}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           <span className="font-mono">{c.id}</span>
-          <span>{c.organizacao}</span>
+          <span>{c.organizacoes.join(", ")}</span>
           <Link to={`/requisitos?comp=${c.id}`} className="hover:underline">
             ver no grafo de requisitos
           </Link>
-          <Editar id={c.id} nome={c.nome} descricao={c.descricao} organizacao={c.organizacao} />
+          <Editar id={c.id} nome={c.nome} descricao={c.descricao} organizacoes={c.organizacoes} />
         </div>
       </header>
       {c.descricao && (
@@ -86,12 +87,13 @@ export function Componente() {
   )
 }
 
-function Editar({ id, nome, descricao, organizacao }: { id: string; nome: string; descricao: string; organizacao: string }) {
+function Editar({ id, nome, descricao, organizacoes }: { id: string; nome: string; descricao: string; organizacoes: string[] }) {
+  const todas = useOrganizacoes()
   const alterar = useAlterarComponente(id)
   const [aberto, setAberto] = useState(false)
   const [n, setN] = useState(nome)
   const [d, setD] = useState(descricao)
-  const [o, setO] = useState(organizacao)
+  const [o, setO] = useState(organizacoes)
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
@@ -104,7 +106,7 @@ function Editar({ id, nome, descricao, organizacao }: { id: string; nome: string
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault()
-            alterar.mutate({ nome: n, descricao: d, organizacao: o }, { onSuccess: () => setAberto(false) })
+            alterar.mutate({ nome: n, descricao: d, organizacoes: o }, { onSuccess: () => setAberto(false) })
           }}
         >
           <DialogHeader>
@@ -115,8 +117,13 @@ function Editar({ id, nome, descricao, organizacao }: { id: string; nome: string
             <Input id="c-nome" value={n} onChange={(e) => setN(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="c-org">Organização</Label>
-            <Input id="c-org" value={o} onChange={(e) => setO(e.target.value)} required />
+            <Label>Organizações</Label>
+            <SelecaoMultipla
+              rotulo="Organizações"
+              opcoes={[...new Set([...(todas.data ?? []).filter((x) => x.zero).map((x) => x.nome), ...o])].map((x) => ({ valor: x, rotulo: x }))}
+              selecionados={o}
+              alterar={setO}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-desc">Descrição</Label>

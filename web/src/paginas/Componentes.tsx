@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useComponentes, useCriarComponente } from "@/api/cliente"
+import { useComponentes, useCriarComponente, useOrganizacoes } from "@/api/cliente"
+import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { Estado } from "@/componentes/Estado"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Button } from "@/components/ui/button"
@@ -15,10 +16,11 @@ export function Componentes() {
   const criar = useCriarComponente()
   const [busca, setBusca] = useState("")
   const [nome, setNome] = useState("")
-  const [organizacao, setOrganizacao] = useState(atual)
+  const organizacoes = useOrganizacoes()
+  const [orgs, setOrgs] = useState<string[]>(atual ? [atual] : [])
   const filtrados = useMemo(() => {
     const termos = busca.toLowerCase().split(/\s+/).filter(Boolean)
-    return (data ?? []).filter((c) => termos.every((t) => `${c.id} ${c.nome} ${c.descricao} ${c.organizacao}`.toLowerCase().includes(t)))
+    return (data ?? []).filter((c) => termos.every((t) => `${c.id} ${c.nome} ${c.descricao} ${c.organizacoes.join(" ")}`.toLowerCase().includes(t)))
   }, [data, busca])
 
   return (
@@ -29,14 +31,17 @@ export function Componentes() {
           className="flex flex-wrap gap-2"
           onSubmit={(e) => {
             e.preventDefault()
-            criar.mutate({ nome, organizacao }, { onSuccess: () => setNome("") })
+            criar.mutate({ nome, organizacoes: orgs }, { onSuccess: () => setNome("") })
           }}
         >
           <Input className="sm:w-56" placeholder="Novo componente" value={nome} onChange={(e) => setNome(e.target.value)} required />
-          {!atual && (
-            <Input className="sm:w-36" placeholder="Organização" value={organizacao} onChange={(e) => setOrganizacao(e.target.value)} required />
-          )}
-          <Button type="submit" variant="outline" disabled={criar.isPending}>
+          <SelecaoMultipla
+            rotulo="Organizações"
+            opcoes={(organizacoes.data ?? []).filter((o) => o.zero).map((o) => ({ valor: o.nome, rotulo: o.nome }))}
+            selecionados={orgs}
+            alterar={setOrgs}
+          />
+          <Button type="submit" variant="outline" disabled={criar.isPending || orgs.length === 0}>
             Criar
           </Button>
         </form>
@@ -53,7 +58,7 @@ export function Componentes() {
               <span>
                 <span className="font-medium">{c.nome}</span>
                 <span className="ml-2 font-mono text-muted-foreground text-xs">{c.id}</span>
-                <span className="ml-2 text-muted-foreground text-xs">{c.organizacao}</span>
+                <span className="ml-2 text-muted-foreground text-xs">{c.organizacoes.join(", ")}</span>
               </span>
               <span className="shrink-0 text-muted-foreground text-xs">
                 {c.requisitos.length} requisitos · {c.tarefas.length} tarefas
