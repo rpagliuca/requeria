@@ -12,6 +12,7 @@
 package lancador
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,8 @@ type Config struct {
 	Diretorio string `json:"diretorio"`
 	// Tmux é o executável do tmux. Padrão: "tmux".
 	Tmux string `json:"tmux"`
-	// Comando do agente; o prompt entra como último argumento. "{nome}" vira o nome da sessão tmux.
+	// Comando do agente; o prompt entra como último argumento. "{nome}" vira o nome da sessão tmux
+	// e "{chat}" o identificador do chat que o lançador escolhe (ex.: --session-id {chat}).
 	Comando []string `json:"comando"`
 	// PromptIniciar e PromptEncerrar aceitam {tarefa}, {titulo} e {status}.
 	PromptIniciar  string `json:"prompt_iniciar"`
@@ -64,15 +66,30 @@ type Modelo struct {
 }
 
 const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do requerial ({titulo}). " +
-	"Carregue a skill requerial e siga o ciclo dela: leia a tarefa, inicie a sessão de trabalho e trabalhe."
+	"A sua sessão de trabalho já foi aberta pelo lançador. Carregue a skill requerial e siga o ciclo dela: " +
+	"leia a tarefa e as sessões anteriores, confira a sessão com sessao_atual e trabalhe."
 
 const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por outra pessoa. " +
 	"Pare o que está fazendo, atualize o journal e encerre a sessão de trabalho com um resumo para retomar " +
 	"(skill requerial). Não altere o status da tarefa."
 
+// Sessoes abre e encerra no servidor a sessão de um agente lançado.
+type Sessoes interface {
+	AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error)
+	EncerrarSessaoLancada(id, resumo string) error
+}
+
+// Variáveis que levam ao agente (e ao MCP dele) a sessão já aberta pelo lançador.
+const (
+	VariavelSessao = "REQUERIAL_SESSAO"
+	VariavelToken  = "REQUERIAL_TOKEN"
+)
+
 // Lancador reage às mudanças do servidor.
 type Lancador struct {
-	cfg Config
+	cfg     Config
+	sessoes Sessoes
+	maquina string
 	// executar roda o tmux; substituível nos testes.
 	executar func(args ...string) (string, error)
 }
@@ -104,7 +121,8 @@ func Novo(cfg Config) (*Lancador, error) {
 	if cfg.PromptEncerrar == "" {
 		cfg.PromptEncerrar = promptEncerrarPadrao
 	}
-	l := &Lancador{cfg: cfg}
+	maquina, _ := os.Hostname()
+	l := &Lancador{cfg: cfg, maquina: maquina}
 	l.executar = func(args ...string) (string, error) {
 		saida, err := exec.Command(l.cfg.Tmux, args...).CombinedOutput()
 		return strings.TrimSpace(string(saida)), err
@@ -116,6 +134,7 @@ func Novo(cfg Config) (*Lancador, error) {
 func (l *Lancador) Conectar(s *servidor.Servidor) {
 	s.AoMudarStatus(l.MudouStatus)
 	s.ComLancador(l)
+	l.sessoes = s
 }
 
 // Opcoes lista os modelos e esforços configurados.
@@ -206,7 +225,27 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 	if err != nil {
 		return err
 	}
+	// A sessão de trabalho nasce aqui: quem lança já sabe a tarefa, o agente e o chat.
+	chat, err := novoUUID()
+	if err != nil {
+		return err
+	}
+	var sessao *api.SessaoCriada
+	if l.sessoes != nil && pedido.Modelo != nil {
+		esforco := ""
+		if pedido.Esforco != nil {
+			esforco = *pedido.Esforco
+		}
+		criada, err := l.sessoes.AbrirSessaoLancada(t.Id, api.NomeDoAgente(*pedido.Modelo, esforco), l.maquina, chat)
+		if err != nil {
+			return fmt.Errorf("abrir a sessão da tarefa %s: %w", t.Id, err)
+		}
+		sessao = &criada
+	}
 	args := []string{"new-session", "-d", "-s", nome, "-c", l.cfg.Diretorio, "-e", VariavelTarefa + "=" + t.Id}
+	if sessao != nil {
+		args = append(args, "-e", VariavelSessao+"="+sessao.Sessao.Id, "-e", VariavelToken+"="+sessao.Token)
+	}
 	definir := l.ambiente(pedido)
 	if len(l.cfg.RemoverDoAmbiente) > 0 || len(definir) > 0 {
 		args = append(args, "env")
@@ -216,7 +255,7 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 		args = append(args, definir...)
 	}
 	for _, parte := range l.cfg.Comando {
-		args = append(args, strings.ReplaceAll(parte, "{nome}", nome))
+		args = append(args, strings.NewReplacer("{nome}", nome, "{chat}", chat).Replace(parte))
 	}
 	if pedido.Modelo != nil {
 		if m := l.modelo(*pedido.Modelo); m != nil {
@@ -235,10 +274,23 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 	}
 	args = append(args, prompt)
 	if saida, err := l.executar(args...); err != nil {
+		if sessao != nil {
+			l.registrar(l.sessoes.EncerrarSessaoLancada(sessao.Sessao.Id, "O lançador não conseguiu subir o agente: "+saida))
+		}
 		return fmt.Errorf("subir o agente da tarefa %s: %v: %s", t.Id, err, saida)
 	}
 	log.Printf("lançador: agente da tarefa %s subiu no tmux %s", t.Id, nome)
 	return nil
+}
+
+func novoUUID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 // ambiente devolve as atribuições NOME=valor do pedido, em ordem estável.

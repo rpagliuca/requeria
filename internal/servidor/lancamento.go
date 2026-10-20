@@ -77,3 +77,54 @@ func (s *Servidor) LancarAgente(w http.ResponseWriter, r *http.Request, id api.I
 	s.avisarMudanca(MudancaDeStatus{Tarefa: tarefa, Anterior: anterior, Autor: quem, Lancamento: &pedido})
 	responder(w, http.StatusOK, tarefa)
 }
+
+// autorLancador assina os eventos das sessões abertas pelo lançador.
+const autorLancador = "lancador"
+
+// AbrirSessaoLancada abre a sessão de um agente que o lançador vai subir: quem lança já sabe a
+// tarefa, o agente e o chat, então a sessão existe antes do agente. O token vai para o agente pelo
+// ambiente.
+func (s *Servidor) AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error) {
+	var criada api.SessaoCriada
+	t, err := numero(tarefa, "T")
+	if err != nil {
+		return criada, err
+	}
+	err = s.emTransacao(func(tx *sql.Tx) error {
+		if err := validarAgente(agente, api.Ia); err != nil {
+			return err
+		}
+		n, token, err := s.iniciar(tx, agente, api.Ia, &chat, servidor, nil, nil, []int64{t})
+		if err != nil {
+			return err
+		}
+		if criada.Sessao, err = carregarSessao(tx, n); err != nil {
+			return err
+		}
+		criada.Token = token
+		return s.registrarEvento(tx, autorLancador, criada.Sessao.Id, "sessao_iniciada", map[string]any{
+			"agente": agente, "tipo_agente": api.Ia, "servidor": servidor, "tarefas": criada.Sessao.Tarefas, "chat": chat,
+		})
+	})
+	return criada, err
+}
+
+// EncerrarSessaoLancada encerra a sessão de um lançamento que falhou antes de o agente subir.
+func (s *Servidor) EncerrarSessaoLancada(id, resumo string) error {
+	n, err := numero(id, "S")
+	if err != nil {
+		return err
+	}
+	var x api.Sessao
+	err = s.emTransacao(func(tx *sql.Tx) error {
+		if err := s.encerrarComResumo(tx, n, api.Encerramento{Resumo: resumo}, autorLancador); err != nil {
+			return err
+		}
+		x, err = carregarSessao(tx, n)
+		return err
+	})
+	if err == nil {
+		s.avisarEncerramento(x)
+	}
+	return err
+}

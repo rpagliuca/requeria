@@ -218,3 +218,45 @@ func TestSessaoSemTarefaVinculaDepois(t *testing.T) {
 		t.Fatalf("vínculo não registrado: %+v", sessao)
 	}
 }
+
+func TestAgenteLancadoAdotaASessaoDoLancador(t *testing.T) {
+	endereco := novaAPI(t)
+	var tarefa api.Tarefa
+	novoChat(t, endereco).chamar("criar_tarefa", map[string]any{"titulo": "Lançada", "organizacao": "Exemplo"}, &tarefa)
+	cliente, err := api.NewClient(endereco)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chat := "chat-de-teste"
+	var criada api.SessaoCriada
+	resp, err := cliente.CriarSessao(context.Background(), api.NovaSessao{
+		Agente: "Claude Opus 5.5 Medium", TipoAgente: api.Ia, Servidor: "maquina", Chat: &chat, Tarefas: []string{tarefa.Id},
+	})
+	if err := decodificar(resp, err, &criada); err != nil {
+		t.Fatal(err)
+	}
+
+	raiz := t.TempDir()
+	c := novoChatCom(t, endereco, map[string]string{"REQUERIAL_SESSAO": criada.Sessao.Id, "REQUERIAL_TOKEN": criada.Token}, raiz)
+	var sessao api.Sessao
+	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5"}, &sessao)
+	if sessao.Id != criada.Sessao.Id {
+		t.Fatalf("o agente abriu outra sessão em vez de adotar: %s", sessao.Id)
+	}
+	if _, err := os.Stat(filepath.Join(raiz, sessao.Id, "journal.md")); err != nil {
+		t.Fatalf("journal da sessão adotada não criado: %v", err)
+	}
+	c.chamar("alterar_tarefa", map[string]any{"id": tarefa.Id, "status": "em_validacao"}, &tarefa)
+	var eventos []api.Evento
+	resp, err = cliente.ListarEventos(context.Background(), &api.ListarEventosParams{Entidade: &tarefa.Id})
+	if err := decodificar(resp, err, &eventos); err != nil {
+		t.Fatal(err)
+	}
+	if ultimo := eventos[len(eventos)-1]; ultimo.Autor != criada.Sessao.Id {
+		t.Fatalf("alteração não atribuída à sessão adotada: %+v", ultimo)
+	}
+	c.chamar("encerrar_sessao", map[string]any{"resumo": "feito"}, &sessao)
+	if sessao.Status != api.Encerrada {
+		t.Fatalf("sessão adotada não encerrou: %+v", sessao)
+	}
+}
