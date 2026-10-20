@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { contornoDoTom, seloDoTom, type Tom } from "@/componentes/tons"
 
-import type { EstadoDoRequisito, StatusSessao, StatusTarefa } from "@/api/cliente"
+import type { EstadoDoRequisito, StatusLembrete, StatusSessao, StatusTarefa } from "@/api/cliente"
 
 export const nomesStatusTarefa: Record<StatusTarefa, string> = {
   a_fazer: "A fazer",
@@ -106,6 +106,30 @@ export function PrioridadeDoRequisito({ prioridade, className }: { prioridade?: 
   return (
     <Badge variant="outline" className={cn(contornoDoTom[tomDaPrioridade[prioridade] ?? "neutro"], className)}>
       ↑ {nomesPrioridade[prioridade]}
+    </Badge>
+  )
+}
+
+export const nomesStatusLembrete: Record<StatusLembrete, string> = {
+  agendado: "Agendado",
+  adiado: "Adiado",
+  disparado: "Tocando",
+  confirmado: "Confirmado",
+  cancelado: "Cancelado",
+}
+
+const tomDoStatusLembrete: Record<StatusLembrete, Tom> = {
+  agendado: "neutro",
+  adiado: "andamento",
+  disparado: "perigo",
+  confirmado: "sucesso",
+  cancelado: "neutro",
+}
+
+export function StatusDoLembrete({ status }: { status: StatusLembrete }) {
+  return (
+    <Badge variant="outline" className={cn("border-transparent", seloDoTom[tomDoStatusLembrete[status]])}>
+      {nomesStatusLembrete[status]}
     </Badge>
   )
 }

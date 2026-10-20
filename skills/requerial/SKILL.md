@@ -91,7 +91,10 @@ custa nada; um agente que se encerrou sozinho obriga a subir outro e reler tudo.
 2. Mande ao Rafael a entrega ou o bloqueio, curto: o que ficou feito, o que falta e o que precisa
    dele (perguntas numeradas, alternativas em letras). Se uma ferramenta pediu aprovação e não havia
    quem respondesse, diga exatamente o que ele precisa fazer.
-3. **Espere.** A tarefa fica em `em_andamento` e a sessão aberta.
+3. `aguardar_resposta` com o que você precisa dele, em uma linha ("aprovar o PR #51", "decidir 1A ou
+   1B"): a espera aparece nas integrações da instalação (celular, barra) até você seguir.
+4. **Espere.** A tarefa fica em `em_andamento` e a sessão aberta. Quando ele responder e você voltar
+   a trabalhar, `retomar_trabalho`.
 
 Encerre **só** quando o desejo de encerrar for claro:
 
@@ -135,6 +138,13 @@ quem moveu já decidiu. Pare o que estiver fazendo, registre no journal onde par
 Se o usuário trocar o modelo ou o esforço no meio do chat, você deixou de ser o agente registrado.
 Chame `repassar_sessao` com o `modelo` e o `esforco` novos (aqui o esforço é obrigatório): a sessão
 atual termina como substituída e outra começa com as mesmas tarefas. Só quando a troca aconteceu.
+
+## Lembretes
+
+Compromisso com hora marcada que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar
+o certificado na sexta às 9"): `criar_lembrete` com a hora em RFC 3339 com fuso, ligado à tarefa
+quando for dela. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
+que viu ou fez. O Requerial guarda a hora; avisar com antecedência é das integrações.
 
 ## O que não fazer
 

@@ -10,7 +10,7 @@ Três interfaces de saída e uma de entrada, todas no contrato [`api/openapi.yam
 |---|---|---|
 | `GET /integracao/pendencias` | quem faz polling (um retrato do que pede atenção agora) | estado: quem perdeu uma chamada se recupera na seguinte |
 | `GET /eventos?depois=<id>&tipo=…` | quem quer cada transição, sem perder nenhuma | cursor sobre o log de eventos, que nunca é apagado |
-| ganchos (`-integracoes`) | quem quer ser avisado na hora, sem polling | melhor esforço: o servidor tenta, registra a falha no log e segue |
+| ganchos (`-integracoes`) | quem quer ser avisado na hora, sem polling | pelo menos uma tentativa por evento, na ordem, sobrevivendo a reinícios; desistência registrada no log |
 | `POST /captura` | atalhos de voz e outros canais sem sessão | idempotente pela `chave` |
 
 ## Por que pendências + ganchos, e não só ganchos
@@ -101,9 +101,11 @@ a integrações:
 A notificação é `{"evento": Evento, "lembrete"|"tarefa"|"sessao": <estado atual da entidade>}`
 (schema `Notificacao` no contrato), para o consumidor não precisar chamar a API de volta.
 
-Os ganchos rodam fora da transação, depois do commit, um evento por vez e na ordem do log; cada
-falha é tentada de novo 3 vezes (1 s, 10 s, 60 s) e depois vira `integracao_falhou`. Um gancho lento
-não atrasa a API.
+Cada gancho segue o log de eventos por um cursor gravado no banco: um evento por vez, na ordem do
+log, fora das requisições (um gancho lento não atrasa a API). Depois de reiniciar, continua de onde
+parou; um gancho novo começa no fim do log, sem receber o histórico. Cada falha é tentada de novo
+3 vezes (1 s, 10 s, 60 s) e depois vira `integracao_falhou`, e a entrega segue para o próximo evento.
+A notificação é montada na hora da entrega, com o estado mais recente da entidade.
 
 ### O lançador de agentes
 
