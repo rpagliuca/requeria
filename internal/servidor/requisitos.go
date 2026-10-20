@@ -708,6 +708,17 @@ func (s *Servidor) ObterRequisito(w http.ResponseWriter, r *http.Request, id api
 		responderErro(w, err)
 		return
 	}
+	todos, _, err := s.todosOsRequisitos()
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	porId := map[string]api.Requisito{}
+	for _, r := range todos {
+		porId[r.Id] = r
+	}
+	t := trilhas(x, porId)
+	x.Trilhas = &t
 	responder(w, http.StatusOK, x)
 }
 

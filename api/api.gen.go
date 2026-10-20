@@ -139,6 +139,12 @@ type AlteracaoTemplate struct {
 	Titulo     *string   `json:"titulo,omitempty"`
 }
 
+// ArvoreDeRequisitos defines model for ArvoreDeRequisitos.
+type ArvoreDeRequisitos struct {
+	Requisitos int    `json:"requisitos"`
+	Texto      string `json:"texto"`
+}
+
 // Atencao defines model for Atencao.
 type Atencao struct {
 	Detalhe string          `json:"detalhe"`
@@ -263,10 +269,15 @@ type NovaSessao struct {
 
 // NovaTarefa defines model for NovaTarefa.
 type NovaTarefa struct {
-	Descricao   *string       `json:"descricao,omitempty"`
-	Organizacao string        `json:"organizacao"`
-	Status      *StatusTarefa `json:"status,omitempty"`
-	Titulo      string        `json:"titulo"`
+	// Componentes Componentes em que ela mexe, já vinculados na criação
+	Componentes *[]string `json:"componentes,omitempty"`
+	Descricao   *string   `json:"descricao,omitempty"`
+	Organizacao string    `json:"organizacao"`
+
+	// Requisitos Requisitos que ela tenta atender, já vinculados na criação
+	Requisitos *[]string     `json:"requisitos,omitempty"`
+	Status     *StatusTarefa `json:"status,omitempty"`
+	Titulo     string        `json:"titulo"`
 }
 
 // NovoComponente defines model for NovoComponente.
@@ -401,9 +412,28 @@ type Requisito struct {
 	Tarefas []string `json:"tarefas"`
 
 	// TarefasAbertas Tarefas ligadas a este requisito que não estão concluídas
-	TarefasAbertas []string  `json:"tarefas_abertas"`
-	Titulo         string    `json:"titulo"`
+	TarefasAbertas []string `json:"tarefas_abertas"`
+	Titulo         string   `json:"titulo"`
+
+	// Trilhas Só ao obter um requisito: cada caminho do zero até ele, em títulos ("R-0001 … › R-0003 …")
+	Trilhas        *[]string `json:"trilhas,omitempty"`
 	UltimaExecucao *Execucao `json:"ultima_execucao,omitempty"`
+}
+
+// ResumoDeRequisito defines model for ResumoDeRequisito.
+type ResumoDeRequisito struct {
+	Componentes []string `json:"componentes"`
+
+	// Estado Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
+	// andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
+	// (tarefas todas concluídas, sem execução),
+	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
+	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
+	// requisito abaixo. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles.
+	Estado      EstadoDoRequisito `json:"estado"`
+	Id          string            `json:"id"`
+	Organizacao string            `json:"organizacao"`
+	Titulo      string            `json:"titulo"`
 }
 
 // Sessao defines model for Sessao.
@@ -533,6 +563,20 @@ type VinculoRequisito struct {
 
 // Id defines model for Id.
 type Id = string
+
+// ArvoreDeRequisitosParams defines parameters for ArvoreDeRequisitos.
+type ArvoreDeRequisitosParams struct {
+	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+	Componente  *string `form:"componente,omitempty" json:"componente,omitempty"`
+}
+
+// BuscarRequisitosParams defines parameters for BuscarRequisitos.
+type BuscarRequisitosParams struct {
+	Q           string  `form:"q" json:"q"`
+	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+	Componente  *string `form:"componente,omitempty" json:"componente,omitempty"`
+	Limite      *int    `form:"limite,omitempty" json:"limite,omitempty"`
+}
 
 // ListarEventosParams defines parameters for ListarEventos.
 type ListarEventosParams struct {
@@ -705,6 +749,12 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ArvoreDeRequisitos request
+	ArvoreDeRequisitos(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BuscarRequisitos request
+	BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarComponentes request
 	ListarComponentes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -892,6 +942,30 @@ type ClientInterface interface {
 	InstanciarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ArvoreDeRequisitos(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewArvoreDeRequisitosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBuscarRequisitosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListarComponentes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1744,6 +1818,164 @@ func (c *Client) InstanciarTemplate(ctx context.Context, id Id, body InstanciarT
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewArvoreDeRequisitosRequest generates requests for ArvoreDeRequisitos
+func NewArvoreDeRequisitosRequest(server string, params *ArvoreDeRequisitosParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/arvore/requisitos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Componente != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "componente", runtime.ParamLocationQuery, *params.Componente); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewBuscarRequisitosRequest generates requests for BuscarRequisitos
+func NewBuscarRequisitosRequest(server string, params *BuscarRequisitosParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/busca/requisitos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "q", runtime.ParamLocationQuery, params.Q); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Componente != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "componente", runtime.ParamLocationQuery, *params.Componente); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limite != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limite", runtime.ParamLocationQuery, *params.Limite); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListarComponentesRequest generates requests for ListarComponentes
@@ -3714,6 +3946,12 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ArvoreDeRequisitosWithResponse request
+	ArvoreDeRequisitosWithResponse(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*ArvoreDeRequisitosResponse, error)
+
+	// BuscarRequisitosWithResponse request
+	BuscarRequisitosWithResponse(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*BuscarRequisitosResponse, error)
+
 	// ListarComponentesWithResponse request
 	ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error)
 
@@ -3901,6 +4139,51 @@ type ClientWithResponsesInterface interface {
 	InstanciarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
 
 	InstanciarTemplateWithResponse(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
+}
+
+type ArvoreDeRequisitosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ArvoreDeRequisitos
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ArvoreDeRequisitosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ArvoreDeRequisitosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type BuscarRequisitosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]ResumoDeRequisito
+}
+
+// Status returns HTTPResponse.Status
+func (r BuscarRequisitosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BuscarRequisitosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListarComponentesResponse struct {
@@ -4985,6 +5268,24 @@ func (r InstanciarTemplateResponse) StatusCode() int {
 	return 0
 }
 
+// ArvoreDeRequisitosWithResponse request returning *ArvoreDeRequisitosResponse
+func (c *ClientWithResponses) ArvoreDeRequisitosWithResponse(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*ArvoreDeRequisitosResponse, error) {
+	rsp, err := c.ArvoreDeRequisitos(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseArvoreDeRequisitosResponse(rsp)
+}
+
+// BuscarRequisitosWithResponse request returning *BuscarRequisitosResponse
+func (c *ClientWithResponses) BuscarRequisitosWithResponse(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*BuscarRequisitosResponse, error) {
+	rsp, err := c.BuscarRequisitos(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBuscarRequisitosResponse(rsp)
+}
+
 // ListarComponentesWithResponse request returning *ListarComponentesResponse
 func (c *ClientWithResponses) ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error) {
 	rsp, err := c.ListarComponentes(ctx, reqEditors...)
@@ -5597,6 +5898,65 @@ func (c *ClientWithResponses) InstanciarTemplateWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseInstanciarTemplateResponse(rsp)
+}
+
+// ParseArvoreDeRequisitosResponse parses an HTTP response from a ArvoreDeRequisitosWithResponse call
+func ParseArvoreDeRequisitosResponse(rsp *http.Response) (*ArvoreDeRequisitosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ArvoreDeRequisitosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArvoreDeRequisitos
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBuscarRequisitosResponse parses an HTTP response from a BuscarRequisitosWithResponse call
+func ParseBuscarRequisitosResponse(rsp *http.Response) (*BuscarRequisitosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BuscarRequisitosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []ResumoDeRequisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListarComponentesResponse parses an HTTP response from a ListarComponentesWithResponse call
@@ -7288,6 +7648,12 @@ func ParseInstanciarTemplateResponse(rsp *http.Response) (*InstanciarTemplateRes
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /arvore/requisitos)
+	ArvoreDeRequisitos(w http.ResponseWriter, r *http.Request, params ArvoreDeRequisitosParams)
+
+	// (GET /busca/requisitos)
+	BuscarRequisitos(w http.ResponseWriter, r *http.Request, params BuscarRequisitosParams)
+
 	// (GET /componentes)
 	ListarComponentes(w http.ResponseWriter, r *http.Request)
 
@@ -7435,6 +7801,99 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ArvoreDeRequisitos operation middleware
+func (siw *ServerInterfaceWrapper) ArvoreDeRequisitos(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ArvoreDeRequisitosParams
+
+	// ------------- Optional query parameter "organizacao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "organizacao", r.URL.Query(), &params.Organizacao)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizacao", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "componente" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "componente", r.URL.Query(), &params.Componente)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "componente", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ArvoreDeRequisitos(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BuscarRequisitos operation middleware
+func (siw *ServerInterfaceWrapper) BuscarRequisitos(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params BuscarRequisitosParams
+
+	// ------------- Required query parameter "q" -------------
+
+	if paramValue := r.URL.Query().Get("q"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "q", r.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "organizacao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "organizacao", r.URL.Query(), &params.Organizacao)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizacao", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "componente" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "componente", r.URL.Query(), &params.Componente)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "componente", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limite" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limite", r.URL.Query(), &params.Limite)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limite", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BuscarRequisitos(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListarComponentes operation middleware
 func (siw *ServerInterfaceWrapper) ListarComponentes(w http.ResponseWriter, r *http.Request) {
@@ -8658,6 +9117,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/arvore/requisitos", wrapper.ArvoreDeRequisitos)
+	m.HandleFunc("GET "+options.BaseURL+"/busca/requisitos", wrapper.BuscarRequisitos)
 	m.HandleFunc("GET "+options.BaseURL+"/componentes", wrapper.ListarComponentes)
 	m.HandleFunc("POST "+options.BaseURL+"/componentes", wrapper.CriarComponente)
 	m.HandleFunc("GET "+options.BaseURL+"/componentes/{id}", wrapper.ObterComponente)

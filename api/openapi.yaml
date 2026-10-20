@@ -497,6 +497,41 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Tarefa' }
         '404': { $ref: '#/components/responses/Erro' }
+  /busca/requisitos:
+    get:
+      operationId: buscarRequisitos
+      description: |
+        Busca por palavras no título (peso maior) e na descrição, sem acento e com prefixo (backup acha
+        backups). Devolve só o resumo dos mais relevantes, para gastar poucos tokens.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: organizacao, in: query, schema: { type: string } }
+        - { name: componente, in: query, schema: { type: string } }
+        - { name: limite, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        '200':
+          description: Requisitos encontrados, do mais ao menos relevante
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ResumoDeRequisito' }
+  /arvore/requisitos:
+    get:
+      operationId: arvoreDeRequisitos
+      description: |
+        A cadeia em texto, um requisito por linha ("R-0001 título"), indentada pela derivação. Começa no
+        zero da organização (ou no geral); com componente, só os requisitos dele e os ancestrais.
+      parameters:
+        - { name: organizacao, in: query, schema: { type: string } }
+        - { name: componente, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Árvore
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArvoreDeRequisitos' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/requisitos:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -901,6 +936,23 @@ components:
       required: [componente]
       properties:
         componente: { type: string, example: C-0001 }
+    ResumoDeRequisito:
+      type: object
+      required: [id, titulo, organizacao, estado, componentes]
+      properties:
+        id: { type: string }
+        titulo: { type: string }
+        organizacao: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
+        componentes:
+          type: array
+          items: { type: string }
+    ArvoreDeRequisitos:
+      type: object
+      required: [texto, requisitos]
+      properties:
+        texto: { type: string }
+        requisitos: { type: integer }
     NovaTarefa:
       type: object
       required: [titulo, organizacao]
@@ -909,6 +961,14 @@ components:
         descricao: { type: string }
         organizacao: { type: string }
         status: { $ref: '#/components/schemas/StatusTarefa' }
+        requisitos:
+          type: array
+          description: Requisitos que ela tenta atender, já vinculados na criação
+          items: { type: string }
+        componentes:
+          type: array
+          description: Componentes em que ela mexe, já vinculados na criação
+          items: { type: string }
     AlteracaoTarefa:
       type: object
       properties:
@@ -969,6 +1029,10 @@ components:
           items: { $ref: '#/components/schemas/Atencao' }
         estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
         prioridade: { $ref: '#/components/schemas/Prioridade' }
+        trilhas:
+          type: array
+          description: 'Só ao obter um requisito: cada caminho do zero até ele, em títulos ("R-0001 … › R-0003 …")'
+          items: { type: string }
         componentes:
           type: array
           description: Componentes a que o requisito se refere

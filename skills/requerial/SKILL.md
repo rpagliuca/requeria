@@ -51,13 +51,27 @@ Nada que mude estado (comandos, PRs, consultas que alterem algo) antes de confer
 
 1. `iniciar_sessao` com `modelo` e sem tarefas.
 2. Se a tarefa já existe, o usuário diz o id; senão, `criar_tarefa` (título, organização, descrição,
-   `status: "em_andamento"`). Uma tarefa criada por uma sessão não aciona o lançador.
+   `status: "em_andamento"`, e já os `requisitos` e `componentes`; ver "Ligar ao porquê" abaixo).
+   Uma tarefa criada por uma sessão não aciona o lançador.
 3. `vincular_tarefa` com o id. Avise o usuário em uma linha qual tarefa foi criada ou vinculada.
 
 Uma sessão por chat. Para mais uma tarefa no mesmo trabalho, `vincular_tarefa`, não outra sessão.
 
-Se a tarefa tem `requisitos`, leia-os com `obter_requisito`: são o **porquê** do trabalho, e a
-cadeia (`deriva_de`) mostra de onde vem cada exigência (uma pessoa, uma lei, um contrato).
+Se a tarefa tem `requisitos`, leia-os com `obter_requisito`: são o **porquê** do trabalho, e as
+`trilhas` mostram a cadeia até o zero em uma linha cada (de onde vem cada exigência).
+
+## Ligar ao porquê (barato)
+
+Toda tarefa tenta atender algum requisito e mexe em algum componente. Para achá-los gastando pouco:
+
+1. `buscar_requisitos` com 2–4 palavras do assunto (e `organizacao`): uma chamada, só id e título.
+   Tente outras palavras antes de concluir que não existe.
+2. `obter_requisito` no candidato, se precisar confirmar: as `trilhas` dão o contexto.
+3. `listar_componentes` para reaproveitar um componente existente.
+4. Só para criar um requisito novo, `arvore_de_requisitos` (da organização, ou do componente) para
+   escolher o pai. Requisito é afirmação testável; no máximo 5 derivados por pai.
+
+Na dúvida, não ligue: tarefa sem requisito aparece para o Rafael na triagem. Ligar errado é pior.
 
 ## Durante
 

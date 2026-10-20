@@ -133,7 +133,32 @@ func (s *Servidor) CriarTarefa(w http.ResponseWriter, r *http.Request) {
 		if nova.Descricao != nil {
 			descricao = *nova.Descricao
 		}
-		criada, err = s.inserirTarefa(tx, quem, nova.Titulo, descricao, nova.Organizacao, status, nil)
+		if criada, err = s.inserirTarefa(tx, quem, nova.Titulo, descricao, nova.Organizacao, status, nil); err != nil {
+			return err
+		}
+		t := mustNumero(criada.Id, "T")
+		if nova.Requisitos != nil {
+			for _, id := range *nova.Requisitos {
+				n, err := numero(id, "R")
+				if err != nil {
+					return err
+				}
+				if err := existeRequisito(tx, n); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(`INSERT OR IGNORE INTO tarefa_requisito (tarefa_id, requisito_id) VALUES (?, ?)`, t, n); err != nil {
+					return err
+				}
+			}
+		}
+		if nova.Componentes != nil {
+			for _, id := range *nova.Componentes {
+				if err := s.mudarComponente(tx, r, "tarefa_componente", "tarefa_id", criada.Id, t, id, true); err != nil {
+					return err
+				}
+			}
+		}
+		criada, err = carregarTarefa(tx, t)
 		return err
 	})
 	if err != nil {

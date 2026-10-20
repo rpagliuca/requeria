@@ -67,7 +67,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{Name: "obter_tarefa", Description: "Obtém uma tarefa, incluindo o resumo para retomar e a sessão ativa."}, f.obterTarefa)
-	mcp.AddTool(s, &mcp.Tool{Name: "criar_tarefa", Description: "Cria uma tarefa."}, f.criarTarefa)
+	mcp.AddTool(s, &mcp.Tool{Name: "criar_tarefa", Description: "Cria uma tarefa, já ligada aos requisitos e componentes informados."}, f.criarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_tarefa", Description: "Altera campos de uma tarefa."}, f.alterarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "historico_da_tarefa", Description: "Lista as sessões que trabalharam na tarefa, da mais recente para a mais antiga."}, f.historicoDaTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "iniciar_sessao", Description: "Abre a Sessão de Trabalho deste chat, nas tarefas dadas ou sem nenhuma (vincule depois). Cria a pasta do journal. Recusa tarefa que já tem sessão ativa."}, f.iniciarSessao)
@@ -76,7 +76,9 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "atualizar_journal", Description: "Atualiza os localizadores do journal e dos artefatos da sessão deste chat."}, f.atualizarJournal)
 	mcp.AddTool(s, &mcp.Tool{Name: "encerrar_sessao", Description: "Encerra a sessão deste chat e grava o resumo em cada tarefa dela."}, f.encerrarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "repassar_sessao", Description: "Troca de agente: encerra a sessão deste chat e abre outra com o agente novo, nas mesmas tarefas."}, f.repassarSessao)
-	mcp.AddTool(s, &mcp.Tool{Name: "obter_requisito", Description: "Obtém um requisito: origem, cadeia (deriva_de acima, derivados abaixo) e tarefas que tentam atendê-lo."}, f.obterRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "buscar_requisitos", Description: "Busca requisitos por palavras (título pesa mais; sem acento; prefixo). Devolve só id, título, estado e componentes dos mais relevantes. Use antes de criar um requisito ou ligar uma tarefa."}, f.buscarRequisitos)
+	mcp.AddTool(s, &mcp.Tool{Name: "arvore_de_requisitos", Description: "A cadeia de requisitos em texto (id e título, indentada), a partir do zero da organização; com componente, só os dele e os ancestrais. Use só para escolher o pai de um requisito novo: custa mais que buscar."}, f.arvoreDeRequisitos)
+	mcp.AddTool(s, &mcp.Tool{Name: "obter_requisito", Description: "Obtém um requisito: trilhas até o zero (em títulos), origem, cadeia (deriva_de acima, derivados abaixo), componentes e tarefas que tentam atendê-lo."}, f.obterRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_requisito", Description: "Cria um requisito, com origem e os requisitos dos quais deriva (a organização vem do primeiro, se omitida)."}, f.criarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização, origem ou prioridade (triagem: alta, media, baixa; vazio volta a não triado) de um requisito."}, f.alterarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos."}, f.derivarRequisito)
@@ -424,8 +426,42 @@ type VinculoComponente struct {
 	Tarefa     string `json:"tarefa,omitempty" jsonschema:"tarefa, como T-0001"`
 }
 
+type BuscaDeRequisitos struct {
+	Texto       string `json:"texto" jsonschema:"palavras a buscar"`
+	Organizacao string `json:"organizacao,omitempty" jsonschema:"só desta organização"`
+	Componente  string `json:"componente,omitempty" jsonschema:"só deste componente, como C-0001"`
+}
+
+type Requisitos struct {
+	Requisitos []api.ResumoDeRequisito `json:"requisitos"`
+}
+
+type FiltroDaArvore struct {
+	Organizacao string `json:"organizacao,omitempty" jsonschema:"organização (o zero dela); vazio é a visão geral"`
+	Componente  string `json:"componente,omitempty" jsonschema:"só os requisitos deste componente e os ancestrais"`
+}
+
+func opcional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 type Origens struct {
 	Origens []api.Origem `json:"origens"`
+}
+
+func (f *Ferramentas) buscarRequisitos(ctx context.Context, _ *mcp.CallToolRequest, in BuscaDeRequisitos) (*mcp.CallToolResult, Requisitos, error) {
+	var out Requisitos
+	resp, err := f.cliente.BuscarRequisitos(ctx, &api.BuscarRequisitosParams{Q: in.Texto, Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente)})
+	return nil, out, decodificar(resp, err, &out.Requisitos)
+}
+
+func (f *Ferramentas) arvoreDeRequisitos(ctx context.Context, _ *mcp.CallToolRequest, in FiltroDaArvore) (*mcp.CallToolResult, api.ArvoreDeRequisitos, error) {
+	var out api.ArvoreDeRequisitos
+	resp, err := f.cliente.ArvoreDeRequisitos(ctx, &api.ArvoreDeRequisitosParams{Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente)})
+	return nil, out, decodificar(resp, err, &out)
 }
 
 func (f *Ferramentas) obterRequisito(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, api.Requisito, error) {

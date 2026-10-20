@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -614,4 +615,42 @@ func TestComponentes(t *testing.T) {
 		t.Fatalf("desvinculado: %+v", sem.Componentes)
 	}
 	a.chamar("POST", "/requisitos/"+r.Id+"/componentes", "", api.VinculoComponente{Componente: "C-0099"}, 404, nil)
+}
+
+func TestBuscaArvoreETrilhas(t *testing.T) {
+	a := novoAmbiente(t)
+	geral, org := "Geral", "Cartório"
+	var zero, cart, backup, internet api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Tudo bem", Organizacao: &geral}, 201, &zero)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "O cartório opera", Organizacao: &org}, 201, &cart)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Os backups têm duas cópias", DerivaDe: &[]string{cart.Id},
+		Descricao: ptr("restic para S3")}, 201, &backup)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "A internet não cai", DerivaDe: &[]string{cart.Id},
+		Descricao: ptr("o backup não satura o link")}, 201, &internet)
+	a.chamar("PUT", "/organizacoes/Cart%C3%B3rio", "", api.DefinicaoDeOrganizacao{Zero: cart.Id}, 200, nil)
+
+	var achados []api.ResumoDeRequisito
+	a.chamar("GET", "/busca/requisitos?q=c%C3%B3pia+do+backup", "", nil, 200, &achados)
+	if len(achados) != 2 || achados[0].Id != backup.Id {
+		t.Fatalf("título pesa mais, sem acento e com prefixo: %+v", achados)
+	}
+	var arvore api.ArvoreDeRequisitos
+	a.chamar("GET", "/arvore/requisitos?organizacao=Cart%C3%B3rio", "", nil, 200, &arvore)
+	if arvore.Requisitos != 3 || !strings.HasPrefix(arvore.Texto, cart.Id+" O cartório opera\n  ") {
+		t.Fatalf("árvore da organização: %q", arvore.Texto)
+	}
+	var r api.Requisito
+	a.chamar("GET", "/requisitos/"+backup.Id, "", nil, 200, &r)
+	if r.Trilhas == nil || len(*r.Trilhas) != 1 || (*r.Trilhas)[0] != zero.Id+" Tudo bem › "+cart.Id+" O cartório opera" {
+		t.Fatalf("trilha: %+v", r.Trilhas)
+	}
+
+	var c api.Componente
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Backup", Organizacao: org}, 201, &c)
+	var tarefa api.Tarefa
+	a.chamar("POST", "/tarefas", "", api.NovaTarefa{Titulo: "Testar restauração", Organizacao: org,
+		Requisitos: &[]string{backup.Id}, Componentes: &[]string{c.Id}}, 201, &tarefa)
+	if len(*tarefa.Requisitos) != 1 || len(*tarefa.Componentes) != 1 {
+		t.Fatalf("tarefa já ligada na criação: %+v", tarefa)
+	}
 }
