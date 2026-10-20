@@ -12,13 +12,14 @@ import { Input } from "@/components/ui/input"
 const todosOsStatus = Object.keys(nomesStatusTarefa) as StatusTarefa[]
 const abertas = todosOsStatus.filter((s) => s !== "concluida")
 
-// Filtros ficam na URL: o link reabre a mesma visão. Status e organização aceitam vários valores.
+// Filtros ficam na URL: o link reabre a mesma visão. Status e organização aceitam vários valores; sem
+// filtro, todas. O padrão da primeira visita são as abertas.
 export function Tarefas() {
   const { data, isLoading, error } = useTarefas()
-  const [params, setParams] = useFiltrosLembrados("tarefas")
+  const [params, setParams] = useFiltrosLembrados("tarefas", `status=${abertas.join(",")}`)
   const texto = params.get("q") ?? ""
   const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
-  const status = params.has("status") ? (lista("status") as StatusTarefa[]) : abertas
+  const status = params.has("status") ? (lista("status") as StatusTarefa[]) : todosOsStatus
 
   const alterar = (chave: string, valor: string | null) => {
     const novos = new URLSearchParams(params)
@@ -57,20 +58,12 @@ export function Tarefas() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button asChild>
-          <Link to="/tarefas/nova">Nova tarefa</Link>
-        </Button>
-        <Input
-          placeholder="Buscar em id, título, descrição e resumo"
-          value={texto}
-          onChange={(e) => alterar("q", e.target.value || null)}
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <SelecaoMultipla
           rotulo="Status"
           opcoes={todosOsStatus.map((s) => ({ valor: s, rotulo: nomesStatusTarefa[s], contagem: contagemStatus[s] ?? 0 }))}
           selecionados={status}
-          alterar={(v) => alterar("status", v.join(","))}
+          alterar={(v) => alterar("status", v.length === todosOsStatus.length ? null : v.join(","))}
           atalhos={[
             { rotulo: "Abertas", valores: abertas },
             { rotulo: "Todos", valores: todosOsStatus },
@@ -83,14 +76,21 @@ export function Tarefas() {
           alterar={(v) => alterar("org", v.length === organizacoes.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
         />
+        <Input className="sm:w-56" placeholder="Buscar" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
+        <Button asChild variant="outline">
+          <Link to="/tarefas/nova">Nova tarefa</Link>
+        </Button>
       </div>
+      <p className="text-muted-foreground text-xs">
+        {filtradas.length} de {data?.length ?? 0} tarefas ·{" "}
+        <button type="button" className="underline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+          limpar filtros
+        </button>
+      </p>
 
       <Estado carregando={isLoading} erro={error} />
       {data && (
         <>
-          <p className="text-muted-foreground text-xs">
-            {filtradas.length} tarefas
-          </p>
           <ul className="divide-y rounded-md border">
             {filtradas.map((t) => (
               <li key={t.id}>

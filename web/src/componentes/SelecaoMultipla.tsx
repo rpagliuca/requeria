@@ -7,7 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export type Opcao = { valor: string; rotulo: string; contagem?: number }
 export type Atalho = { rotulo: string; valores: string[] }
 
-// Combobox de seleção múltipla: marca e desmarca opções; atalhos trocam a seleção inteira.
+// Combobox de seleção múltipla: marca e desmarca opções; atalhos trocam a seleção inteira, e
+// "Limpar" desmarca tudo num clique.
 export function SelecaoMultipla({
   rotulo,
   opcoes,
@@ -34,6 +35,7 @@ export function SelecaoMultipla({
         .join(", ")
     return `${selecionados.length} selecionados`
   })()
+  const comLimpar = atalhos.some((a) => a.valores.length === 0) ? atalhos : [...atalhos, { rotulo: "Limpar", valores: [] }]
   const alternar = (valor: string) =>
     alterar(selecionados.includes(valor) ? selecionados.filter((v) => v !== valor) : [...selecionados, valor])
 
@@ -48,9 +50,9 @@ export function SelecaoMultipla({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-1">
-        {atalhos.length > 0 && (
+        {comLimpar.length > 0 && (
           <div className="flex flex-wrap gap-1 border-b p-1 pb-2">
-            {atalhos.map((a) => (
+            {comLimpar.map((a) => (
               <Button
                 key={a.rotulo}
                 size="sm"
