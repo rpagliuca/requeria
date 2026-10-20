@@ -12,7 +12,7 @@ export function TituloDasTarefas({ ids, link = true }: { ids: string[]; link?: b
       {ids.map((id, i) => {
         const texto = (
           <>
-            {porId.get(id)?.titulo ?? id}
+            {porId.get(id)?.titulo ?? (data ? "tarefa de outra organização" : id)}
             {i < ids.length - 1 && <span className="text-muted-foreground"> ·</span>}
           </>
         )

@@ -97,6 +97,13 @@ roda sozinho: instanciar um template cria uma tarefa a fazer, com as instruçõe
 Um periódico cuja última instância é mais antiga que a periodicidade (ou que nunca foi instanciado), e
 sem instância aberta, aparece como devido.
 
+**Organização atual.** A barra superior escolhe uma organização, e todas as telas passam a mostrar só
+o que é dela (para compartilhar a tela sem mostrar o resto). Cada organização tem o seu **zero**,
+atribuído explicitamente (`PUT /organizacoes/{nome}`); na visão sem organização, o zero é o geral, o
+único sem pais. Só o zero de uma organização deriva de fora dela: qualquer outro requisito com pai de
+outra organização pede atenção (`outra_organizacao`), porque na visão da organização ele ficaria fora
+da cadeia.
+
 A tela inicial é a de Requisitos, filtrada por estado: os que casam aparecem sob o caminho que vem
 do zero até eles, e só eles.
 

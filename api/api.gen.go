@@ -34,11 +34,12 @@ const (
 
 // Defines values for MotivoDeAtencao.
 const (
-	MuitosFilhos   MotivoDeAtencao = "muitos_filhos"
-	SemDescricao   MotivoDeAtencao = "sem_descricao"
-	SemOrigem      MotivoDeAtencao = "sem_origem"
-	SemTarefa      MotivoDeAtencao = "sem_tarefa"
-	TrabalhoParado MotivoDeAtencao = "trabalho_parado"
+	MuitosFilhos     MotivoDeAtencao = "muitos_filhos"
+	OutraOrganizacao MotivoDeAtencao = "outra_organizacao"
+	SemDescricao     MotivoDeAtencao = "sem_descricao"
+	SemOrigem        MotivoDeAtencao = "sem_origem"
+	SemTarefa        MotivoDeAtencao = "sem_tarefa"
+	TrabalhoParado   MotivoDeAtencao = "trabalho_parado"
 )
 
 // Defines values for MotivoEncerramento.
@@ -125,6 +126,11 @@ type AlteracaoTemplate struct {
 type Atencao struct {
 	Detalhe string          `json:"detalhe"`
 	Motivo  MotivoDeAtencao `json:"motivo"`
+}
+
+// DefinicaoDeOrganizacao defines model for DefinicaoDeOrganizacao.
+type DefinicaoDeOrganizacao struct {
+	Zero string `json:"zero"`
 }
 
 // Derivacao defines model for Derivacao.
@@ -262,6 +268,14 @@ type OpcoesDeLancamento struct {
 	Esforcos      []string `json:"esforcos"`
 	ModeloPadrao  string   `json:"modelo_padrao"`
 	Modelos       []string `json:"modelos"`
+}
+
+// Organizacao defines model for Organizacao.
+type Organizacao struct {
+	Nome string `json:"nome"`
+
+	// Zero Requisito do qual todos os outros da organização derivam
+	Zero *string `json:"zero,omitempty"`
 }
 
 // Origem defines model for Origem.
@@ -494,6 +508,9 @@ type ListarTarefasParams struct {
 // ImportarTarefaJSONRequestBody defines body for ImportarTarefa for application/json ContentType.
 type ImportarTarefaJSONRequestBody = ImportacaoTarefa
 
+// DefinirOrganizacaoJSONRequestBody defines body for DefinirOrganizacao for application/json ContentType.
+type DefinirOrganizacaoJSONRequestBody = DefinicaoDeOrganizacao
+
 // CriarOrigemJSONRequestBody defines body for CriarOrigem for application/json ContentType.
 type CriarOrigemJSONRequestBody = NovaOrigem
 
@@ -634,6 +651,14 @@ type ClientInterface interface {
 
 	// OpcoesDoLancador request
 	OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarOrganizacoes request
+	ListarOrganizacoes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DefinirOrganizacaoWithBody request with any body
+	DefinirOrganizacaoWithBody(ctx context.Context, nome string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DefinirOrganizacao(ctx context.Context, nome string, body DefinirOrganizacaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarOrigens request
 	ListarOrigens(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -811,6 +836,42 @@ func (c *Client) ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequ
 
 func (c *Client) OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewOpcoesDoLancadorRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarOrganizacoes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarOrganizacoesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DefinirOrganizacaoWithBody(ctx context.Context, nome string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDefinirOrganizacaoRequestWithBody(c.Server, nome, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DefinirOrganizacao(ctx context.Context, nome string, body DefinirOrganizacaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDefinirOrganizacaoRequest(c.Server, nome, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1557,6 +1618,80 @@ func NewOpcoesDoLancadorRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewListarOrganizacoesRequest generates requests for ListarOrganizacoes
+func NewListarOrganizacoesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/organizacoes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDefinirOrganizacaoRequest calls the generic DefinirOrganizacao builder with application/json body
+func NewDefinirOrganizacaoRequest(server string, nome string, body DefinirOrganizacaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDefinirOrganizacaoRequestWithBody(server, nome, "application/json", bodyReader)
+}
+
+// NewDefinirOrganizacaoRequestWithBody generates requests for DefinirOrganizacao with any type of body
+func NewDefinirOrganizacaoRequestWithBody(server string, nome string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "nome", runtime.ParamLocationPath, nome)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/organizacoes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -3026,6 +3161,14 @@ type ClientWithResponsesInterface interface {
 	// OpcoesDoLancadorWithResponse request
 	OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error)
 
+	// ListarOrganizacoesWithResponse request
+	ListarOrganizacoesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrganizacoesResponse, error)
+
+	// DefinirOrganizacaoWithBodyWithResponse request with any body
+	DefinirOrganizacaoWithBodyWithResponse(ctx context.Context, nome string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DefinirOrganizacaoResponse, error)
+
+	DefinirOrganizacaoWithResponse(ctx context.Context, nome string, body DefinirOrganizacaoJSONRequestBody, reqEditors ...RequestEditorFn) (*DefinirOrganizacaoResponse, error)
+
 	// ListarOrigensWithResponse request
 	ListarOrigensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrigensResponse, error)
 
@@ -3226,6 +3369,52 @@ func (r OpcoesDoLancadorResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r OpcoesDoLancadorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarOrganizacoesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Organizacao
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarOrganizacoesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarOrganizacoesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DefinirOrganizacaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Organizacao
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DefinirOrganizacaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DefinirOrganizacaoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4049,6 +4238,32 @@ func (c *ClientWithResponses) OpcoesDoLancadorWithResponse(ctx context.Context, 
 	return ParseOpcoesDoLancadorResponse(rsp)
 }
 
+// ListarOrganizacoesWithResponse request returning *ListarOrganizacoesResponse
+func (c *ClientWithResponses) ListarOrganizacoesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrganizacoesResponse, error) {
+	rsp, err := c.ListarOrganizacoes(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarOrganizacoesResponse(rsp)
+}
+
+// DefinirOrganizacaoWithBodyWithResponse request with arbitrary body returning *DefinirOrganizacaoResponse
+func (c *ClientWithResponses) DefinirOrganizacaoWithBodyWithResponse(ctx context.Context, nome string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DefinirOrganizacaoResponse, error) {
+	rsp, err := c.DefinirOrganizacaoWithBody(ctx, nome, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDefinirOrganizacaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) DefinirOrganizacaoWithResponse(ctx context.Context, nome string, body DefinirOrganizacaoJSONRequestBody, reqEditors ...RequestEditorFn) (*DefinirOrganizacaoResponse, error) {
+	rsp, err := c.DefinirOrganizacao(ctx, nome, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDefinirOrganizacaoResponse(rsp)
+}
+
 // ListarOrigensWithResponse request returning *ListarOrigensResponse
 func (c *ClientWithResponses) ListarOrigensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrigensResponse, error) {
 	rsp, err := c.ListarOrigens(ctx, reqEditors...)
@@ -4577,6 +4792,72 @@ func ParseOpcoesDoLancadorResponse(rsp *http.Response) (*OpcoesDoLancadorRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarOrganizacoesResponse parses an HTTP response from a ListarOrganizacoesWithResponse call
+func ParseListarOrganizacoesResponse(rsp *http.Response) (*ListarOrganizacoesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarOrganizacoesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Organizacao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDefinirOrganizacaoResponse parses an HTTP response from a DefinirOrganizacaoWithResponse call
+func ParseDefinirOrganizacaoResponse(rsp *http.Response) (*DefinirOrganizacaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DefinirOrganizacaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Organizacao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Erro
@@ -5852,6 +6133,12 @@ type ServerInterface interface {
 	// (GET /lancador)
 	OpcoesDoLancador(w http.ResponseWriter, r *http.Request)
 
+	// (GET /organizacoes)
+	ListarOrganizacoes(w http.ResponseWriter, r *http.Request)
+
+	// (PUT /organizacoes/{nome})
+	DefinirOrganizacao(w http.ResponseWriter, r *http.Request, nome string)
+
 	// (GET /origens)
 	ListarOrigens(w http.ResponseWriter, r *http.Request)
 
@@ -6007,6 +6294,45 @@ func (siw *ServerInterfaceWrapper) OpcoesDoLancador(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpcoesDoLancador(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListarOrganizacoes operation middleware
+func (siw *ServerInterfaceWrapper) ListarOrganizacoes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarOrganizacoes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DefinirOrganizacao operation middleware
+func (siw *ServerInterfaceWrapper) DefinirOrganizacao(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "nome" -------------
+	var nome string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nome", r.PathValue("nome"), &nome, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nome", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DefinirOrganizacao(w, r, nome)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6951,6 +7277,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
 	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
+	m.HandleFunc("GET "+options.BaseURL+"/organizacoes", wrapper.ListarOrganizacoes)
+	m.HandleFunc("PUT "+options.BaseURL+"/organizacoes/{nome}", wrapper.DefinirOrganizacao)
 	m.HandleFunc("GET "+options.BaseURL+"/origens", wrapper.ListarOrigens)
 	m.HandleFunc("POST "+options.BaseURL+"/origens", wrapper.CriarOrigem)
 	m.HandleFunc("GET "+options.BaseURL+"/origens/{id}", wrapper.ObterOrigem)

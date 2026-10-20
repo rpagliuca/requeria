@@ -537,3 +537,34 @@ func TestTemplates(t *testing.T) {
 	a.chamar("POST", "/templates", "", api.NovoTemplate{Titulo: "x", Organizacao: org, Requisitos: &[]string{"R-0099"}}, 404, nil)
 }
 func ptr(s string) *string { return &s }
+
+func TestZeroPorOrganizacao(t *testing.T) {
+	a := novoAmbiente(t)
+	geral, yes, pessoal := "Geral", "Yes", "Pessoal"
+	var zero, zeroYes, zeroPessoal, fora api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &geral}, 201, &zero)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Yes", Organizacao: &yes}, 201, &zeroYes)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Pessoal", Organizacao: &pessoal}, 201, &zeroPessoal)
+	a.chamar("PUT", "/organizacoes/Yes", "", api.DefinicaoDeOrganizacao{Zero: zeroYes.Id}, 200, nil)
+	a.chamar("PUT", "/organizacoes/Yes", "", api.DefinicaoDeOrganizacao{Zero: zeroPessoal.Id}, 400, nil)
+	// Requisito da Yes sob um da Pessoal: fora da cadeia da Yes.
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Fora", Organizacao: &yes, DerivaDe: &[]string{zeroPessoal.Id}}, 201, &fora)
+	tem := func(r api.Requisito) bool {
+		for _, m := range r.Atencao {
+			if m.Motivo == api.OutraOrganizacao {
+				return true
+			}
+		}
+		return false
+	}
+	a.chamar("GET", "/requisitos/"+zeroYes.Id, "", nil, 200, &zeroYes)
+	a.chamar("GET", "/requisitos/"+zeroPessoal.Id, "", nil, 200, &zeroPessoal)
+	if !tem(fora) || tem(zeroYes) || !tem(zeroPessoal) {
+		t.Fatalf("só o zero atribuído deriva de fora: fora %v, zero Yes %v, Pessoal sem zero %v", tem(fora), tem(zeroYes), tem(zeroPessoal))
+	}
+	var orgs []api.Organizacao
+	a.chamar("GET", "/organizacoes", "", nil, 200, &orgs)
+	if len(orgs) != 3 || orgs[2].Nome != "Yes" || orgs[2].Zero == nil || *orgs[2].Zero != zeroYes.Id {
+		t.Fatalf("organizações: %+v", orgs)
+	}
+}

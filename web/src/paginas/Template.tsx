@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 
 import { useAlterarTemplate, useInstanciarTemplate, useRequisitos, useTarefas, useTemplates } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
+import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { Voltar } from "@/componentes/Voltar"
 import { Eventos } from "@/componentes/Eventos"
 import { FormularioDeTemplate, Periodicidade } from "@/componentes/FormularioDeTemplate"
@@ -21,7 +22,7 @@ export function Template() {
   const requisitos = useRequisitos()
   const tarefas = useTarefas()
   const t = templates.data?.find((x) => x.id === id)
-  if (!t) return <Estado carregando={templates.isLoading} erro={templates.error} />
+  if (!t) return templates.data ? <ForaDaOrganizacao /> : <Estado carregando={templates.isLoading} erro={templates.error} />
   const req = new Map((requisitos.data ?? []).map((r) => [r.id, r]))
   const tar = new Map((tarefas.data ?? []).map((x) => [x.id, x]))
 

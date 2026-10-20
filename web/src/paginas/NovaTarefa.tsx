@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 
 import { type StatusTarefa, useCriarTarefa, useTarefas } from "@/api/cliente"
 import { nomesStatusTarefa } from "@/componentes/rotulos"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +16,8 @@ export function NovaTarefa() {
   const tarefas = useTarefas()
   const organizacoes = useMemo(() => [...new Set((tarefas.data ?? []).map((t) => t.organizacao))].sort(), [tarefas.data])
   const [titulo, setTitulo] = useState("")
-  const [organizacao, setOrganizacao] = useState("")
+  const atual = useOrganizacaoAtual().organizacao
+  const [organizacao, setOrganizacao] = useState(atual)
   const [descricao, setDescricao] = useState("")
   const [status, setStatus] = useState<StatusTarefa>("a_fazer")
 

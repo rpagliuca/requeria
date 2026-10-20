@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client"
 import { HashRouter } from "react-router-dom"
 
 import App from "./App.tsx"
+import { OrganizacaoAtual } from "./hooks/useOrganizacaoAtual"
 import "./index.css"
 
 // Tema do sistema operacional.
@@ -19,7 +20,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={cliente}>
       <HashRouter>
-        <App />
+        <OrganizacaoAtual>
+          <App />
+        </OrganizacaoAtual>
       </HashRouter>
     </QueryClientProvider>
   </StrictMode>,

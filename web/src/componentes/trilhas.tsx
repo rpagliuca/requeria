@@ -3,14 +3,14 @@ import { Link } from "react-router-dom"
 
 import type { Requisito } from "@/api/cliente"
 
-// Todas as trilhas do zero até o requisito, subindo pelos pais. A derivação não tem ciclo; o limite
+// Todas as trilhas do zero até o requisito, subindo pelos pais que estão no mapa (a organização atual). A derivação não tem ciclo; o limite
 // só protege a tela de um grafo muito ramificado.
 export function trilhasAteOZero(id: string, porId: Map<string, Requisito>, limite = 12): string[][] {
   const trilhas: string[][] = []
   const subir = (atual: string, caminho: string[]) => {
     if (trilhas.length >= limite) return
     const r = porId.get(atual)
-    const pais = (r?.deriva_de ?? []).filter((p) => !caminho.includes(p))
+    const pais = (r?.deriva_de ?? []).filter((p) => porId.has(p) && !caminho.includes(p))
     if (pais.length === 0) {
       trilhas.push([atual, ...caminho])
       return
@@ -43,7 +43,7 @@ export function descendentes(id: string, porId: Map<string, Requisito>): Set<str
   const vistos = new Set<string>()
   const descer = (atual: string) => {
     for (const f of porId.get(atual)?.derivados ?? []) {
-      if (!vistos.has(f)) {
+      if (porId.has(f) && !vistos.has(f)) {
         vistos.add(f)
         descer(f)
       }
