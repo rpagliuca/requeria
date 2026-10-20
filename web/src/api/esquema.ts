@@ -653,6 +653,7 @@ export interface components {
             /** @description Motivos pelos quais o requisito não está bem cuidado (vazio se está) */
             atencao: components["schemas"]["Atencao"][];
             estado: components["schemas"]["EstadoDoRequisito"];
+            prioridade?: components["schemas"]["Prioridade"];
             estado_proprio: components["schemas"]["EstadoDoRequisito"];
             /** @description Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio */
             limitado_por: string[];
@@ -664,6 +665,11 @@ export interface components {
             /** Format: date-time */
             atualizado_em: string;
         };
+        /**
+         * @description Escolhida na triagem; ausente, o requisito ainda não foi triado.
+         * @enum {string}
+         */
+        Prioridade: "alta" | "media" | "baixa";
         /**
          * @description Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
          *     andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
@@ -724,6 +730,8 @@ export interface components {
             organizacao?: string;
             /** @description Vazio remove a origem */
             origem?: string;
+            /** @description alta, media ou baixa; vazio volta a não triado */
+            prioridade?: string;
         };
         Derivacao: {
             /** @description Requisito do qual este deriva */

@@ -48,6 +48,13 @@ const (
 	TrocaDeAgente MotivoEncerramento = "troca_de_agente"
 )
 
+// Defines values for Prioridade.
+const (
+	Alta  Prioridade = "alta"
+	Baixa Prioridade = "baixa"
+	Media Prioridade = "media"
+)
+
 // Defines values for StatusSessao.
 const (
 	Ativa       StatusSessao = "ativa"
@@ -91,7 +98,10 @@ type AlteracaoRequisito struct {
 
 	// Origem Vazio remove a origem
 	Origem *string `json:"origem,omitempty"`
-	Titulo *string `json:"titulo,omitempty"`
+
+	// Prioridade alta, media ou baixa; vazio volta a não triado
+	Prioridade *string `json:"prioridade,omitempty"`
+	Titulo     *string `json:"titulo,omitempty"`
 }
 
 // AlteracaoSessao defines model for AlteracaoSessao.
@@ -307,6 +317,9 @@ type PedidoDeLancamento struct {
 	Modelo *string `json:"modelo,omitempty"`
 }
 
+// Prioridade Escolhida na triagem; ausente, o requisito ainda não foi triado.
+type Prioridade string
+
 // Repasse defines model for Repasse.
 type Repasse struct {
 	Agente string  `json:"agente"`
@@ -352,6 +365,9 @@ type Requisito struct {
 	LimitadoPor []string `json:"limitado_por"`
 	Organizacao string   `json:"organizacao"`
 	Origem      *string  `json:"origem,omitempty"`
+
+	// Prioridade Escolhida na triagem; ausente, o requisito ainda não foi triado.
+	Prioridade *Prioridade `json:"prioridade,omitempty"`
 
 	// Tarefas Tarefas que tentam atender este requisito
 	Tarefas []string `json:"tarefas"`

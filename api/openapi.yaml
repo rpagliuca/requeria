@@ -810,6 +810,7 @@ components:
           description: Motivos pelos quais o requisito não está bem cuidado (vazio se está)
           items: { $ref: '#/components/schemas/Atencao' }
         estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
+        prioridade: { $ref: '#/components/schemas/Prioridade' }
         estado_proprio: { $ref: '#/components/schemas/EstadoDoRequisito' }
         limitado_por:
           type: array
@@ -822,6 +823,10 @@ components:
         ultima_execucao: { $ref: '#/components/schemas/Execucao' }
         criado_em: { type: string, format: date-time }
         atualizado_em: { type: string, format: date-time }
+    Prioridade:
+      type: string
+      description: Escolhida na triagem; ausente, o requisito ainda não foi triado.
+      enum: [alta, media, baixa]
     EstadoDoRequisito:
       type: string
       description: |
@@ -878,6 +883,7 @@ components:
         descricao: { type: string }
         organizacao: { type: string }
         origem: { type: string, description: 'Vazio remove a origem' }
+        prioridade: { type: string, description: 'alta, media ou baixa; vazio volta a não triado' }
     Derivacao:
       type: object
       required: [pai]

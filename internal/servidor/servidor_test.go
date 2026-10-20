@@ -568,3 +568,24 @@ func TestZeroPorOrganizacao(t *testing.T) {
 		t.Fatalf("organizações: %+v", orgs)
 	}
 }
+
+func TestPrioridade(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var r api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &r)
+	if r.Prioridade != nil {
+		t.Fatalf("nasce não triado: %+v", r)
+	}
+	var alta api.Requisito
+	a.chamar("PATCH", "/requisitos/"+r.Id, "", api.AlteracaoRequisito{Prioridade: ptr("alta")}, 200, &alta)
+	if alta.Prioridade == nil || *alta.Prioridade != api.Alta {
+		t.Fatalf("alta: %+v", alta)
+	}
+	a.chamar("PATCH", "/requisitos/"+r.Id, "", api.AlteracaoRequisito{Prioridade: ptr("urgente")}, 400, nil)
+	var limpo api.Requisito
+	a.chamar("PATCH", "/requisitos/"+r.Id, "", api.AlteracaoRequisito{Prioridade: ptr("")}, 200, &limpo)
+	if limpo.Prioridade != nil {
+		t.Fatalf("vazio volta a não triado: %+v", limpo)
+	}
+}
