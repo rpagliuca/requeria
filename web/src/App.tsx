@@ -10,9 +10,10 @@ import { Sessoes } from "@/paginas/Sessoes"
 import { Componente } from "@/paginas/Componente"
 import { Componentes } from "@/paginas/Componentes"
 import { Logotipo } from "@/componentes/Logotipo"
+import { Lembretes } from "@/paginas/Lembretes"
 import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
-import { useOrganizacoes, useTemplates } from "@/api/cliente"
+import { useLembretes, useOrganizacoes, useTemplates } from "@/api/cliente"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tarefa } from "@/paginas/Tarefa"
@@ -25,6 +26,7 @@ const aba = ({ isActive }: { isActive: boolean }) =>
 export default function App() {
   const templates = useTemplates()
   const devidos = (templates.data ?? []).filter((t) => t.devido).length
+  const tocando = (useLembretes().data ?? []).filter((l) => l.status === "disparado").length
   return (
     <div className="mx-auto max-w-4xl px-4 py-4">
       <nav className="mb-6 flex flex-wrap items-center gap-1 border-b pb-3">
@@ -43,6 +45,14 @@ export default function App() {
           {devidos > 0 && (
             <span className="ml-1.5 rounded-full bg-tom-atencao px-1.5 text-tom-atencao-fg text-xs font-medium" title={`${devidos} devidas agora`}>
               {devidos}
+            </span>
+          )}
+        </NavLink>
+        <NavLink to="/lembretes" className={aba}>
+          Lembretes
+          {tocando > 0 && (
+            <span className="ml-1.5 rounded-full bg-tom-perigo px-1.5 text-tom-perigo-fg text-xs font-medium" title={`${tocando} tocando agora`}>
+              {tocando}
             </span>
           )}
         </NavLink>
@@ -65,6 +75,8 @@ export default function App() {
         <Route path="/origens" element={<Origens />} />
         <Route path="/templates" element={<Templates />} />
         <Route path="/templates/:id" element={<Template />} />
+        <Route path="/lembretes" element={<Lembretes />} />
+        <Route path="/lembretes/:id" element={<Lembretes />} />
         <Route path="/componentes" element={<Componentes />} />
         <Route path="/componentes/:id" element={<Componente />} />
         <Route path="/sessoes" element={<Sessoes />} />

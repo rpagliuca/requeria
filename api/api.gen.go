@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	TokenDaSessaoScopes = "tokenDaSessao.Scopes"
+	TokenDaSessaoScopes  = "tokenDaSessao.Scopes"
+	TokenDeCapturaScopes = "tokenDeCaptura.Scopes"
 )
 
 // Defines values for EstadoDoRequisito.
@@ -55,6 +56,15 @@ const (
 	Media Prioridade = "media"
 )
 
+// Defines values for StatusLembrete.
+const (
+	Adiado     StatusLembrete = "adiado"
+	Agendado   StatusLembrete = "agendado"
+	Cancelado  StatusLembrete = "cancelado"
+	Confirmado StatusLembrete = "confirmado"
+	Disparado  StatusLembrete = "disparado"
+)
+
 // Defines values for StatusSessao.
 const (
 	Ativa       StatusSessao = "ativa"
@@ -78,11 +88,24 @@ const (
 	Ia     TipoAgente = "ia"
 )
 
+// Defines values for TipoDeCaptura.
+const (
+	TipoDeCapturaLembrete  TipoDeCaptura = "lembrete"
+	TipoDeCapturaRequisito TipoDeCaptura = "requisito"
+	TipoDeCapturaTarefa    TipoDeCaptura = "tarefa"
+)
+
 // Defines values for TipoOrigem.
 const (
 	Documento TipoOrigem = "documento"
 	Pessoa    TipoOrigem = "pessoa"
 )
+
+// Adiamento defines model for Adiamento.
+type Adiamento struct {
+	Ate     *time.Time `json:"ate,omitempty"`
+	Minutos *int       `json:"minutos,omitempty"`
+}
 
 // AlteracaoComponente defines model for AlteracaoComponente.
 type AlteracaoComponente struct {
@@ -91,6 +114,19 @@ type AlteracaoComponente struct {
 
 	// Organizacoes Substitui a lista inteira (pelo menos uma)
 	Organizacoes *[]string `json:"organizacoes,omitempty"`
+}
+
+// AlteracaoLembrete defines model for AlteracaoLembrete.
+type AlteracaoLembrete struct {
+	Organizacao *string    `json:"organizacao,omitempty"`
+	Quando      *time.Time `json:"quando,omitempty"`
+
+	// Requisito Vazio remove a ligação
+	Requisito *string `json:"requisito,omitempty"`
+
+	// Tarefa Vazio remove a ligação
+	Tarefa *string `json:"tarefa,omitempty"`
+	Texto  *string `json:"texto,omitempty"`
 }
 
 // AlteracaoOrigem defines model for AlteracaoOrigem.
@@ -153,6 +189,25 @@ type Atencao struct {
 	Motivo  MotivoDeAtencao `json:"motivo"`
 }
 
+// Captura defines model for Captura.
+type Captura struct {
+	// Chave Chave de idempotência do canal (ex.: id da mensagem na fila); repetições não duplicam
+	Chave *string `json:"chave,omitempty"`
+
+	// DitaEm Quando o pedido foi falado; referência das horas relativas. Padrão: a chegada
+	DitaEm *time.Time `json:"dita_em,omitempty"`
+
+	// Organizacao Padrão: a configurada no servidor
+	Organizacao *string `json:"organizacao,omitempty"`
+
+	// Simular Só interpreta e devolve a frase, sem criar nada
+	Simular *bool `json:"simular,omitempty"`
+
+	// Texto O que foi ditado, inteiro. Lembrete: o texto e a hora juntos ("ligar para o contador amanhã às 9")
+	Texto string        `json:"texto"`
+	Tipo  TipoDeCaptura `json:"tipo"`
+}
+
 // Componente Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade).
 type Componente struct {
 	CriadoEm  time.Time `json:"criado_em"`
@@ -189,6 +244,18 @@ type Encerramento struct {
 // Erro defines model for Erro.
 type Erro struct {
 	Mensagem string `json:"mensagem"`
+}
+
+// Espera defines model for Espera.
+type Espera struct {
+	// Mensagem O que o agente precisa do Rafael, em uma linha
+	Mensagem string `json:"mensagem"`
+}
+
+// EsperaDeSessao defines model for EsperaDeSessao.
+type EsperaDeSessao struct {
+	Desde    time.Time `json:"desde"`
+	Mensagem string    `json:"mensagem"`
 }
 
 // EstadoDoRequisito Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
@@ -237,11 +304,55 @@ type ImportacaoTarefa struct {
 	Titulo  string            `json:"titulo"`
 }
 
+// Lembrete defines model for Lembrete.
+type Lembrete struct {
+	// Adiamentos Quantas vezes foi adiado
+	Adiamentos int `json:"adiamentos"`
+
+	// Atrasado O último disparo aconteceu depois da hora (o servidor estava parado)
+	Atrasado     *bool     `json:"atrasado,omitempty"`
+	AtualizadoEm time.Time `json:"atualizado_em"`
+
+	// Autor Sessão (S-0001), "local" ou "captura"
+	Autor        string     `json:"autor"`
+	ConfirmadoEm *time.Time `json:"confirmado_em,omitempty"`
+	CriadoEm     time.Time  `json:"criado_em"`
+
+	// DisparadoEm Último disparo
+	DisparadoEm *time.Time `json:"disparado_em,omitempty"`
+	Id          string     `json:"id"`
+
+	// Link URL do lembrete no frontend, se o servidor conhece a base pública
+	Link        *string `json:"link,omitempty"`
+	Organizacao string  `json:"organizacao"`
+
+	// Quando Hora marcada atual (após adiamentos), com o fuso em que foi pedida
+	Quando    time.Time `json:"quando"`
+	Requisito *string   `json:"requisito,omitempty"`
+
+	// Status agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
+	// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
+	// (finais).
+	Status StatusLembrete `json:"status"`
+	Tarefa *string        `json:"tarefa,omitempty"`
+	Texto  string         `json:"texto"`
+}
+
 // MotivoDeAtencao defines model for MotivoDeAtencao.
 type MotivoDeAtencao string
 
 // MotivoEncerramento defines model for MotivoEncerramento.
 type MotivoEncerramento string
+
+// Notificacao Corpo de um gancho (webhook) ou stdin de um comando, configurados em -integracoes (ver
+// docs/integracao.md). Traz o estado atual da entidade do evento, para o consumidor não chamar
+// a API de volta; `atualizado_em` do lembrete ordena versões em upserts idempotentes.
+type Notificacao struct {
+	Evento   Evento    `json:"evento"`
+	Lembrete *Lembrete `json:"lembrete,omitempty"`
+	Sessao   *Sessao   `json:"sessao,omitempty"`
+	Tarefa   *Tarefa   `json:"tarefa,omitempty"`
+}
 
 // NovaExecucao defines model for NovaExecucao.
 type NovaExecucao struct {
@@ -289,6 +400,17 @@ type NovoComponente struct {
 	Descricao    *string  `json:"descricao,omitempty"`
 	Nome         string   `json:"nome"`
 	Organizacoes []string `json:"organizacoes"`
+}
+
+// NovoLembrete defines model for NovoLembrete.
+type NovoLembrete struct {
+	Organizacao string `json:"organizacao"`
+
+	// Quando Instante com fuso; no passado é recusado
+	Quando    time.Time `json:"quando"`
+	Requisito *string   `json:"requisito,omitempty"`
+	Tarefa    *string   `json:"tarefa,omitempty"`
+	Texto     string    `json:"texto"`
 }
 
 // NovoRequisito defines model for NovoRequisito.
@@ -358,6 +480,22 @@ type PedidoDeLancamento struct {
 
 	// Modelo Um dos modelos do lançador; padrão: o primeiro
 	Modelo *string `json:"modelo,omitempty"`
+}
+
+// Pendencias defines model for Pendencias.
+type Pendencias struct {
+	GeradoEm     time.Time `json:"gerado_em"`
+	HorizonteAte time.Time `json:"horizonte_ate"`
+
+	// Lembretes Disparados primeiro, depois os que vencem até horizonte_ate, por hora marcada
+	Lembretes []Lembrete `json:"lembretes"`
+
+	// SessoesAguardando Sessões ativas cujo agente espera resposta do Rafael
+	SessoesAguardando  []Sessao `json:"sessoes_aguardando"`
+	TarefasEmValidacao []Tarefa `json:"tarefas_em_validacao"`
+
+	// UltimoEvento Id do último evento quando o retrato foi tirado; serve de cursor para GET /eventos?depois=
+	UltimoEvento int64 `json:"ultimo_evento"`
 }
 
 // Prioridade Escolhida na triagem; ausente, o requisito ainda não foi triado.
@@ -446,9 +584,10 @@ type ResumoDeRequisito struct {
 // Sessao defines model for Sessao.
 type Sessao struct {
 	// Agente Provider, modelo e esforço, ou o nome de um humano. Imutável.
-	Agente    string   `json:"agente"`
-	Anterior  *string  `json:"anterior,omitempty"`
-	Artefatos []string `json:"artefatos"`
+	Agente     string          `json:"agente"`
+	Aguardando *EsperaDeSessao `json:"aguardando,omitempty"`
+	Anterior   *string         `json:"anterior,omitempty"`
+	Artefatos  []string        `json:"artefatos"`
 
 	// Chat Identificador do chat do agente
 	Chat        *string    `json:"chat,omitempty"`
@@ -485,6 +624,11 @@ type SessaoImportada struct {
 	Resumo      string    `json:"resumo"`
 	Servidor    string    `json:"servidor"`
 }
+
+// StatusLembrete agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
+// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
+// (finais).
+type StatusLembrete string
 
 // StatusSessao defines model for StatusSessao.
 type StatusSessao string
@@ -550,6 +694,9 @@ type Template struct {
 // TipoAgente defines model for TipoAgente.
 type TipoAgente string
 
+// TipoDeCaptura defines model for TipoDeCaptura.
+type TipoDeCaptura string
+
 // TipoOrigem defines model for TipoOrigem.
 type TipoOrigem string
 
@@ -589,6 +736,30 @@ type BuscarRequisitosParams struct {
 type ListarEventosParams struct {
 	// Entidade Identificador da entidade, como T-0001 ou S-0001
 	Entidade *string `form:"entidade,omitempty" json:"entidade,omitempty"`
+
+	// Depois Só eventos com id maior (cursor; ver Pendencias.ultimo_evento)
+	Depois *int64 `form:"depois,omitempty" json:"depois,omitempty"`
+
+	// Tipo Um ou mais tipos, separados por vírgula (ex.: lembrete_disparado,sessao_aguardando)
+	Tipo   *string `form:"tipo,omitempty" json:"tipo,omitempty"`
+	Limite *int    `form:"limite,omitempty" json:"limite,omitempty"`
+}
+
+// ListarPendenciasParams defines parameters for ListarPendencias.
+type ListarPendenciasParams struct {
+	// Horizonte Lembretes que vencem até agora + horizonte, em minutos. Padrão: 120
+	Horizonte *int `form:"horizonte,omitempty" json:"horizonte,omitempty"`
+}
+
+// ListarLembretesParams defines parameters for ListarLembretes.
+type ListarLembretesParams struct {
+	// Status Um ou mais status, separados por vírgula
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Ate Só os com hora marcada até este instante (ex.: agora + 2 h, para ver o que vence)
+	Ate         *time.Time `form:"ate,omitempty" json:"ate,omitempty"`
+	Organizacao *string    `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+	Tarefa      *string    `form:"tarefa,omitempty" json:"tarefa,omitempty"`
 }
 
 // ListarRequisitosParams defines parameters for ListarRequisitos.
@@ -608,6 +779,9 @@ type ListarTarefasParams struct {
 	Organizacao *string       `form:"organizacao,omitempty" json:"organizacao,omitempty"`
 }
 
+// CapturarJSONRequestBody defines body for Capturar for application/json ContentType.
+type CapturarJSONRequestBody = Captura
+
 // CriarComponenteJSONRequestBody defines body for CriarComponente for application/json ContentType.
 type CriarComponenteJSONRequestBody = NovoComponente
 
@@ -616,6 +790,15 @@ type AlterarComponenteJSONRequestBody = AlteracaoComponente
 
 // ImportarTarefaJSONRequestBody defines body for ImportarTarefa for application/json ContentType.
 type ImportarTarefaJSONRequestBody = ImportacaoTarefa
+
+// CriarLembreteJSONRequestBody defines body for CriarLembrete for application/json ContentType.
+type CriarLembreteJSONRequestBody = NovoLembrete
+
+// AlterarLembreteJSONRequestBody defines body for AlterarLembrete for application/json ContentType.
+type AlterarLembreteJSONRequestBody = AlteracaoLembrete
+
+// AdiarLembreteJSONRequestBody defines body for AdiarLembrete for application/json ContentType.
+type AdiarLembreteJSONRequestBody = Adiamento
 
 // DefinirOrganizacaoJSONRequestBody defines body for DefinirOrganizacao for application/json ContentType.
 type DefinirOrganizacaoJSONRequestBody = DefinicaoDeOrganizacao
@@ -652,6 +835,9 @@ type EncerrarSessaoJSONRequestBody = Encerramento
 
 // EncerrarSessaoManualmenteJSONRequestBody defines body for EncerrarSessaoManualmente for application/json ContentType.
 type EncerrarSessaoManualmenteJSONRequestBody = Encerramento
+
+// AguardarRespostaJSONRequestBody defines body for AguardarResposta for application/json ContentType.
+type AguardarRespostaJSONRequestBody = Espera
 
 // RepassarSessaoJSONRequestBody defines body for RepassarSessao for application/json ContentType.
 type RepassarSessaoJSONRequestBody = Repasse
@@ -762,6 +948,11 @@ type ClientInterface interface {
 	// BuscarRequisitos request
 	BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CapturarWithBody request with any body
+	CapturarWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	Capturar(ctx context.Context, body CapturarJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListarComponentes request
 	ListarComponentes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -786,8 +977,38 @@ type ClientInterface interface {
 
 	ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListarPendencias request
+	ListarPendencias(ctx context.Context, params *ListarPendenciasParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// OpcoesDoLancador request
 	OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListarLembretes request
+	ListarLembretes(ctx context.Context, params *ListarLembretesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CriarLembreteWithBody request with any body
+	CriarLembreteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CriarLembrete(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterLembrete request
+	ObterLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlterarLembreteWithBody request with any body
+	AlterarLembreteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlterarLembrete(ctx context.Context, id Id, body AlterarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdiarLembreteWithBody request with any body
+	AdiarLembreteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AdiarLembrete(ctx context.Context, id Id, body AdiarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelarLembrete request
+	CancelarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ConfirmarLembrete request
+	ConfirmarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarOrganizacoes request
 	ListarOrganizacoes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -879,6 +1100,14 @@ type ClientInterface interface {
 
 	EncerrarSessaoManualmente(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RetomarSessao request
+	RetomarSessao(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AguardarRespostaWithBody request with any body
+	AguardarRespostaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AguardarResposta(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RepassarSessaoWithBody request with any body
 	RepassarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -965,6 +1194,30 @@ func (c *Client) ArvoreDeRequisitos(ctx context.Context, params *ArvoreDeRequisi
 
 func (c *Client) BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBuscarRequisitosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CapturarWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCapturarRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) Capturar(ctx context.Context, body CapturarJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCapturarRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,8 +1336,140 @@ func (c *Client) ImportarTarefa(ctx context.Context, body ImportarTarefaJSONRequ
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListarPendencias(ctx context.Context, params *ListarPendenciasParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarPendenciasRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) OpcoesDoLancador(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewOpcoesDoLancadorRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListarLembretes(ctx context.Context, params *ListarLembretesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListarLembretesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarLembreteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarLembreteRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CriarLembrete(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCriarLembreteRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterLembreteRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarLembreteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarLembreteRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlterarLembrete(ctx context.Context, id Id, body AlterarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlterarLembreteRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AdiarLembreteWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdiarLembreteRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AdiarLembrete(ctx context.Context, id Id, body AdiarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdiarLembreteRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelarLembreteRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ConfirmarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewConfirmarLembreteRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,6 +1878,42 @@ func (c *Client) EncerrarSessaoManualmenteWithBody(ctx context.Context, id Id, c
 
 func (c *Client) EncerrarSessaoManualmente(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEncerrarSessaoManualmenteRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RetomarSessao(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRetomarSessaoRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AguardarRespostaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAguardarRespostaRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AguardarResposta(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAguardarRespostaRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1985,6 +2406,46 @@ func NewBuscarRequisitosRequest(server string, params *BuscarRequisitosParams) (
 	return req, nil
 }
 
+// NewCapturarRequest calls the generic Capturar builder with application/json body
+func NewCapturarRequest(server string, body CapturarJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCapturarRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCapturarRequestWithBody generates requests for Capturar with any type of body
+func NewCapturarRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/captura")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListarComponentesRequest generates requests for ListarComponentes
 func NewListarComponentesRequest(server string) (*http.Request, error) {
 	var err error
@@ -2171,6 +2632,54 @@ func NewListarEventosRequest(server string, params *ListarEventosParams) (*http.
 
 		}
 
+		if params.Depois != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "depois", runtime.ParamLocationQuery, *params.Depois); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Tipo != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tipo", runtime.ParamLocationQuery, *params.Tipo); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limite != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limite", runtime.ParamLocationQuery, *params.Limite); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -2222,6 +2731,55 @@ func NewImportarTarefaRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
+// NewListarPendenciasRequest generates requests for ListarPendencias
+func NewListarPendenciasRequest(server string, params *ListarPendenciasParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/integracao/pendencias")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Horizonte != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "horizonte", runtime.ParamLocationQuery, *params.Horizonte); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewOpcoesDoLancadorRequest generates requests for OpcoesDoLancador
 func NewOpcoesDoLancadorRequest(server string) (*http.Request, error) {
 	var err error
@@ -2242,6 +2800,339 @@ func NewOpcoesDoLancadorRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListarLembretesRequest generates requests for ListarLembretes
+func NewListarLembretesRequest(server string, params *ListarLembretesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Ate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "ate", runtime.ParamLocationQuery, *params.Ate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Tarefa != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tarefa", runtime.ParamLocationQuery, *params.Tarefa); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCriarLembreteRequest calls the generic CriarLembrete builder with application/json body
+func NewCriarLembreteRequest(server string, body CriarLembreteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCriarLembreteRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCriarLembreteRequestWithBody generates requests for CriarLembrete with any type of body
+func NewCriarLembreteRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewObterLembreteRequest generates requests for ObterLembrete
+func NewObterLembreteRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlterarLembreteRequest calls the generic AlterarLembrete builder with application/json body
+func NewAlterarLembreteRequest(server string, id Id, body AlterarLembreteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlterarLembreteRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAlterarLembreteRequestWithBody generates requests for AlterarLembrete with any type of body
+func NewAlterarLembreteRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewAdiarLembreteRequest calls the generic AdiarLembrete builder with application/json body
+func NewAdiarLembreteRequest(server string, id Id, body AdiarLembreteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAdiarLembreteRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAdiarLembreteRequestWithBody generates requests for AdiarLembrete with any type of body
+func NewAdiarLembreteRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s/adiamento", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCancelarLembreteRequest generates requests for CancelarLembrete
+func NewCancelarLembreteRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s/cancelamento", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewConfirmarLembreteRequest generates requests for ConfirmarLembrete
+func NewConfirmarLembreteRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s/confirmacao", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3178,6 +4069,87 @@ func NewEncerrarSessaoManualmenteRequestWithBody(server string, id Id, contentTy
 	return req, nil
 }
 
+// NewRetomarSessaoRequest generates requests for RetomarSessao
+func NewRetomarSessaoRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/espera", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAguardarRespostaRequest calls the generic AguardarResposta builder with application/json body
+func NewAguardarRespostaRequest(server string, id Id, body AguardarRespostaJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAguardarRespostaRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAguardarRespostaRequestWithBody generates requests for AguardarResposta with any type of body
+func NewAguardarRespostaRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/espera", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRepassarSessaoRequest calls the generic RepassarSessao builder with application/json body
 func NewRepassarSessaoRequest(server string, id Id, body RepassarSessaoJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3959,6 +4931,11 @@ type ClientWithResponsesInterface interface {
 	// BuscarRequisitosWithResponse request
 	BuscarRequisitosWithResponse(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*BuscarRequisitosResponse, error)
 
+	// CapturarWithBodyWithResponse request with any body
+	CapturarWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CapturarResponse, error)
+
+	CapturarWithResponse(ctx context.Context, body CapturarJSONRequestBody, reqEditors ...RequestEditorFn) (*CapturarResponse, error)
+
 	// ListarComponentesWithResponse request
 	ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error)
 
@@ -3983,8 +4960,38 @@ type ClientWithResponsesInterface interface {
 
 	ImportarTarefaWithResponse(ctx context.Context, body ImportarTarefaJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportarTarefaResponse, error)
 
+	// ListarPendenciasWithResponse request
+	ListarPendenciasWithResponse(ctx context.Context, params *ListarPendenciasParams, reqEditors ...RequestEditorFn) (*ListarPendenciasResponse, error)
+
 	// OpcoesDoLancadorWithResponse request
 	OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error)
+
+	// ListarLembretesWithResponse request
+	ListarLembretesWithResponse(ctx context.Context, params *ListarLembretesParams, reqEditors ...RequestEditorFn) (*ListarLembretesResponse, error)
+
+	// CriarLembreteWithBodyWithResponse request with any body
+	CriarLembreteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarLembreteResponse, error)
+
+	CriarLembreteWithResponse(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarLembreteResponse, error)
+
+	// ObterLembreteWithResponse request
+	ObterLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterLembreteResponse, error)
+
+	// AlterarLembreteWithBodyWithResponse request with any body
+	AlterarLembreteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarLembreteResponse, error)
+
+	AlterarLembreteWithResponse(ctx context.Context, id Id, body AlterarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarLembreteResponse, error)
+
+	// AdiarLembreteWithBodyWithResponse request with any body
+	AdiarLembreteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdiarLembreteResponse, error)
+
+	AdiarLembreteWithResponse(ctx context.Context, id Id, body AdiarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*AdiarLembreteResponse, error)
+
+	// CancelarLembreteWithResponse request
+	CancelarLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*CancelarLembreteResponse, error)
+
+	// ConfirmarLembreteWithResponse request
+	ConfirmarLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ConfirmarLembreteResponse, error)
 
 	// ListarOrganizacoesWithResponse request
 	ListarOrganizacoesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrganizacoesResponse, error)
@@ -4075,6 +5082,14 @@ type ClientWithResponsesInterface interface {
 	EncerrarSessaoManualmenteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error)
 
 	EncerrarSessaoManualmenteWithResponse(ctx context.Context, id Id, body EncerrarSessaoManualmenteJSONRequestBody, reqEditors ...RequestEditorFn) (*EncerrarSessaoManualmenteResponse, error)
+
+	// RetomarSessaoWithResponse request
+	RetomarSessaoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*RetomarSessaoResponse, error)
+
+	// AguardarRespostaWithBodyWithResponse request with any body
+	AguardarRespostaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error)
+
+	AguardarRespostaWithResponse(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error)
 
 	// RepassarSessaoWithBodyWithResponse request with any body
 	RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error)
@@ -4187,6 +5202,27 @@ func (r BuscarRequisitosResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r BuscarRequisitosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CapturarResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r CapturarResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CapturarResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4332,6 +5368,29 @@ func (r ImportarTarefaResponse) StatusCode() int {
 	return 0
 }
 
+type ListarPendenciasResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pendencias
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarPendenciasResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarPendenciasResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type OpcoesDoLancadorResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4349,6 +5408,174 @@ func (r OpcoesDoLancadorResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r OpcoesDoLancadorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListarLembretesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Lembrete
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ListarLembretesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListarLembretesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CriarLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Lembrete
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CriarLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CriarLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ObterLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlterarLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AlterarLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlterarLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AdiarLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AdiarLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdiarLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CancelarLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelarLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelarLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ConfirmarLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ConfirmarLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ConfirmarLembreteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4875,6 +6102,56 @@ func (r EncerrarSessaoManualmenteResponse) StatusCode() int {
 	return 0
 }
 
+type RetomarSessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON401      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r RetomarSessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RetomarSessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AguardarRespostaResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Sessao
+	JSON400      *Erro
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AguardarRespostaResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AguardarRespostaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type RepassarSessaoResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5293,6 +6570,23 @@ func (c *ClientWithResponses) BuscarRequisitosWithResponse(ctx context.Context, 
 	return ParseBuscarRequisitosResponse(rsp)
 }
 
+// CapturarWithBodyWithResponse request with arbitrary body returning *CapturarResponse
+func (c *ClientWithResponses) CapturarWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CapturarResponse, error) {
+	rsp, err := c.CapturarWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCapturarResponse(rsp)
+}
+
+func (c *ClientWithResponses) CapturarWithResponse(ctx context.Context, body CapturarJSONRequestBody, reqEditors ...RequestEditorFn) (*CapturarResponse, error) {
+	rsp, err := c.Capturar(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCapturarResponse(rsp)
+}
+
 // ListarComponentesWithResponse request returning *ListarComponentesResponse
 func (c *ClientWithResponses) ListarComponentesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarComponentesResponse, error) {
 	rsp, err := c.ListarComponentes(ctx, reqEditors...)
@@ -5371,6 +6665,15 @@ func (c *ClientWithResponses) ImportarTarefaWithResponse(ctx context.Context, bo
 	return ParseImportarTarefaResponse(rsp)
 }
 
+// ListarPendenciasWithResponse request returning *ListarPendenciasResponse
+func (c *ClientWithResponses) ListarPendenciasWithResponse(ctx context.Context, params *ListarPendenciasParams, reqEditors ...RequestEditorFn) (*ListarPendenciasResponse, error) {
+	rsp, err := c.ListarPendencias(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarPendenciasResponse(rsp)
+}
+
 // OpcoesDoLancadorWithResponse request returning *OpcoesDoLancadorResponse
 func (c *ClientWithResponses) OpcoesDoLancadorWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*OpcoesDoLancadorResponse, error) {
 	rsp, err := c.OpcoesDoLancador(ctx, reqEditors...)
@@ -5378,6 +6681,93 @@ func (c *ClientWithResponses) OpcoesDoLancadorWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseOpcoesDoLancadorResponse(rsp)
+}
+
+// ListarLembretesWithResponse request returning *ListarLembretesResponse
+func (c *ClientWithResponses) ListarLembretesWithResponse(ctx context.Context, params *ListarLembretesParams, reqEditors ...RequestEditorFn) (*ListarLembretesResponse, error) {
+	rsp, err := c.ListarLembretes(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListarLembretesResponse(rsp)
+}
+
+// CriarLembreteWithBodyWithResponse request with arbitrary body returning *CriarLembreteResponse
+func (c *ClientWithResponses) CriarLembreteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CriarLembreteResponse, error) {
+	rsp, err := c.CriarLembreteWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarLembreteResponse(rsp)
+}
+
+func (c *ClientWithResponses) CriarLembreteWithResponse(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarLembreteResponse, error) {
+	rsp, err := c.CriarLembrete(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCriarLembreteResponse(rsp)
+}
+
+// ObterLembreteWithResponse request returning *ObterLembreteResponse
+func (c *ClientWithResponses) ObterLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterLembreteResponse, error) {
+	rsp, err := c.ObterLembrete(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterLembreteResponse(rsp)
+}
+
+// AlterarLembreteWithBodyWithResponse request with arbitrary body returning *AlterarLembreteResponse
+func (c *ClientWithResponses) AlterarLembreteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlterarLembreteResponse, error) {
+	rsp, err := c.AlterarLembreteWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarLembreteResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlterarLembreteWithResponse(ctx context.Context, id Id, body AlterarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*AlterarLembreteResponse, error) {
+	rsp, err := c.AlterarLembrete(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlterarLembreteResponse(rsp)
+}
+
+// AdiarLembreteWithBodyWithResponse request with arbitrary body returning *AdiarLembreteResponse
+func (c *ClientWithResponses) AdiarLembreteWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdiarLembreteResponse, error) {
+	rsp, err := c.AdiarLembreteWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdiarLembreteResponse(rsp)
+}
+
+func (c *ClientWithResponses) AdiarLembreteWithResponse(ctx context.Context, id Id, body AdiarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*AdiarLembreteResponse, error) {
+	rsp, err := c.AdiarLembrete(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdiarLembreteResponse(rsp)
+}
+
+// CancelarLembreteWithResponse request returning *CancelarLembreteResponse
+func (c *ClientWithResponses) CancelarLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*CancelarLembreteResponse, error) {
+	rsp, err := c.CancelarLembrete(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelarLembreteResponse(rsp)
+}
+
+// ConfirmarLembreteWithResponse request returning *ConfirmarLembreteResponse
+func (c *ClientWithResponses) ConfirmarLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ConfirmarLembreteResponse, error) {
+	rsp, err := c.ConfirmarLembrete(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseConfirmarLembreteResponse(rsp)
 }
 
 // ListarOrganizacoesWithResponse request returning *ListarOrganizacoesResponse
@@ -5674,6 +7064,32 @@ func (c *ClientWithResponses) EncerrarSessaoManualmenteWithResponse(ctx context.
 	return ParseEncerrarSessaoManualmenteResponse(rsp)
 }
 
+// RetomarSessaoWithResponse request returning *RetomarSessaoResponse
+func (c *ClientWithResponses) RetomarSessaoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*RetomarSessaoResponse, error) {
+	rsp, err := c.RetomarSessao(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRetomarSessaoResponse(rsp)
+}
+
+// AguardarRespostaWithBodyWithResponse request with arbitrary body returning *AguardarRespostaResponse
+func (c *ClientWithResponses) AguardarRespostaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error) {
+	rsp, err := c.AguardarRespostaWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAguardarRespostaResponse(rsp)
+}
+
+func (c *ClientWithResponses) AguardarRespostaWithResponse(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error) {
+	rsp, err := c.AguardarResposta(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAguardarRespostaResponse(rsp)
+}
+
 // RepassarSessaoWithBodyWithResponse request with arbitrary body returning *RepassarSessaoResponse
 func (c *ClientWithResponses) RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error) {
 	rsp, err := c.RepassarSessaoWithBody(ctx, id, contentType, body, reqEditors...)
@@ -5966,6 +7382,22 @@ func ParseBuscarRequisitosResponse(rsp *http.Response) (*BuscarRequisitosRespons
 	return response, nil
 }
 
+// ParseCapturarResponse parses an HTTP response from a CapturarWithResponse call
+func ParseCapturarResponse(rsp *http.Response) (*CapturarResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CapturarResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
 // ParseListarComponentesResponse parses an HTTP response from a ListarComponentesWithResponse call
 func ParseListarComponentesResponse(rsp *http.Response) (*ListarComponentesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6171,6 +7603,39 @@ func ParseImportarTarefaResponse(rsp *http.Response) (*ImportarTarefaResponse, e
 	return response, nil
 }
 
+// ParseListarPendenciasResponse parses an HTTP response from a ListarPendenciasWithResponse call
+func ParseListarPendenciasResponse(rsp *http.Response) (*ListarPendenciasResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarPendenciasResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pendencias
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseOpcoesDoLancadorResponse parses an HTTP response from a OpcoesDoLancadorWithResponse call
 func ParseOpcoesDoLancadorResponse(rsp *http.Response) (*OpcoesDoLancadorResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6198,6 +7663,286 @@ func ParseOpcoesDoLancadorResponse(rsp *http.Response) (*OpcoesDoLancadorRespons
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListarLembretesResponse parses an HTTP response from a ListarLembretesWithResponse call
+func ParseListarLembretesResponse(rsp *http.Response) (*ListarLembretesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListarLembretesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCriarLembreteResponse parses an HTTP response from a CriarLembreteWithResponse call
+func ParseCriarLembreteResponse(rsp *http.Response) (*CriarLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CriarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseObterLembreteResponse parses an HTTP response from a ObterLembreteWithResponse call
+func ParseObterLembreteResponse(rsp *http.Response) (*ObterLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlterarLembreteResponse parses an HTTP response from a AlterarLembreteWithResponse call
+func ParseAlterarLembreteResponse(rsp *http.Response) (*AlterarLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlterarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAdiarLembreteResponse parses an HTTP response from a AdiarLembreteWithResponse call
+func ParseAdiarLembreteResponse(rsp *http.Response) (*AdiarLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AdiarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelarLembreteResponse parses an HTTP response from a CancelarLembreteWithResponse call
+func ParseCancelarLembreteResponse(rsp *http.Response) (*CancelarLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseConfirmarLembreteResponse parses an HTTP response from a ConfirmarLembreteWithResponse call
+func ParseConfirmarLembreteResponse(rsp *http.Response) (*ConfirmarLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ConfirmarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 
@@ -7028,6 +8773,100 @@ func ParseEncerrarSessaoManualmenteResponse(rsp *http.Response) (*EncerrarSessao
 	return response, nil
 }
 
+// ParseRetomarSessaoResponse parses an HTTP response from a RetomarSessaoWithResponse call
+func ParseRetomarSessaoResponse(rsp *http.Response) (*RetomarSessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RetomarSessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAguardarRespostaResponse parses an HTTP response from a AguardarRespostaWithResponse call
+func ParseAguardarRespostaResponse(rsp *http.Response) (*AguardarRespostaResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AguardarRespostaResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Sessao
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRepassarSessaoResponse parses an HTTP response from a RepassarSessaoWithResponse call
 func ParseRepassarSessaoResponse(rsp *http.Response) (*RepassarSessaoResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7661,6 +9500,9 @@ type ServerInterface interface {
 	// (GET /busca/requisitos)
 	BuscarRequisitos(w http.ResponseWriter, r *http.Request, params BuscarRequisitosParams)
 
+	// (POST /captura)
+	Capturar(w http.ResponseWriter, r *http.Request)
+
 	// (GET /componentes)
 	ListarComponentes(w http.ResponseWriter, r *http.Request)
 
@@ -7679,8 +9521,32 @@ type ServerInterface interface {
 	// (POST /importacao)
 	ImportarTarefa(w http.ResponseWriter, r *http.Request)
 
+	// (GET /integracao/pendencias)
+	ListarPendencias(w http.ResponseWriter, r *http.Request, params ListarPendenciasParams)
+
 	// (GET /lancador)
 	OpcoesDoLancador(w http.ResponseWriter, r *http.Request)
+
+	// (GET /lembretes)
+	ListarLembretes(w http.ResponseWriter, r *http.Request, params ListarLembretesParams)
+
+	// (POST /lembretes)
+	CriarLembrete(w http.ResponseWriter, r *http.Request)
+
+	// (GET /lembretes/{id})
+	ObterLembrete(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PATCH /lembretes/{id})
+	AlterarLembrete(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /lembretes/{id}/adiamento)
+	AdiarLembrete(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /lembretes/{id}/cancelamento)
+	CancelarLembrete(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /lembretes/{id}/confirmacao)
+	ConfirmarLembrete(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (GET /organizacoes)
 	ListarOrganizacoes(w http.ResponseWriter, r *http.Request)
@@ -7747,6 +9613,12 @@ type ServerInterface interface {
 
 	// (POST /sessoes/{id}/encerramento-manual)
 	EncerrarSessaoManualmente(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (DELETE /sessoes/{id}/espera)
+	RetomarSessao(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /sessoes/{id}/espera)
+	AguardarResposta(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /sessoes/{id}/repasse)
 	RepassarSessao(w http.ResponseWriter, r *http.Request, id Id)
@@ -7902,6 +9774,26 @@ func (siw *ServerInterfaceWrapper) BuscarRequisitos(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// Capturar operation middleware
+func (siw *ServerInterfaceWrapper) Capturar(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenDeCapturaScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Capturar(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListarComponentes operation middleware
 func (siw *ServerInterfaceWrapper) ListarComponentes(w http.ResponseWriter, r *http.Request) {
 
@@ -7996,6 +9888,30 @@ func (siw *ServerInterfaceWrapper) ListarEventos(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// ------------- Optional query parameter "depois" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "depois", r.URL.Query(), &params.Depois)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "depois", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "tipo" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "tipo", r.URL.Query(), &params.Tipo)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tipo", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limite" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limite", r.URL.Query(), &params.Limite)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limite", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListarEventos(w, r, params)
 	}))
@@ -8021,11 +9937,228 @@ func (siw *ServerInterfaceWrapper) ImportarTarefa(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListarPendencias operation middleware
+func (siw *ServerInterfaceWrapper) ListarPendencias(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListarPendenciasParams
+
+	// ------------- Optional query parameter "horizonte" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "horizonte", r.URL.Query(), &params.Horizonte)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "horizonte", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarPendencias(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // OpcoesDoLancador operation middleware
 func (siw *ServerInterfaceWrapper) OpcoesDoLancador(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpcoesDoLancador(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListarLembretes operation middleware
+func (siw *ServerInterfaceWrapper) ListarLembretes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListarLembretesParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "ate" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "ate", r.URL.Query(), &params.Ate)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "organizacao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "organizacao", r.URL.Query(), &params.Organizacao)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizacao", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "tarefa" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "tarefa", r.URL.Query(), &params.Tarefa)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tarefa", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListarLembretes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CriarLembrete operation middleware
+func (siw *ServerInterfaceWrapper) CriarLembrete(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CriarLembrete(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ObterLembrete operation middleware
+func (siw *ServerInterfaceWrapper) ObterLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterLembrete(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AlterarLembrete operation middleware
+func (siw *ServerInterfaceWrapper) AlterarLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AlterarLembrete(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdiarLembrete operation middleware
+func (siw *ServerInterfaceWrapper) AdiarLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdiarLembrete(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelarLembrete operation middleware
+func (siw *ServerInterfaceWrapper) CancelarLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelarLembrete(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmarLembrete operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmarLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmarLembrete(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8563,6 +10696,68 @@ func (siw *ServerInterfaceWrapper) EncerrarSessaoManualmente(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.EncerrarSessaoManualmente(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RetomarSessao operation middleware
+func (siw *ServerInterfaceWrapper) RetomarSessao(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenDaSessaoScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetomarSessao(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AguardarResposta operation middleware
+func (siw *ServerInterfaceWrapper) AguardarResposta(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenDaSessaoScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AguardarResposta(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9126,13 +11321,22 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/arvore/requisitos", wrapper.ArvoreDeRequisitos)
 	m.HandleFunc("GET "+options.BaseURL+"/busca/requisitos", wrapper.BuscarRequisitos)
+	m.HandleFunc("POST "+options.BaseURL+"/captura", wrapper.Capturar)
 	m.HandleFunc("GET "+options.BaseURL+"/componentes", wrapper.ListarComponentes)
 	m.HandleFunc("POST "+options.BaseURL+"/componentes", wrapper.CriarComponente)
 	m.HandleFunc("GET "+options.BaseURL+"/componentes/{id}", wrapper.ObterComponente)
 	m.HandleFunc("PATCH "+options.BaseURL+"/componentes/{id}", wrapper.AlterarComponente)
 	m.HandleFunc("GET "+options.BaseURL+"/eventos", wrapper.ListarEventos)
 	m.HandleFunc("POST "+options.BaseURL+"/importacao", wrapper.ImportarTarefa)
+	m.HandleFunc("GET "+options.BaseURL+"/integracao/pendencias", wrapper.ListarPendencias)
 	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
+	m.HandleFunc("GET "+options.BaseURL+"/lembretes", wrapper.ListarLembretes)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes", wrapper.CriarLembrete)
+	m.HandleFunc("GET "+options.BaseURL+"/lembretes/{id}", wrapper.ObterLembrete)
+	m.HandleFunc("PATCH "+options.BaseURL+"/lembretes/{id}", wrapper.AlterarLembrete)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/adiamento", wrapper.AdiarLembrete)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/cancelamento", wrapper.CancelarLembrete)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/confirmacao", wrapper.ConfirmarLembrete)
 	m.HandleFunc("GET "+options.BaseURL+"/organizacoes", wrapper.ListarOrganizacoes)
 	m.HandleFunc("PUT "+options.BaseURL+"/organizacoes/{nome}", wrapper.DefinirOrganizacao)
 	m.HandleFunc("GET "+options.BaseURL+"/origens", wrapper.ListarOrigens)
@@ -9155,6 +11359,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PATCH "+options.BaseURL+"/sessoes/{id}", wrapper.AlterarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/encerramento", wrapper.EncerrarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/encerramento-manual", wrapper.EncerrarSessaoManualmente)
+	m.HandleFunc("DELETE "+options.BaseURL+"/sessoes/{id}/espera", wrapper.RetomarSessao)
+	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/espera", wrapper.AguardarResposta)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/repasse", wrapper.RepassarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/tarefas", wrapper.VincularTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas", wrapper.ListarTarefas)

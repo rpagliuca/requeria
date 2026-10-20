@@ -94,6 +94,13 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "instanciar_template", Description: "Cria uma tarefa (a fazer) a partir de uma pré-moldada, com o contexto desta vez no topo da descrição e os requisitos dela. Não sobe agente: para isso, lancar_agente na tarefa criada."}, f.instanciarTemplate)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_origens", Description: "Lista as origens de requisitos (pessoas e documentos), para reaproveitar em vez de duplicar."}, f.listarOrigens)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_origem", Description: "Cria uma origem de requisitos: uma pessoa (quem pede) ou um documento (lei, norma, contrato)."}, f.criarOrigem)
+	mcp.AddTool(s, &mcp.Tool{Name: "criar_lembrete", Description: "Agenda um lembrete para o Rafael numa hora marcada (RFC 3339 com fuso), solto ou ligado a uma tarefa ou requisito. As integrações da instalação o avisam; o Requerial guarda só a hora."}, f.criarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "proximos_lembretes", Description: "Lembretes que pedem atenção: os disparados e os que vencem nas próximas horas (padrão 24). Só id, texto, hora e status."}, f.proximosLembretes)
+	mcp.AddTool(s, &mcp.Tool{Name: "adiar_lembrete", Description: "Reagenda um lembrete para daqui a N minutos ou para uma hora (RFC 3339)."}, f.adiarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "confirmar_lembrete", Description: "Marca o lembrete como visto: ele para de pedir atenção. Só quando o Rafael disser que viu ou fez."}, f.confirmarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
+	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
 }
@@ -621,5 +628,141 @@ func (f *Ferramentas) listarOrigens(ctx context.Context, _ *mcp.CallToolRequest,
 func (f *Ferramentas) criarOrigem(ctx context.Context, _ *mcp.CallToolRequest, in api.NovaOrigem) (*mcp.CallToolResult, api.Origem, error) {
 	var out api.Origem
 	resp, err := f.cliente.CriarOrigem(ctx, in, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+type NovoLembrete struct {
+	Texto       string `json:"texto" jsonschema:"o que lembrar, como o Rafael vai ler"`
+	Quando      string `json:"quando" jsonschema:"hora marcada em RFC 3339 com fuso, como 2026-10-21T09:00:00-03:00"`
+	Organizacao string `json:"organizacao" jsonschema:"Cartório, Yes ou Pessoal (ou a da instalação)"`
+	Tarefa      string `json:"tarefa,omitempty" jsonschema:"tarefa ligada, como T-0001"`
+	Requisito   string `json:"requisito,omitempty" jsonschema:"requisito ligado, como R-0001"`
+}
+
+type ResumoDeLembrete struct {
+	Id     string `json:"id"`
+	Texto  string `json:"texto"`
+	Quando string `json:"quando"`
+	Status string `json:"status"`
+}
+
+type Lembretes struct {
+	Lembretes []ResumoDeLembrete `json:"lembretes"`
+}
+
+type FiltroDeLembretes struct {
+	Horas int `json:"horas,omitempty" jsonschema:"janela à frente, em horas; padrão 24"`
+}
+
+type AdiamentoDeLembrete struct {
+	Id      string `json:"id" jsonschema:"lembrete, como L-0001"`
+	Minutos int    `json:"minutos,omitempty" jsonschema:"daqui a quantos minutos"`
+	Ate     string `json:"ate,omitempty" jsonschema:"ou a nova hora, em RFC 3339 com fuso"`
+}
+
+type Espera struct {
+	Mensagem string `json:"mensagem" jsonschema:"o que você precisa do Rafael, em uma linha"`
+}
+
+func resumirLembrete(x api.Lembrete) ResumoDeLembrete {
+	return ResumoDeLembrete{x.Id, x.Texto, x.Quando.Format(time.RFC3339), string(x.Status)}
+}
+
+func lerHora(campo, valor string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, valor)
+	if err != nil {
+		return t, fmt.Errorf("%s: use RFC 3339 com fuso, como 2026-10-21T09:00:00-03:00 (%v)", campo, err)
+	}
+	return t, nil
+}
+
+func (f *Ferramentas) criarLembrete(ctx context.Context, _ *mcp.CallToolRequest, in NovoLembrete) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	quando, err := lerHora("quando", in.Quando)
+	if err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	var x api.Lembrete
+	resp, err := f.cliente.CriarLembrete(ctx, api.NovoLembrete{
+		Texto: in.Texto, Quando: quando, Organizacao: in.Organizacao, Tarefa: opcional(in.Tarefa), Requisito: opcional(in.Requisito),
+	}, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) proximosLembretes(ctx context.Context, _ *mcp.CallToolRequest, in FiltroDeLembretes) (*mcp.CallToolResult, Lembretes, error) {
+	horas := in.Horas
+	if horas <= 0 {
+		horas = 24
+	}
+	horizonte := horas * 60
+	var p api.Pendencias
+	resp, err := f.cliente.ListarPendencias(ctx, &api.ListarPendenciasParams{Horizonte: &horizonte})
+	if err := decodificar(resp, err, &p); err != nil {
+		return nil, Lembretes{}, err
+	}
+	out := Lembretes{Lembretes: []ResumoDeLembrete{}}
+	for _, x := range p.Lembretes {
+		out.Lembretes = append(out.Lembretes, resumirLembrete(x))
+	}
+	return nil, out, nil
+}
+
+func (f *Ferramentas) adiarLembrete(ctx context.Context, _ *mcp.CallToolRequest, in AdiamentoDeLembrete) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	var a api.Adiamento
+	if in.Minutos > 0 {
+		a.Minutos = &in.Minutos
+	}
+	if in.Ate != "" {
+		ate, err := lerHora("ate", in.Ate)
+		if err != nil {
+			return nil, ResumoDeLembrete{}, err
+		}
+		a.Ate = &ate
+	}
+	var x api.Lembrete
+	resp, err := f.cliente.AdiarLembrete(ctx, in.Id, a, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) confirmarLembrete(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	var x api.Lembrete
+	resp, err := f.cliente.ConfirmarLembrete(ctx, in.Id, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) cancelarLembrete(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	var x api.Lembrete
+	resp, err := f.cliente.CancelarLembrete(ctx, in.Id, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) aguardarResposta(ctx context.Context, _ *mcp.CallToolRequest, in Espera) (*mcp.CallToolResult, api.Sessao, error) {
+	id, err := f.sessaoAberta()
+	if err != nil {
+		return nil, api.Sessao{}, err
+	}
+	var out api.Sessao
+	resp, err := f.cliente.AguardarResposta(ctx, id, api.Espera{Mensagem: in.Mensagem}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) retomarTrabalho(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, api.Sessao, error) {
+	id, err := f.sessaoAberta()
+	if err != nil {
+		return nil, api.Sessao{}, err
+	}
+	var out api.Sessao
+	resp, err := f.cliente.RetomarSessao(ctx, id, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }

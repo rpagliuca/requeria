@@ -646,6 +646,174 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/lembretes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lembretes por hora marcada, do mais próximo para o mais distante. Sem filtros, só os que
+         *     ainda pedem atenção (agendado, adiado e disparado).
+         *      */
+        get: operations["listarLembretes"];
+        put?: never;
+        post: operations["criarLembrete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lembretes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["obterLembrete"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Corrige texto, hora, organização ou ligações. Mudar `quando` de um lembrete disparado o volta
+         *     a agendado. Lembrete confirmado ou cancelado não muda (409).
+         *      */
+        patch: operations["alterarLembrete"];
+        trace?: never;
+    };
+    "/lembretes/{id}/confirmacao": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description O Rafael viu o lembrete. Vale para disparado e também para agendado/adiado (confirmar antes da
+         *     hora encerra o lembrete sem disparar). Repetir em um confirmado devolve 200 sem novo evento.
+         *      */
+        post: operations["confirmarLembrete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lembretes/{id}/adiamento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reagenda para `ate` ou para agora + `minutos` (um dos dois). O status vira adiado. */
+        post: operations["adiarLembrete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lembretes/{id}/cancelamento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelarLembrete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessoes/{id}/espera": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description O agente entregou ou ficou bloqueado e está esperando o Rafael. Fica em `aguardando` na sessão
+         *     e nas pendências até `DELETE` (o agente retomou) ou o encerramento da sessão.
+         *      */
+        post: operations["aguardarResposta"];
+        delete: operations["retomarSessao"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integracao/pendencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Retrato do que pede atenção do Rafael agora, para integrações que fazem polling (ver
+         *     docs/integracao.md). É estado, não histórico: um consumidor que perdeu chamadas se recupera na
+         *     seguinte. Lembretes: os disparados (até confirmar ou adiar) e os agendados/adiados com hora
+         *     marcada até `horizonte`; as antecedências de apresentação são do consumidor.
+         *      */
+        get: operations["listarPendencias"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/captura": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Entrada por voz ou outro canal sem sessão (atalhos da Siri). Texto livre; o servidor interpreta
+         *     data e hora em português no fuso configurado. A resposta é uma frase curta em text/plain para
+         *     ser falada, em sucesso e em erro. Autor no log de eventos: "captura".
+         *     - lembrete: precisa de uma hora inequívoca no texto; sem ela, 422 pedindo de novo.
+         *     - tarefa: sempre a_fazer, nunca aciona o lançador.
+         *     - requisito: título verbatim, sob o zero da organização, para triagem.
+         *     Repetir com a mesma `chave` devolve o mesmo resultado (200) sem criar outro.
+         *     Horas relativas ("daqui a 20 minutos", "amanhã às 9") contam de `dita_em`, não da chegada.
+         *     Lembrete cuja hora já passou quando o pedido chega (fila atrasada) é criado e disparado na
+         *     hora, marcado como atrasado, e a frase diz isso; hora no passado em relação a `dita_em` é 422.
+         *     Frases de até 200 caracteres. 5xx: o canal pode reenviar com a mesma `chave`.
+         *      */
+        post: operations["capturar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -978,6 +1146,7 @@ export interface components {
             encerrada_em?: string;
             /** @description Resumo gravado no encerramento desta sessão */
             resumo?: string;
+            aguardando?: components["schemas"]["EsperaDeSessao"];
         };
         NovaSessao: {
             agente: string;
@@ -1043,6 +1212,129 @@ export interface components {
             dados: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * @description agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
+         *     adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
+         *     (finais).
+         *
+         * @enum {string}
+         */
+        StatusLembrete: "agendado" | "disparado" | "adiado" | "confirmado" | "cancelado";
+        Lembrete: {
+            /** @example L-0001 */
+            id: string;
+            texto: string;
+            /**
+             * Format: date-time
+             * @description Hora marcada atual (após adiamentos), com o fuso em que foi pedida
+             * @example 2026-10-21T09:00:00-03:00
+             */
+            quando: string;
+            organizacao: string;
+            /** @example T-0001 */
+            tarefa?: string;
+            /** @example R-0001 */
+            requisito?: string;
+            status: components["schemas"]["StatusLembrete"];
+            /** @description Sessão (S-0001), "local" ou "captura" */
+            autor: string;
+            /**
+             * Format: date-time
+             * @description Último disparo
+             */
+            disparado_em?: string;
+            /** @description O último disparo aconteceu depois da hora (o servidor estava parado) */
+            atrasado?: boolean;
+            /** @description Quantas vezes foi adiado */
+            adiamentos: number;
+            /** Format: date-time */
+            confirmado_em?: string;
+            /** @description URL do lembrete no frontend, se o servidor conhece a base pública */
+            link?: string;
+            /** Format: date-time */
+            criado_em: string;
+            /** Format: date-time */
+            atualizado_em: string;
+        };
+        NovoLembrete: {
+            texto: string;
+            /**
+             * Format: date-time
+             * @description Instante com fuso; no passado é recusado
+             */
+            quando: string;
+            organizacao: string;
+            tarefa?: string;
+            requisito?: string;
+        };
+        AlteracaoLembrete: {
+            texto?: string;
+            /** Format: date-time */
+            quando?: string;
+            organizacao?: string;
+            /** @description Vazio remove a ligação */
+            tarefa?: string;
+            /** @description Vazio remove a ligação */
+            requisito?: string;
+        };
+        Adiamento: {
+            /** Format: date-time */
+            ate?: string;
+            minutos?: number;
+        };
+        Espera: {
+            /** @description O que o agente precisa do Rafael, em uma linha */
+            mensagem: string;
+        };
+        EsperaDeSessao: {
+            mensagem: string;
+            /** Format: date-time */
+            desde: string;
+        };
+        Pendencias: {
+            /** Format: date-time */
+            gerado_em: string;
+            /** Format: date-time */
+            horizonte_ate: string;
+            /** @description Disparados primeiro, depois os que vencem até horizonte_ate, por hora marcada */
+            lembretes: components["schemas"]["Lembrete"][];
+            tarefas_em_validacao: components["schemas"]["Tarefa"][];
+            /** @description Sessões ativas cujo agente espera resposta do Rafael */
+            sessoes_aguardando: components["schemas"]["Sessao"][];
+            /**
+             * Format: int64
+             * @description Id do último evento quando o retrato foi tirado; serve de cursor para GET /eventos?depois=
+             */
+            ultimo_evento: number;
+        };
+        /** @enum {string} */
+        TipoDeCaptura: "lembrete" | "tarefa" | "requisito";
+        Captura: {
+            tipo: components["schemas"]["TipoDeCaptura"];
+            /** @description O que foi ditado, inteiro. Lembrete: o texto e a hora juntos ("ligar para o contador amanhã às 9") */
+            texto: string;
+            /** @description Padrão: a configurada no servidor */
+            organizacao?: string;
+            /** @description Chave de idempotência do canal (ex.: id da mensagem na fila); repetições não duplicam */
+            chave?: string;
+            /**
+             * Format: date-time
+             * @description Quando o pedido foi falado; referência das horas relativas. Padrão: a chegada
+             */
+            dita_em?: string;
+            /** @description Só interpreta e devolve a frase, sem criar nada */
+            simular?: boolean;
+        };
+        /** @description Corpo de um gancho (webhook) ou stdin de um comando, configurados em -integracoes (ver
+         *     docs/integracao.md). Traz o estado atual da entidade do evento, para o consumidor não chamar
+         *     a API de volta; `atualizado_em` do lembrete ordena versões em upserts idempotentes.
+         *      */
+        Notificacao: {
+            evento: components["schemas"]["Evento"];
+            lembrete?: components["schemas"]["Lembrete"];
+            tarefa?: components["schemas"]["Tarefa"];
+            sessao?: components["schemas"]["Sessao"];
         };
     };
     responses: {
@@ -2261,6 +2553,11 @@ export interface operations {
             query?: {
                 /** @description Identificador da entidade, como T-0001 ou S-0001 */
                 entidade?: string;
+                /** @description Só eventos com id maior (cursor; ver Pendencias.ultimo_evento) */
+                depois?: number;
+                /** @description Um ou mais tipos, separados por vírgula (ex.: lembrete_disparado,sessao_aguardando) */
+                tipo?: string;
+                limite?: number;
             };
             header?: never;
             path?: never;
@@ -2275,6 +2572,340 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Evento"][];
+                };
+            };
+        };
+    };
+    listarLembretes: {
+        parameters: {
+            query?: {
+                /** @description Um ou mais status, separados por vírgula */
+                status?: string;
+                /** @description Só os com hora marcada até este instante (ex.: agora + 2 h, para ver o que vence) */
+                ate?: string;
+                organizacao?: string;
+                tarefa?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lembretes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"][];
+                };
+            };
+            400: components["responses"]["Erro"];
+        };
+    };
+    criarLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovoLembrete"];
+            };
+        };
+        responses: {
+            /** @description Lembrete agendado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    obterLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lembrete */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    alterarLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlteracaoLembrete"];
+            };
+        };
+        responses: {
+            /** @description Lembrete alterado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    confirmarLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lembrete confirmado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    adiarLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Adiamento"];
+            };
+        };
+        responses: {
+            /** @description Lembrete adiado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    cancelarLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lembrete cancelado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    aguardarResposta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Espera"];
+            };
+        };
+        responses: {
+            /** @description Sessão aguardando */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sessao"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            401: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    retomarSessao: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessão sem espera */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sessao"];
+                };
+            };
+            401: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    listarPendencias: {
+        parameters: {
+            query?: {
+                /** @description Lembretes que vencem até agora + horizonte, em minutos. Padrão: 120 */
+                horizonte?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pendências */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pendencias"];
+                };
+            };
+            400: components["responses"]["Erro"];
+        };
+    };
+    capturar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Captura"];
+            };
+        };
+        responses: {
+            /** @description Repetição de uma `chave` já processada, ou `simular: true` */
+            200: {
+                headers: {
+                    /** @description Identificador já criado (ausente na simulação) */
+                    "X-Requerial-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Criado */
+            201: {
+                headers: {
+                    /** @description Identificador criado (L-0001, T-0001 ou R-0001) */
+                    "X-Requerial-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Pedido malformado (tipo desconhecido, texto vazio) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Token de captura ausente ou errado */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Captura desligada nesta instalação */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Não deu para entender (hora ausente, ambígua ou no passado); a frase pede de novo */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };

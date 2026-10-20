@@ -619,82 +619,88 @@ func (s *Servidor) CriarRequisito(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if vazio(novo.Titulo) {
-			return falha(http.StatusBadRequest, "o título é obrigatório")
-		}
-		var pais []int64
-		if novo.DerivaDe != nil {
-			for _, id := range *novo.DerivaDe {
-				n, err := numero(id, "R")
-				if err != nil {
-					return err
-				}
-				if err := existeRequisito(tx, n); err != nil {
-					return err
-				}
-				pais = append(pais, n)
-			}
-		}
-		// Um só zero: o primeiro requisito é ele; os demais derivam de algo (padrão: do zero).
-		if len(pais) == 0 {
-			zero, err := raiz(tx)
-			if err != nil {
-				return err
-			}
-			if zero != 0 {
-				pais = append(pais, zero)
-			}
-		}
-		organizacao := ""
-		if novo.Organizacao != nil {
-			organizacao = strings.TrimSpace(*novo.Organizacao)
-		}
-		if organizacao == "" && len(pais) > 0 {
-			// Padrão herdado do pai.
-			if err := tx.QueryRow(`SELECT organizacao FROM requisitos WHERE id = ?`, pais[0]).Scan(&organizacao); err != nil {
-				return err
-			}
-		}
-		if organizacao == "" {
-			return falha(http.StatusBadRequest, "a organização é obrigatória (ou derive de um requisito para herdá-la)")
-		}
-		var origem any
-		if novo.Origem != nil {
-			if origem, err = origemOpcional(tx, *novo.Origem); err != nil {
-				return err
-			}
-		}
-		descricao := ""
-		if novo.Descricao != nil {
-			descricao = *novo.Descricao
-		}
-		agora := s.momento()
-		res, err := tx.Exec(`INSERT INTO requisitos (titulo, descricao, organizacao, origem_id, criado_em, atualizado_em)
-			VALUES (?, ?, ?, ?, ?, ?)`, strings.TrimSpace(novo.Titulo), descricao, organizacao, origem, agora, agora)
-		if err != nil {
-			return err
-		}
-		n, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		for _, pai := range pais {
-			if err := derivar(tx, n, pai); err != nil {
-				return err
-			}
-		}
-		if criado, err = carregarRequisito(tx, n); err != nil {
-			return err
-		}
-		return s.registrarEvento(tx, quem, criado.Id, "requisito_criado", map[string]any{
-			"titulo": criado.Titulo, "organizacao": criado.Organizacao, "origem": criado.Origem, "deriva_de": criado.DerivaDe,
-		})
+		criado, err = s.inserirRequisito(tx, quem, novo)
+		return err
 	})
 	if err != nil {
 		responderErro(w, err)
 		return
 	}
 	responder(w, http.StatusCreated, criado)
+}
+
+// inserirRequisito valida e grava um requisito novo, com as derivações e o evento.
+func (s *Servidor) inserirRequisito(tx *sql.Tx, quem string, novo api.NovoRequisito) (criado api.Requisito, err error) {
+	if vazio(novo.Titulo) {
+		return criado, falha(http.StatusBadRequest, "o título é obrigatório")
+	}
+	var pais []int64
+	if novo.DerivaDe != nil {
+		for _, id := range *novo.DerivaDe {
+			n, err := numero(id, "R")
+			if err != nil {
+				return criado, err
+			}
+			if err := existeRequisito(tx, n); err != nil {
+				return criado, err
+			}
+			pais = append(pais, n)
+		}
+	}
+	// Um só zero: o primeiro requisito é ele; os demais derivam de algo (padrão: do zero).
+	if len(pais) == 0 {
+		zero, err := raiz(tx)
+		if err != nil {
+			return criado, err
+		}
+		if zero != 0 {
+			pais = append(pais, zero)
+		}
+	}
+	organizacao := ""
+	if novo.Organizacao != nil {
+		organizacao = strings.TrimSpace(*novo.Organizacao)
+	}
+	if organizacao == "" && len(pais) > 0 {
+		// Padrão herdado do pai.
+		if err := tx.QueryRow(`SELECT organizacao FROM requisitos WHERE id = ?`, pais[0]).Scan(&organizacao); err != nil {
+			return criado, err
+		}
+	}
+	if organizacao == "" {
+		return criado, falha(http.StatusBadRequest, "a organização é obrigatória (ou derive de um requisito para herdá-la)")
+	}
+	var origem any
+	if novo.Origem != nil {
+		if origem, err = origemOpcional(tx, *novo.Origem); err != nil {
+			return criado, err
+		}
+	}
+	descricao := ""
+	if novo.Descricao != nil {
+		descricao = *novo.Descricao
+	}
+	agora := s.momento()
+	res, err := tx.Exec(`INSERT INTO requisitos (titulo, descricao, organizacao, origem_id, criado_em, atualizado_em)
+		VALUES (?, ?, ?, ?, ?, ?)`, strings.TrimSpace(novo.Titulo), descricao, organizacao, origem, agora, agora)
+	if err != nil {
+		return criado, err
+	}
+	n, err := res.LastInsertId()
+	if err != nil {
+		return criado, err
+	}
+	for _, pai := range pais {
+		if err := derivar(tx, n, pai); err != nil {
+			return criado, err
+		}
+	}
+	if criado, err = carregarRequisito(tx, n); err != nil {
+		return criado, err
+	}
+	return criado, s.registrarEvento(tx, quem, criado.Id, "requisito_criado", map[string]any{
+		"titulo": criado.Titulo, "organizacao": criado.Organizacao, "origem": criado.Origem, "deriva_de": criado.DerivaDe,
+	})
 }
 
 func (s *Servidor) ObterRequisito(w http.ResponseWriter, r *http.Request, id api.Id) {

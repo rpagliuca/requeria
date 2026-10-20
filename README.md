@@ -38,7 +38,7 @@ for skill in skills/*/; do ln -sfn "$PWD/$skill" ~/.claude/skills/"$(basename "$
 Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`,
 `encerrar_sessao`, `repassar_sessao`, `listar_eventos`, `buscar_requisitos`, `arvore_de_requisitos`, `obter_requisito`, `criar_requisito`,
-`alterar_requisito`, `derivar_requisito`, `vincular_requisito`, `registrar_execucao`, `listar_componentes`, `criar_componente`, `vincular_componente`, `opcoes_do_lancador`, `lancar_agente`, `agentes_ativos`, `listar_templates`, `instanciar_template`, `listar_origens`, `criar_origem`.
+`alterar_requisito`, `derivar_requisito`, `vincular_requisito`, `registrar_execucao`, `listar_componentes`, `criar_componente`, `vincular_componente`, `opcoes_do_lancador`, `lancar_agente`, `agentes_ativos`, `listar_templates`, `instanciar_template`, `listar_origens`, `criar_origem`, `criar_lembrete`, `proximos_lembretes`, `adiar_lembrete`, `confirmar_lembrete`, `cancelar_lembrete`, `aguardar_resposta`, `retomar_trabalho`.
 
 ## Lançador de agentes (opcional)
 
@@ -74,6 +74,15 @@ No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux
 O MCP, com `requerial mcp -journals /caminho/dos/journals`, cria a pasta de cada sessão
 (`S-0001/journal.md`) ao iniciá-la e registra o localizador.
 
+## Lembretes e integrações (opcional)
+
+Lembretes (`/lembretes`) têm hora marcada e são disparados pelo próprio `requerial servir` (a cada
+15 s; os que venceram com o servidor parado disparam ao subir, marcados como atrasados). O Requerial
+não fala com celular, barra de status nem assistente de voz: com `-integracoes integracoes.json`,
+cada instalação liga ganchos (comando ou webhook) aos eventos, consulta
+`GET /integracao/pendencias` por polling e aceita pedidos ditados em `POST /captura`. Desenho,
+configuração e garantias em [`docs/integracao.md`](docs/integracao.md).
+
 ## Desenvolver
 
 ```bash
@@ -92,4 +101,4 @@ REQUERIAL_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API e
 ```
 
 O frontend fica em `/` e navega pelo hash da URL (`/#/tarefas/T-0001`); os caminhos `/tarefas`,
-`/sessoes`, `/eventos`, `/importacao` e `/lancador` são da API.
+`/sessoes`, `/eventos`, `/importacao`, `/lancador`, `/lembretes`, `/integracao` e `/captura` são da API.

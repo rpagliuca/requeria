@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -322,5 +323,58 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	c.chamar("obter_requisito", map[string]any{"id": pai.Id}, &pai)
 	if pai.EstadoProprio != api.Validado || pai.Estado != api.NaoAtendido || pai.UltimaExecucao == nil || pai.UltimaExecucao.Id != execucao.Id {
 		t.Fatalf("execução pelo MCP: %+v", pai)
+	}
+}
+
+func TestLembretesEEsperaPeloMCP(t *testing.T) {
+	c := novoChat(t, novaAPI(t))
+	var tarefa api.Tarefa
+	c.chamar("criar_tarefa", map[string]any{"titulo": "Pagar contas", "organizacao": "Exemplo"}, &tarefa)
+	var sessao api.Sessao
+	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5", "tarefas": []string{tarefa.Id}}, &sessao)
+
+	quando := time.Now().Add(2 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	if msg := c.chamar("criar_lembrete", map[string]any{"texto": "x", "quando": "amanhã", "organizacao": "Exemplo"}, nil); !strings.Contains(msg, "RFC 3339") {
+		t.Fatalf("hora inválida deveria orientar: %q", msg)
+	}
+	var l ResumoDeLembrete
+	c.chamar("criar_lembrete", map[string]any{"texto": "ligar para o contador", "quando": quando, "organizacao": "Exemplo", "tarefa": tarefa.Id}, &l)
+	if l.Id != "L-0001" || l.Status != "agendado" || l.Quando != quando {
+		t.Fatalf("lembrete: %+v", l)
+	}
+	var proximos Lembretes
+	c.chamar("proximos_lembretes", map[string]any{"horas": 1}, &proximos)
+	if len(proximos.Lembretes) != 0 {
+		t.Fatalf("fora da janela: %+v", proximos)
+	}
+	c.chamar("proximos_lembretes", map[string]any{}, &proximos)
+	if len(proximos.Lembretes) != 1 {
+		t.Fatalf("dentro da janela padrão: %+v", proximos)
+	}
+	c.chamar("adiar_lembrete", map[string]any{"id": "L-0001", "minutos": 30}, &l)
+	if l.Status != "adiado" {
+		t.Fatalf("adiado: %+v", l)
+	}
+	c.chamar("confirmar_lembrete", map[string]any{"id": "L-0001"}, &l)
+	if l.Status != "confirmado" {
+		t.Fatalf("confirmado: %+v", l)
+	}
+
+	var eventos Eventos
+	c.chamar("listar_eventos", map[string]any{"entidade": "L-0001"}, &eventos)
+	for _, e := range eventos.Eventos {
+		if e.Autor != sessao.Id {
+			t.Fatalf("evento do lembrete sem a sessão como autora: %+v", e)
+		}
+	}
+
+	c.chamar("aguardar_resposta", map[string]any{"mensagem": "aprovar o PR"}, &sessao)
+	if sessao.Aguardando == nil || sessao.Aguardando.Mensagem != "aprovar o PR" {
+		t.Fatalf("aguardando: %+v", sessao)
+	}
+	var retomada api.Sessao
+	c.chamar("retomar_trabalho", map[string]any{}, &retomada)
+	if retomada.Aguardando != nil {
+		t.Fatalf("retomada: %+v", retomada)
 	}
 }

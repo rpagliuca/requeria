@@ -26,6 +26,10 @@ export type Componente = components["schemas"]["Componente"]
 export type NovaOrigem = components["schemas"]["NovaOrigem"]
 export type PedidoDeLancamento = components["schemas"]["PedidoDeLancamento"]
 export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
+export type Lembrete = components["schemas"]["Lembrete"]
+export type StatusLembrete = components["schemas"]["StatusLembrete"]
+export type NovoLembrete = components["schemas"]["NovoLembrete"]
+export type Adiamento = components["schemas"]["Adiamento"]
 
 // A API fica na mesma origem do frontend; em desenvolvimento, o Vite encaminha.
 async function obter<T>(caminho: string, metodo = "GET", corpo?: unknown): Promise<T> {
@@ -199,3 +203,26 @@ export const useVincularComponente = (alvo: string, id: string) =>
 
 export const useDesvincularComponente = (alvo: string, id: string) =>
   useEscrita((componente: string) => obter<unknown>(`/${alvo}/${id}/componentes/${componente}`, "DELETE"))
+
+// Sem status, a API traz só os que pedem atenção (agendados, adiados e disparados).
+export const useLembretes = (status?: StatusLembrete[]) => {
+  const { organizacao } = useOrganizacaoAtual()
+  const filtro = status ? `?status=${status.join(",")}` : ""
+  return useQuery({
+    queryKey: ["lembretes", filtro],
+    queryFn: () => obter<Lembrete[]>(`/lembretes${filtro}`),
+    refetchInterval: atualizacao,
+    select: daOrganizacao<Lembrete>(organizacao),
+  })
+}
+
+export const useCriarLembrete = () => useEscrita((novo: NovoLembrete) => obter<Lembrete>("/lembretes", "POST", novo))
+
+export const useConfirmarLembrete = () =>
+  useEscrita((id: string) => obter<Lembrete>(`/lembretes/${id}/confirmacao`, "POST"))
+
+export const useCancelarLembrete = () =>
+  useEscrita((id: string) => obter<Lembrete>(`/lembretes/${id}/cancelamento`, "POST"))
+
+export const useAdiarLembrete = () =>
+  useEscrita(({ id, ...adiamento }: Adiamento & { id: string }) => obter<Lembrete>(`/lembretes/${id}/adiamento`, "POST", adiamento))
