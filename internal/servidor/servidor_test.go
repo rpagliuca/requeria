@@ -415,34 +415,72 @@ func TestLimiteDeFilhosEAtencao(t *testing.T) {
 	}
 }
 
-func TestAtendimentoPelasTarefas(t *testing.T) {
+func TestEstadoDoRequisito(t *testing.T) {
 	a := novoAmbiente(t)
 	org := "Exemplo"
-	var zero, meio, folha api.Requisito
+	var zero, folha api.Requisito
 	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &zero)
-	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Meio"}, 201, &meio)
-	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Folha", DerivaDe: &[]string{meio.Id}}, 201, &folha)
-	tarefa := a.tarefa("Atender a folha")
-	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: folha.Id}, 200, nil)
-
-	// Tarefa aberta na folha: ela e tudo acima dela não estão atendidos.
-	for _, id := range []string{folha.Id, meio.Id, zero.Id} {
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Folha"}, 201, &folha)
+	estado := func(id string) api.EstadoDoRequisito {
 		var r api.Requisito
 		a.chamar("GET", "/requisitos/"+id, "", nil, 200, &r)
-		if r.Atendimento.Estado != api.NaoAtendido {
-			t.Fatalf("%s devia estar não atendido: %+v", id, r.Atendimento)
-		}
+		return r.Estado
 	}
-	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
-	if len(zero.Atendimento.AbaixoNaoAtendidos) != 1 || zero.Atendimento.AbaixoNaoAtendidos[0] != folha.Id {
-		t.Fatalf("o zero devia apontar a folha: %+v", zero.Atendimento)
+	mudar := func(tarefa string, status api.StatusTarefa) {
+		a.chamar("PATCH", "/tarefas/"+tarefa, "", api.AlteracaoTarefa{Status: &status}, 200, nil)
+	}
+	if e := estado(folha.Id); e != api.NaoValidado {
+		t.Fatalf("sem tarefa nem execução: %s", e)
+	}
+	tarefa := a.tarefa("Atender a folha")
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: folha.Id}, 200, nil)
+	if e := estado(folha.Id); e != api.NaoAtendido {
+		t.Fatalf("com tarefa a fazer: %s", e)
+	}
+	// O estado é só do próprio requisito: o zero não herda o da folha.
+	if e := estado(zero.Id); e != api.NaoValidado {
+		t.Fatalf("o zero não tem tarefa: %s", e)
+	}
+	mudar(tarefa.Id, api.Pausada)
+	mudar(tarefa.Id, api.Concluida)
+	if e := estado(folha.Id); e != api.NaoValidado {
+		t.Fatalf("tarefa concluída não prova nada: %s", e)
 	}
 
-	// Concluída a tarefa, nada prova o atendimento: não verificado.
-	concluida := api.Concluida
-	a.chamar("PATCH", "/tarefas/"+tarefa.Id, "", api.AlteracaoTarefa{Status: &concluida}, 200, nil)
-	a.chamar("GET", "/requisitos/"+zero.Id, "", nil, 200, &zero)
-	if zero.Atendimento.Estado != api.NaoVerificado {
-		t.Fatalf("sem tarefa aberta, devia ficar não verificado: %+v", zero.Atendimento)
+	// Execução no prazo valida; com o prazo vencido, expira.
+	dias := 30
+	var e api.Execucao
+	a.chamar("POST", "/requisitos/"+folha.Id+"/execucoes", "", api.NovaExecucao{Evidencia: "conferido", ValidadeDias: &dias}, 201, &e)
+	if e.ValidaAte == nil || e.Id != "E-0001" {
+		t.Fatalf("execução: %+v", e)
+	}
+	if got := estado(folha.Id); got != api.Validado {
+		t.Fatalf("com execução no prazo: %s", got)
+	}
+	antiga := time.Now().AddDate(0, 0, -40)
+	a.chamar("POST", "/requisitos/"+folha.Id+"/execucoes", "", api.NovaExecucao{Evidencia: "antiga", RealizadaEm: &antiga, ValidadeDias: &dias}, 201, nil)
+	if got := estado(folha.Id); got != api.Validado {
+		t.Fatalf("vale a execução mais recente, não a última registrada: %s", got)
+	}
+	um := 1
+	a.chamar("POST", "/requisitos/"+zero.Id+"/execucoes", "", api.NovaExecucao{Evidencia: "velha", RealizadaEm: &antiga, ValidadeDias: &um}, 201, nil)
+	if got := estado(zero.Id); got != api.ValidacaoExpirada {
+		t.Fatalf("com o prazo vencido: %s", got)
+	}
+	a.chamar("POST", "/requisitos/"+zero.Id+"/execucoes", "", api.NovaExecucao{Evidencia: " "}, 400, nil)
+
+	// Tarefa reaberta derruba a validação; em andamento, está em trabalho.
+	mudar(tarefa.Id, api.EmValidacao)
+	if got := estado(folha.Id); got != api.NaoAtendido {
+		t.Fatalf("tarefa aberta vence a execução: %s", got)
+	}
+	mudar(tarefa.Id, api.EmAndamento)
+	if got := estado(folha.Id); got != api.EmTrabalho {
+		t.Fatalf("tarefa em andamento: %s", got)
+	}
+	var lista []api.Execucao
+	a.chamar("GET", "/requisitos/"+folha.Id+"/execucoes", "", nil, 200, &lista)
+	if len(lista) != 2 || lista[0].Evidencia != "conferido" {
+		t.Fatalf("execuções da mais recente para a mais antiga: %+v", lista)
 	}
 }

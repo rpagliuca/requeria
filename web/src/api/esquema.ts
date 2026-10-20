@@ -167,6 +167,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/requisitos/{id}/execucoes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Execuções (verificações de conformidade) do requisito, da mais recente para a mais antiga. */
+        get: operations["listarExecucoes"];
+        put?: never;
+        /** @description Registra que o requisito foi verificado e está conforme, com a evidência e o prazo de validade. */
+        post: operations["registrarExecucao"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/requisitos": {
         parameters: {
             query?: never;
@@ -474,25 +494,52 @@ export interface components {
             tarefas: string[];
             /** @description Motivos pelos quais o requisito não está bem cuidado (vazio se está) */
             atencao: components["schemas"]["Atencao"][];
-            atendimento: components["schemas"]["Atendimento"];
+            estado: components["schemas"]["EstadoDoRequisito"];
+            /** @description Tarefas ligadas a este requisito que não estão concluídas */
+            tarefas_abertas: string[];
+            ultima_execucao?: components["schemas"]["Execucao"];
             /** Format: date-time */
             criado_em: string;
             /** Format: date-time */
             atualizado_em: string;
         };
-        /** @description Calculado, nunca escrito à mão. Tarefa aberta ligada ao requisito, ou a um requisito abaixo dele,
-         *     indica que ele não está atendido. Todas as tarefas concluídas não provam que está: sem
-         *     verificação, ele fica não verificado.
-         *      */
-        Atendimento: {
-            estado: components["schemas"]["EstadoDeAtendimento"];
-            /** @description Tarefas ligadas a este requisito que não estão concluídas */
-            tarefas_abertas: string[];
-            /** @description Requisitos abaixo dele, na cadeia, com tarefa aberta */
-            abaixo_nao_atendidos: string[];
+        /**
+         * @description Calculado, nunca escrito à mão, só pelo próprio requisito (não pelos de baixo).
+         *     em_trabalho: alguma tarefa ligada está em andamento. nao_atendido: alguma tarefa ligada não
+         *     está concluída. Sem tarefa aberta: validado se a última execução está no prazo,
+         *     validacao_expirada se o prazo passou, nao_validado se não há execução.
+         *
+         * @enum {string}
+         */
+        EstadoDoRequisito: "em_trabalho" | "nao_atendido" | "nao_validado" | "validado" | "validacao_expirada";
+        Execucao: {
+            /** @example E-0001 */
+            id: string;
+            /** @example R-0001 */
+            requisito: string;
+            /** @description O que foi verificado e como (comando, relatório, link) */
+            evidencia: string;
+            /** Format: date-time */
+            realizada_em: string;
+            /**
+             * Format: date-time
+             * @description Sem prazo, não expira
+             */
+            valida_ate?: string;
+            autor: string;
+            /** Format: date-time */
+            registrada_em: string;
         };
-        /** @enum {string} */
-        EstadoDeAtendimento: "nao_atendido" | "nao_verificado";
+        NovaExecucao: {
+            evidencia: string;
+            /**
+             * Format: date-time
+             * @description Padrão: agora
+             */
+            realizada_em?: string;
+            /** @description Dias a partir de realizada_em; sem ele, não expira */
+            validade_dias?: number;
+        };
         Atencao: {
             motivo: components["schemas"]["MotivoDeAtencao"];
             detalhe: string;
@@ -1026,6 +1073,57 @@ export interface operations {
                     "application/json": components["schemas"]["Requisito"];
                 };
             };
+            404: components["responses"]["Erro"];
+        };
+    };
+    listarExecucoes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Execuções */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Execucao"][];
+                };
+            };
+            404: components["responses"]["Erro"];
+        };
+    };
+    registrarExecucao: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NovaExecucao"];
+            };
+        };
+        responses: {
+            /** @description Execução registrada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Execucao"];
+                };
+            };
+            400: components["responses"]["Erro"];
             404: components["responses"]["Erro"];
         };
     };

@@ -3,34 +3,55 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import type { Requisito } from "@/api/cliente"
+import { EstadoDoRequisito } from "@/componentes/rotulos"
 import { descendentes } from "@/componentes/trilhas"
+import { cn } from "@/lib/utils"
 
-// Navegação pelo grafo sob demanda: clicar num requisito abre os que derivam dele, logo abaixo.
-// Um requisito com vários pais aparece sob cada um; a chave do nó é o caminho até ele.
+// Recorte do grafo: os requisitos que casam com o filtro e os ancestrais deles até o zero.
+export type Recorte = { casam: Set<string>; visiveis: Set<string> }
+
+export function recortar(porId: Map<string, Requisito>, casa: (r: Requisito) => boolean): Recorte {
+  const casam = new Set([...porId.values()].filter(casa).map((r) => r.id))
+  const visiveis = new Set<string>()
+  const subir = (id: string) => {
+    if (visiveis.has(id)) return
+    visiveis.add(id)
+    for (const p of porId.get(id)?.deriva_de ?? []) subir(p)
+  }
+  casam.forEach(subir)
+  return { casam, visiveis }
+}
+
+// Navegação pelo grafo: sem recorte, clicar num requisito abre os que derivam dele; com recorte, o
+// caminho até cada um que casa já vem aberto e só os do recorte aparecem. Um requisito com vários
+// pais aparece sob cada um; a chave do nó é o caminho até ele.
 export function GrafoDeRequisitos({
   raizes,
   porId,
-  emTrabalho,
+  recorte,
   abertosNoInicio = [],
 }: {
   raizes: string[]
   porId: Map<string, Requisito>
-  emTrabalho?: Set<string>
+  recorte?: Recorte
   abertosNoInicio?: string[]
 }) {
-  const [abertos, setAbertos] = useState<Set<string>>(() => new Set(abertosNoInicio))
+  // Sem recorte, guarda os nós abertos; com recorte, os fechados.
+  const [marcados, setMarcados] = useState<Set<string>>(() => new Set(recorte ? [] : abertosNoInicio))
   const alternar = (chave: string) =>
-    setAbertos((atual) => {
+    setMarcados((atual) => {
       const novo = new Set(atual)
       if (novo.has(chave)) novo.delete(chave)
       else novo.add(chave)
       return novo
     })
-  if (raizes.length === 0) return <p className="text-muted-foreground text-sm">Nenhum.</p>
+  const aberto = (chave: string) => (recorte ? !marcados.has(chave) : marcados.has(chave))
+  const mostradas = recorte ? raizes.filter((id) => recorte.visiveis.has(id)) : raizes
+  if (mostradas.length === 0) return <p className="text-muted-foreground text-sm">Nenhum.</p>
   return (
     <ul className="space-y-0.5">
-      {raizes.map((id) => (
-        <No key={id} id={id} chave={id} porId={porId} abertos={abertos} alternar={alternar} emTrabalho={emTrabalho} />
+      {mostradas.map((id) => (
+        <No key={id} id={id} chave={id} porId={porId} aberto={aberto} alternar={alternar} recorte={recorte} />
       ))}
     </ul>
   )
@@ -40,55 +61,51 @@ function No({
   id,
   chave,
   porId,
-  abertos,
+  aberto,
   alternar,
-  emTrabalho,
+  recorte,
 }: {
   id: string
   chave: string
   porId: Map<string, Requisito>
-  abertos: Set<string>
+  aberto: (chave: string) => boolean
   alternar: (chave: string) => void
-  emTrabalho?: Set<string>
+  recorte?: Recorte
 }) {
   const r = porId.get(id)
   if (!r) return null
-  const filhos = r.derivados
-  const aberto = abertos.has(chave)
-  const abaixo = filhos.length > 0 ? descendentes(id, porId) : new Set<string>()
-  const ativos = emTrabalho ? [id, ...abaixo].filter((x) => emTrabalho.has(x)).length : 0
+  const filhos = recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados
+  const estaAberto = aberto(chave)
+  const abaixo = r.derivados.length > 0 ? descendentes(id, porId) : new Set<string>()
+  const emTrabalhoAbaixo = [...abaixo].filter((x) => porId.get(x)?.estado === "em_trabalho").length
   const atencaoAbaixo = [...abaixo].filter((x) => (porId.get(x)?.atencao.length ?? 0) > 0).length
+  const soCaminho = recorte && !recorte.casam.has(id)
 
   return (
     <li>
       <div className="group flex items-start gap-1 rounded-md hover:bg-muted/60">
         <button
           type="button"
-          className="flex flex-1 items-start gap-1.5 px-1.5 py-1.5 text-left text-sm disabled:cursor-default"
+          className={cn("flex flex-1 items-start gap-1.5 px-1.5 py-1.5 text-left text-sm disabled:cursor-default", soCaminho && "opacity-60")}
           onClick={() => filhos.length > 0 && alternar(chave)}
           disabled={filhos.length === 0}
         >
           <span className="mt-0.5 w-4 shrink-0 text-muted-foreground">
-            {filhos.length > 0 && (aberto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />)}
+            {filhos.length > 0 && (estaAberto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />)}
           </span>
           <span className="flex-1">
             <span>{r.titulo}</span>
-            <span className="ml-2 inline-flex flex-wrap gap-x-2 text-muted-foreground text-xs">
-              {r.atendimento.estado === "nao_atendido" && (
-                <span className="text-red-600 dark:text-red-400">
-                  ✗ não atendido
-                  {r.atendimento.abaixo_nao_atendidos.length > 0 && ` (${r.atendimento.abaixo_nao_atendidos.length} abaixo)`}
-                </span>
-              )}
-              {filhos.length > 0 && <span>{abaixo.size} abaixo</span>}
+            <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+              <EstadoDoRequisito estado={r.estado} className="h-5 px-1.5 text-[11px]" />
+              {!recorte && r.derivados.length > 0 && <span>{abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
-              {ativos > 0 && <span className="text-blue-600 dark:text-blue-400">● {ativos} em trabalho</span>}
+              {!recorte && emTrabalhoAbaixo > 0 && <span className="text-blue-600 dark:text-blue-400">● {emTrabalhoAbaixo} em trabalho abaixo</span>}
               {r.atencao.length > 0 && (
                 <span className="text-amber-600 dark:text-amber-400" title={r.atencao.map((a) => a.detalhe).join("\n")}>
                   ⚠ {r.atencao.length}
                 </span>
               )}
-              {atencaoAbaixo > 0 && <span className="text-amber-600/80 dark:text-amber-400/80">{atencaoAbaixo} abaixo pedem atenção</span>}
+              {!recorte && atencaoAbaixo > 0 && <span className="text-amber-600/80 dark:text-amber-400/80">{atencaoAbaixo} abaixo pedem atenção</span>}
             </span>
           </span>
         </button>
@@ -101,10 +118,10 @@ function No({
           <ExternalLink className="size-4" />
         </Link>
       </div>
-      {aberto && (
+      {estaAberto && filhos.length > 0 && (
         <ul className="ml-3.5 space-y-0.5 border-l pl-1.5">
           {filhos.map((f) => (
-            <No key={f} id={f} chave={`${chave}>${f}`} porId={porId} abertos={abertos} alternar={alternar} emTrabalho={emTrabalho} />
+            <No key={f} id={f} chave={`${chave}>${f}`} porId={porId} aberto={aberto} alternar={alternar} recorte={recorte} />
           ))}
         </ul>
       )}

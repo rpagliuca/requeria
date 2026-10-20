@@ -70,25 +70,29 @@ Exemplo de cadeia:
 
 Duas premissas:
 
-- **Tarefa aberta ligada a um requisito indica que ele não está atendido.** Vale para cima: se um
-  requisito abaixo na cadeia não está atendido, os de cima também não estão.
+- **Tarefa aberta ligada a um requisito indica que ele não está atendido.**
 - **Todas as tarefas concluídas não garantem que ele está.** Só uma verificação (Execução) prova.
 
-Enquanto as Execuções não existem, o estado é **Não atendido** (há tarefa aberta nele ou abaixo) ou
-**Não verificado**. Com elas, entram os estados abaixo.
-
-O estado nunca é escrito à mão. O servidor o calcula a partir do log de execuções, da periodicidade
-da verificação e dos commits nos componentes. A primeira regra que casar vence:
+O estado nunca é escrito à mão, e é só do próprio requisito: o de um pai não herda o dos filhos (a
+tela mostra a cadeia, então o filho pendente aparece sob ele). O servidor o calcula pelas tarefas
+ligadas e pela última execução. A primeira regra que casar vence:
 
 | Estado | Regra |
 |---|---|
-| **Falhado** | A última execução falhou |
-| **Suspeito** *(backlog)* | Um commit tocou um componente do requisito depois da última execução |
-| **Vencido** | A última execução passou, mas o prazo da periodicidade acabou |
-| **Válido** | A última execução passou, está no prazo e nada mudou desde então |
-| **Não verificado** | Ainda não há execução |
+| **Em trabalho** | Alguma tarefa ligada está em andamento |
+| **Não atendido** | Alguma tarefa ligada não está concluída |
+| **Validação expirada** | A última execução passou do prazo de validade |
+| **Validado** | A última execução está no prazo (ou não tem prazo) |
+| **Não validado** | Todas as tarefas concluídas (ou nenhuma), e nenhuma execução |
 
-Para mudar o estado, registra-se uma nova execução, inclusive manual, com evidência.
+Execução é a verificação de conformidade, inclusive manual: evidência (o que foi verificado e como),
+quando e a validade em dias. Para mudar o estado, registra-se uma nova execução.
+
+No backlog: execução que falha (**Falhado**) e **Suspeito** (um commit tocou um componente do
+requisito depois da última execução).
+
+A tela inicial é a de Requisitos, filtrada por estado: os que casam aparecem sob o caminho que vem
+do zero até eles, e só eles.
 
 O estado Suspeito **não** afirma que houve regressão. Ele sinaliza um impacto possível e prioriza a
 reverificação: quando a verificação é automatizada, o commit dispara a execução e o estado se

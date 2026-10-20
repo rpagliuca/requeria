@@ -81,6 +81,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização ou origem de um requisito."}, f.alterarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos."}, f.derivarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_requisito", Description: "Registra que uma tarefa tenta atender um requisito."}, f.vincularRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "registrar_execucao", Description: "Registra uma execução de conformidade: o requisito foi verificado e está atendido, com a evidência e a validade em dias (depois dela, a validação expira). Só registre o que você verificou de fato."}, f.registrarExecucao)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_origens", Description: "Lista as origens de requisitos (pessoas e documentos), para reaproveitar em vez de duplicar."}, f.listarOrigens)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_origem", Description: "Cria uma origem de requisitos: uma pessoa (quem pede) ou um documento (lei, norma, contrato)."}, f.criarOrigem)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
@@ -405,6 +406,11 @@ type VinculoRequisito struct {
 	Requisito string `json:"requisito" jsonschema:"requisito que a tarefa tenta atender, como R-0001"`
 }
 
+type NovaExecucao struct {
+	Requisito string `json:"requisito" jsonschema:"requisito verificado, como R-0001"`
+	api.NovaExecucao
+}
+
 type Origens struct {
 	Origens []api.Origem `json:"origens"`
 }
@@ -436,6 +442,12 @@ func (f *Ferramentas) derivarRequisito(ctx context.Context, _ *mcp.CallToolReque
 func (f *Ferramentas) vincularRequisito(ctx context.Context, _ *mcp.CallToolRequest, in VinculoRequisito) (*mcp.CallToolResult, api.Tarefa, error) {
 	var out api.Tarefa
 	resp, err := f.cliente.VincularRequisito(ctx, in.Tarefa, api.VinculoRequisito{Requisito: in.Requisito}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) registrarExecucao(ctx context.Context, _ *mcp.CallToolRequest, in NovaExecucao) (*mcp.CallToolResult, api.Execucao, error) {
+	var out api.Execucao
+	resp, err := f.cliente.RegistrarExecucao(ctx, in.Requisito, in.NovaExecucao, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }
 
