@@ -11,7 +11,7 @@ import (
 )
 
 const colunasSessao = `s.id, s.status, s.agente, s.tipo_agente, s.chat, s.servidor, s.anterior_id,
-	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em, s.resumo, s.aguardando, s.aguardando_desde`
+	s.motivo_encerramento, s.journal, s.artefatos, s.iniciada_em, s.encerrada_em, s.resumo, s.aguardando, s.aguardando_desde, s.nome`
 
 // listarSessoes carrega as sessões que casam com o filtro, já com as tarefas de cada uma.
 // As tarefas são lidas depois de fechar o cursor: o banco tem uma única conexão.
@@ -26,10 +26,10 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		var x api.Sessao
 		var n int64
 		var status, tipo, artefatos, iniciada string
-		var chat, motivo, journal, encerrada, resumo, aguardando, desde sql.NullString
+		var chat, motivo, journal, encerrada, resumo, aguardando, desde, nome sql.NullString
 		var anterior sql.NullInt64
 		if err := linhas.Scan(&n, &status, &x.Agente, &tipo, &chat, &x.Servidor, &anterior,
-			&motivo, &journal, &artefatos, &iniciada, &encerrada, &resumo, &aguardando, &desde); err != nil {
+			&motivo, &journal, &artefatos, &iniciada, &encerrada, &resumo, &aguardando, &desde, &nome); err != nil {
 			linhas.Close()
 			return nil, err
 		}
@@ -60,6 +60,9 @@ func listarSessoes(c consultor, filtro string, args ...any) ([]api.Sessao, error
 		}
 		if aguardando.Valid {
 			x.Aguardando = &api.EsperaDeSessao{Mensagem: aguardando.String, Desde: lerMomento(desde.String)}
+		}
+		if nome.Valid {
+			x.Nome = &nome.String
 		}
 		if err := json.Unmarshal([]byte(artefatos), &x.Artefatos); err != nil {
 			linhas.Close()
@@ -250,18 +253,18 @@ func (s *Servidor) ObterSessao(w http.ResponseWriter, r *http.Request, id api.Id
 	responder(w, http.StatusOK, x)
 }
 
-// operarSessao autentica a sessão, executa f e devolve a sessão atualizada.
+// operarSessao autentica a sessão, executa f e devolve a sessão atualizada (e se deu certo).
 func (s *Servidor) operarSessao(w http.ResponseWriter, r *http.Request, id api.Id, corpo any,
-	f func(tx *sql.Tx, n int64) error) {
+	f func(tx *sql.Tx, n int64) error) (api.Sessao, bool) {
 	n, err := numero(id, "S")
 	if err != nil {
 		responderErro(w, err)
-		return
+		return api.Sessao{}, false
 	}
 	if corpo != nil {
 		if err := ler(r, corpo); err != nil {
 			responderErro(w, err)
-			return
+			return api.Sessao{}, false
 		}
 	}
 	var x api.Sessao
@@ -277,18 +280,29 @@ func (s *Servidor) operarSessao(w http.ResponseWriter, r *http.Request, id api.I
 	})
 	if err != nil {
 		responderErro(w, err)
-		return
+		return x, false
 	}
 	if x.Status != api.Ativa {
 		s.avisarEncerramento(x)
 	}
 	responder(w, http.StatusOK, x)
+	return x, true
 }
 
 func (s *Servidor) AlterarSessao(w http.ResponseWriter, r *http.Request, id api.Id) {
 	var alteracao api.AlteracaoSessao
-	s.operarSessao(w, r, id, &alteracao, func(tx *sql.Tx, n int64) error {
+	x, ok := s.operarSessao(w, r, id, &alteracao, func(tx *sql.Tx, n int64) error {
 		campos := map[string]any{}
+		if alteracao.Nome != nil {
+			nome := api.NomeCurto(*alteracao.Nome)
+			if nome == "" {
+				return falha(http.StatusBadRequest, "o nome precisa ter ao menos uma letra ou número")
+			}
+			if _, err := tx.Exec(`UPDATE sessoes SET nome = ? WHERE id = ?`, nome, n); err != nil {
+				return err
+			}
+			campos["nome"] = nome
+		}
 		if alteracao.Journal != nil {
 			if _, err := tx.Exec(`UPDATE sessoes SET journal = ? WHERE id = ?`, *alteracao.Journal, n); err != nil {
 				return err
@@ -310,6 +324,9 @@ func (s *Servidor) AlterarSessao(w http.ResponseWriter, r *http.Request, id api.
 		}
 		return s.registrarEvento(tx, idSessao(n), idSessao(n), "sessao_alterada", campos)
 	})
+	if ok && alteracao.Nome != nil && x.Status == api.Ativa {
+		s.avisarRenomeacao(x)
+	}
 }
 
 func (s *Servidor) VincularTarefa(w http.ResponseWriter, r *http.Request, id api.Id) {

@@ -51,12 +51,16 @@ Para uma tarefa recorrente, procure antes uma pré-moldada: `listar_templates` e
 Cada agente custa tokens e roda sozinho em tmux: suba um só quando o usuário pediu (ou aprovou) e
 diga qual, para quê e com qual modelo e esforço.
 
-- **Subir**: `lancar_agente(tarefa, instrucao?, modelo?, esforco?)`. Sem modelo e esforço, vale o
+- **Subir**: `lancar_agente(tarefa, instrucao?, modelo?, esforco?, nome?)`. Sem modelo e esforço, vale o
   padrão do lançador (`opcoes_do_lancador`). A `instrucao` é só o que a tarefa não diz (ex.: o link do
   PR); o agente lê a tarefa e as sessões anteriores. Recusa tarefa com sessão ativa.
+- **Nome**: se você sabe do que o agente vai tratar, passe `nome`: o assunto em poucas palavras
+  (`dados-privado-joao`, `lembretes-time-sensitive`). É o que o Rafael vê no tmux e na lista do Claude
+  Code web. Sem verbo genérico ("retomar", "revisar") e sem apelido de repositório. Sem `nome`, ele
+  sai do título, e o agente o corrige depois se ficar ruim.
 - **Conferir**: em cerca de um minuto, `obter_tarefa` deve mostrar `sessao_ativa`. Sem ela, o agente
   não subiu: avise o usuário.
-- **Quem está trabalhando**: `agentes_ativos` (sessão, agente, tarefas).
+- **Quem está trabalhando**: `agentes_ativos` (sessão, nome, agente, tarefas).
 - **Parar**: mude o status da tarefa (`alterar_tarefa`: `pausada`, `bloqueada`, `em_validacao`,
   `concluida`). O agente encerra a sessão com resumo e fecha o próprio tmux. Nunca mande mensagem
   ao tmux de outro agente nem o feche.

@@ -23,6 +23,7 @@ export function CartaoSessao({ sessao, comResumo = true, comTarefa = true }: { s
         <span>
           <Data valor={sessao.iniciada_em} /> → <Data valor={sessao.encerrada_em} />
         </span>
+        {sessao.nome && <span className="font-mono">{sessao.nome}</span>}
         <span>{sessao.agente}</span>
         <span>{sessao.servidor}</span>
         {sessao.anterior && (

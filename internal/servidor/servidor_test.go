@@ -668,3 +668,33 @@ func TestBuscaArvoreETrilhas(t *testing.T) {
 		t.Fatalf("tarefa já ligada na criação: %+v", tarefa)
 	}
 }
+
+func TestSessaoRenomeada(t *testing.T) {
+	a := novoAmbiente(t)
+	a.tarefa("Configurar backup")
+	var avisadas []api.Sessao
+	a.servidor.AoRenomearSessao(func(x api.Sessao) { avisadas = append(avisadas, x) })
+
+	lancada, err := a.servidor.AbrirSessaoLancada("T-0001", "Claude Opus 5.5 Medium", "maquina-local", "chat-1", "configurar-backup")
+	if err != nil || lancada.Sessao.Nome == nil || *lancada.Sessao.Nome != "configurar-backup" {
+		t.Fatalf("sessão lançada sem nome: %+v %v", lancada.Sessao, err)
+	}
+
+	caminho := "/sessoes/" + lancada.Sessao.Id
+	a.chamar("PATCH", caminho, lancada.Token, api.AlteracaoSessao{Nome: ptr("  —  ")}, 400, nil)
+	a.chamar("PATCH", caminho, "", api.AlteracaoSessao{Nome: ptr("backup-fotos")}, 401, nil)
+	var x api.Sessao
+	a.chamar("PATCH", caminho, lancada.Token, api.AlteracaoSessao{Nome: ptr("Restic das Fotos")}, 200, &x)
+	if x.Nome == nil || *x.Nome != "restic-das-fotos" {
+		t.Fatalf("nome não normalizado: %+v", x.Nome)
+	}
+	if len(avisadas) != 1 || *avisadas[0].Nome != "restic-das-fotos" {
+		t.Fatalf("renomeação não avisada: %+v", avisadas)
+	}
+
+	// Só o journal: sem aviso de renomeação.
+	a.chamar("PATCH", caminho, lancada.Token, api.AlteracaoSessao{Journal: ptr("maquina:/j.md")}, 200, nil)
+	if len(avisadas) != 1 {
+		t.Fatalf("avisou renomeação sem nome novo: %d", len(avisadas))
+	}
+}

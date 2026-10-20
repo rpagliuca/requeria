@@ -74,6 +74,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "sessao_atual", Description: "Mostra a Sessão de Trabalho aberta neste chat."}, f.sessaoAtual)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_tarefa", Description: "Liga mais uma tarefa à sessão deste chat."}, f.vincularTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "atualizar_journal", Description: "Atualiza os localizadores do journal e dos artefatos da sessão deste chat."}, f.atualizarJournal)
+	mcp.AddTool(s, &mcp.Tool{Name: "renomear_sessao", Description: "Troca o nome curto deste agente (tmux e remote-control, o que o Rafael vê na lista do Claude Code web). Use quando o nome não disser mais o assunto do trabalho."}, f.renomearSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "encerrar_sessao", Description: "Encerra a sessão deste chat e grava o resumo em cada tarefa dela."}, f.encerrarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "repassar_sessao", Description: "Troca de agente: encerra a sessão deste chat e abre outra com o agente novo, nas mesmas tarefas."}, f.repassarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "buscar_requisitos", Description: "Busca requisitos por palavras (título pesa mais; sem acento; prefixo). Devolve só id, título, estado e componentes dos mais relevantes. Use antes de criar um requisito ou ligar uma tarefa."}, f.buscarRequisitos)
@@ -356,7 +357,15 @@ func (f *Ferramentas) vincularTarefa(ctx context.Context, _ *mcp.CallToolRequest
 	return nil, out, decodificar(resp, err, &out)
 }
 
-func (f *Ferramentas) atualizarJournal(ctx context.Context, _ *mcp.CallToolRequest, in api.AlteracaoSessao) (*mcp.CallToolResult, api.Sessao, error) {
+func (f *Ferramentas) atualizarJournal(ctx context.Context, _ *mcp.CallToolRequest, in JournalDaSessao) (*mcp.CallToolResult, api.Sessao, error) {
+	return f.alterarSessao(ctx, api.AlteracaoSessao{Journal: in.Journal, Artefatos: in.Artefatos})
+}
+
+func (f *Ferramentas) renomearSessao(ctx context.Context, _ *mcp.CallToolRequest, in NomeDaSessao) (*mcp.CallToolResult, api.Sessao, error) {
+	return f.alterarSessao(ctx, api.AlteracaoSessao{Nome: &in.Nome})
+}
+
+func (f *Ferramentas) alterarSessao(ctx context.Context, in api.AlteracaoSessao) (*mcp.CallToolResult, api.Sessao, error) {
 	id, err := f.sessaoAberta()
 	if err != nil {
 		return nil, api.Sessao{}, err
@@ -465,10 +474,21 @@ type Lancamento struct {
 	Instrucao string `json:"instrucao,omitempty" jsonschema:"instrução adicional para o agente; o resto ele lê da tarefa e das sessões anteriores"`
 	Modelo    string `json:"modelo,omitempty" jsonschema:"um dos modelos de opcoes_do_lancador; padrão: o configurado"`
 	Esforco   string `json:"esforco,omitempty" jsonschema:"um dos esforços de opcoes_do_lancador; padrão: o configurado"`
+	Nome      string `json:"nome,omitempty" jsonschema:"nome curto do agente (tmux e remote-control) que diz o assunto do trabalho, como dados-privado-joao; informe sempre que souber do que se trata; sem apelido de repositório; padrão: derivado do título"`
+}
+
+type JournalDaSessao struct {
+	Journal   *string   `json:"journal,omitempty" jsonschema:"localizador do journal"`
+	Artefatos *[]string `json:"artefatos,omitempty" jsonschema:"localizadores dos artefatos"`
+}
+
+type NomeDaSessao struct {
+	Nome string `json:"nome" jsonschema:"nome curto que diz em poucas palavras o assunto do trabalho, como dados-privado-joao; sem verbo genérico (retomar, revisar) e sem apelido de repositório"`
 }
 
 type AgenteAtivo struct {
 	Sessao     string   `json:"sessao"`
+	Nome       string   `json:"nome,omitempty"`
 	Agente     string   `json:"agente"`
 	Tarefas    []string `json:"tarefas"`
 	IniciadaEm string   `json:"iniciada_em"`
@@ -582,7 +602,7 @@ func (f *Ferramentas) opcoesDoLancador(ctx context.Context, _ *mcp.CallToolReque
 func (f *Ferramentas) lancarAgente(ctx context.Context, _ *mcp.CallToolRequest, in Lancamento) (*mcp.CallToolResult, api.Tarefa, error) {
 	var out api.Tarefa
 	resp, err := f.cliente.LancarAgente(ctx, in.Tarefa, api.PedidoDeLancamento{Instrucao: opcional(in.Instrucao),
-		Modelo: opcional(in.Modelo), Esforco: opcional(in.Esforco)}, f.autorizar)
+		Modelo: opcional(in.Modelo), Esforco: opcional(in.Esforco), Nome: opcional(in.Nome)}, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }
 
@@ -595,7 +615,11 @@ func (f *Ferramentas) agentesAtivos(ctx context.Context, _ *mcp.CallToolRequest,
 	}
 	out := AgentesAtivos{Agentes: []AgenteAtivo{}}
 	for _, x := range sessoes {
-		out.Agentes = append(out.Agentes, AgenteAtivo{x.Id, x.Agente, x.Tarefas, x.IniciadaEm.Format("2006-01-02 15:04")})
+		nome := ""
+		if x.Nome != nil {
+			nome = *x.Nome
+		}
+		out.Agentes = append(out.Agentes, AgenteAtivo{x.Id, nome, x.Agente, x.Tarefas, x.IniciadaEm.Format("2006-01-02 15:04")})
 	}
 	return nil, out, nil
 }

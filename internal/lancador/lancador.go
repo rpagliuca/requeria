@@ -19,7 +19,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,7 +76,7 @@ const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por out
 
 // Sessoes abre e encerra no servidor a sessão de um agente lançado.
 type Sessoes interface {
-	AbrirSessaoLancada(tarefa, agente, servidor, chat string) (api.SessaoCriada, error)
+	AbrirSessaoLancada(tarefa, agente, servidor, chat, nome string) (api.SessaoCriada, error)
 	EncerrarSessaoLancada(id, resumo string) error
 	Sessao(id string) (api.Sessao, error)
 }
@@ -140,6 +139,7 @@ func Novo(cfg Config) (*Lancador, error) {
 // Conectar registra o lançador nos avisos e nos endpoints de lançamento do servidor.
 func (l *Lancador) Conectar(s *servidor.Servidor) {
 	s.AoMudarStatus(l.MudouStatus)
+	s.AoRenomearSessao(l.Renomeou)
 	s.ComLancador(l)
 	l.sessoes = s
 }
@@ -179,6 +179,15 @@ func (l *Lancador) Validar(p *api.PedidoDeLancamento) error {
 		}
 	} else if !contem(l.cfg.Esforcos, *p.Esforco) {
 		return fmt.Errorf("esforço desconhecido: %q", *p.Esforco)
+	}
+	if p.Nome != nil && strings.TrimSpace(*p.Nome) == "" {
+		p.Nome = nil
+	} else if p.Nome != nil {
+		nome := api.NomeCurto(*p.Nome)
+		if nome == "" {
+			return fmt.Errorf("o nome precisa ter ao menos uma letra ou número: %q", *p.Nome)
+		}
+		p.Nome = &nome
 	}
 	return nil
 }
@@ -228,7 +237,11 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 			return fmt.Errorf("fechar o tmux antigo %s: %w", antigo, err)
 		}
 	}
-	nome, err := l.nomeLivre(nomeCurto(t.Titulo))
+	base := nomeCurto(t.Titulo)
+	if pedido.Nome != nil {
+		base = *pedido.Nome
+	}
+	nome, err := l.nomeLivre(base)
 	if err != nil {
 		return err
 	}
@@ -243,7 +256,7 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 		if pedido.Esforco != nil {
 			esforco = *pedido.Esforco
 		}
-		criada, err := l.sessoes.AbrirSessaoLancada(t.Id, api.NomeDoAgente(*pedido.Modelo, esforco), l.maquina, chat)
+		criada, err := l.sessoes.AbrirSessaoLancada(t.Id, api.NomeDoAgente(*pedido.Modelo, esforco), l.maquina, chat, nome)
 		if err != nil {
 			return fmt.Errorf("abrir a sessão da tarefa %s: %w", t.Id, err)
 		}
@@ -288,6 +301,51 @@ func (l *Lancador) iniciar(t api.Tarefa, pedido api.PedidoDeLancamento) error {
 	}
 	log.Printf("lançador: agente da tarefa %s subiu no tmux %s", t.Id, nome)
 	return nil
+}
+
+// Renomeou aplica o nome curto novo de uma sessão ao agente vivo: renomeia o tmux dele e manda
+// /rename ao Claude Code, que troca o nome também no remote-control. O agente pode estar no meio de
+// um turno: o /rename é aplicado na hora, sem interromper.
+func (l *Lancador) Renomeou(x api.Sessao) {
+	if x.Nome == nil || *x.Nome == "" {
+		return
+	}
+	atual := l.encontrarPeloChat(x.Id)
+	for _, t := range x.Tarefas {
+		if atual != "" {
+			break
+		}
+		var err error
+		if atual, err = l.encontrar(t); err != nil {
+			l.registrar(err)
+			return
+		}
+	}
+	if atual == "" {
+		log.Printf("lançador: sessão %s renomeada para %s, mas não achei o tmux do agente", x.Id, *x.Nome)
+		return
+	}
+	novo := atual
+	if atual != *x.Nome {
+		var err error
+		if novo, err = l.nomeLivre(*x.Nome); err != nil {
+			l.registrar(err)
+			return
+		}
+		if _, err := l.executar("rename-session", "-t", "="+atual, novo); err != nil {
+			l.registrar(fmt.Errorf("renomear o tmux %s: %w", atual, err))
+			return
+		}
+	}
+	if _, err := l.executar("send-keys", "-t", "="+novo+":", "-l", "/rename "+*x.Nome); err != nil {
+		l.registrar(err)
+		return
+	}
+	if _, err := l.executar("send-keys", "-t", "="+novo+":", "Enter"); err != nil {
+		l.registrar(err)
+		return
+	}
+	log.Printf("lançador: agente da sessão %s renomeado de %s para %s", x.Id, atual, novo)
 }
 
 func novoUUID() (string, error) {
@@ -457,34 +515,34 @@ func preencher(modelo string, t api.Tarefa) string {
 	return strings.NewReplacer("{tarefa}", t.Id, "{titulo}", t.Titulo, "{status}", string(t.Status)).Replace(modelo)
 }
 
-var foraDoNome = regexp.MustCompile(`[^a-z0-9]+`)
-
+// palavrasVazias e verbosGenericos não dizem o assunto: o nome derivado do título os pula.
 var palavrasVazias = map[string]bool{
 	"dos": true, "das": true, "com": true, "para": true, "por": true, "uma": true, "nos": true, "nas": true,
 	"the": true, "and": true, "for": true,
 }
 
-// nomeCurto deriva do título um nome de sessão tmux: minúsculas, sem acento, até 20 caracteres.
+var verbosGenericos = map[string]bool{
+	"retomar": true, "criar": true, "revisar": true, "definir": true, "implementar": true, "fazer": true,
+	"ajustar": true, "corrigir": true, "investigar": true, "analisar": true, "verificar": true, "conferir": true,
+	"melhorar": true, "atualizar": true, "documentar": true, "priorizar": true, "configurar": true,
+	"implantar": true, "migrar": true, "montar": true, "preparar": true, "resolver": true, "terminar": true,
+	"concluir": true, "finalizar": true, "continuar": true, "acompanhar": true, "validar": true, "testar": true,
+	"apoiar": true, "suporte": true, "retomada": true, "revisao": true, "implantacao": true, "criacao": true,
+}
+
+// tamanhoDoNomeDerivado limita o nome tirado do título: sem quem escolha, curto é mais legível.
+const tamanhoDoNomeDerivado = 30
+
+// nomeCurto deriva do título um nome de sessão tmux, quando quem lança não deu um: minúsculas, sem
+// acento, sem palavras vazias nem verbos genéricos ("retomar", "revisar"…), até 30 caracteres.
 func nomeCurto(titulo string) string {
-	semAcento := strings.NewReplacer(
-		"á", "a", "à", "a", "â", "a", "ã", "a", "é", "e", "ê", "e", "í", "i", "ó", "o", "ô", "o", "õ", "o",
-		"ú", "u", "ç", "c",
-	).Replace(strings.ToLower(titulo))
-	palavras := strings.Fields(foraDoNome.ReplaceAllString(semAcento, " "))
-	nome := ""
-	for _, p := range palavras {
-		if len(p) < 3 || palavrasVazias[p] {
-			continue
+	var palavras []string
+	for _, p := range api.PalavrasDoNome(titulo) {
+		if len(p) >= 3 && !palavrasVazias[p] && !verbosGenericos[p] {
+			palavras = append(palavras, p)
 		}
-		proximo := p
-		if nome != "" {
-			proximo = nome + "-" + p
-		}
-		if len(proximo) > 20 {
-			break
-		}
-		nome = proximo
 	}
+	nome := api.JuntarNome(palavras, tamanhoDoNomeDerivado)
 	if nome == "" {
 		nome = "tarefa"
 	}

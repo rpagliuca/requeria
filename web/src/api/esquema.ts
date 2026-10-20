@@ -528,7 +528,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** @description Atualiza os localizadores do journal e dos artefatos. O agente não pode ser alterado. */
+        /** @description Atualiza os localizadores do journal e dos artefatos, e o nome curto. O agente não pode ser alterado. */
         patch: operations["alterarSessao"];
         trace?: never;
     };
@@ -1112,6 +1112,8 @@ export interface components {
             modelo?: string;
             /** @description Um dos esforços do lançador; padrão: o configurado */
             esforco?: string;
+            /** @description Nome curto da sessão do agente (tmux e remote-control), dizendo o assunto do trabalho; padrão: derivado do título */
+            nome?: string;
         };
         OpcoesDeLancamento: {
             modelos: string[];
@@ -1129,6 +1131,11 @@ export interface components {
              */
             agente: string;
             tipo_agente: components["schemas"]["TipoAgente"];
+            /**
+             * @description Nome curto do agente (tmux e remote-control), que diz o assunto do trabalho
+             * @example dados-privado-joao
+             */
+            nome?: string;
             /** @description Identificador do chat do agente */
             chat?: string;
             /** @description Máquina onde a sessão roda */
@@ -1162,6 +1169,8 @@ export interface components {
         };
         AlteracaoSessao: {
             journal?: string;
+            /** @description Nome curto novo; o lançador renomeia o tmux e o remote-control do agente */
+            nome?: string;
             artefatos?: string[];
         };
         Vinculo: {

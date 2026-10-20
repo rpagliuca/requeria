@@ -44,6 +44,8 @@ Há dois caminhos.
    o resumo não cobrir.
 4. Se o prompt trouxer uma **instrução adicional de reabertura**, ela é o ponto de partida; o resto
    do contexto vem da tarefa e das sessões anteriores.
+5. Confira o **nome** da sessão (`sessao_atual`): é o que o Rafael vê no tmux e na lista do Claude
+   Code web. Se não disser o assunto do trabalho, troque-o com `renomear_sessao` (ver "Durante").
 
 Nada que mude estado (comandos, PRs, consultas que alterem algo) antes de conferir a sessão.
 
@@ -77,6 +79,11 @@ Na dúvida, não ligue: tarefa sem requisito aparece para o Rafael na triagem. L
 
 - Escreva o journal: o que fez, o que decidiu e por quê, o que falhou, onde estão os artefatos.
 - Ao criar artefatos fora da pasta da sessão, registre-os com `atualizar_journal`.
+- **Nome**: a cada etapa significativa, confira se o nome da sessão ainda diz em poucas palavras do
+  que você trata (`dados-privado-joao`, não `retomar-implantacao`). Se o trabalho mudou de assunto ou
+  o nome ficou ruim, `renomear_sessao(nome)`: o lançador renomeia o tmux e manda `/rename` ao Claude
+  Code (vale também no remote-control), sem interromper o turno. Sem verbo genérico e sem apelido de
+  repositório.
 - Toda alteração que você fizer pelas ferramentas fica atribuída à sua sessão no log de eventos.
 
 ## Ao terminar o trabalho: entregue e espere

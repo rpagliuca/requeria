@@ -132,6 +132,11 @@ func TestCicloDeSessaoPeloMCP(t *testing.T) {
 		t.Fatalf("a recusa deveria citar a sessão ativa: %q", msg)
 	}
 
+	c.chamar("renomear_sessao", map[string]any{"nome": "Backup das fotos"}, &sessao)
+	if sessao.Nome == nil || *sessao.Nome != "backup-das-fotos" {
+		t.Fatalf("sessão não renomeada: %+v", sessao.Nome)
+	}
+
 	// Escritas depois de iniciar são atribuídas à sessão.
 	c.chamar("alterar_tarefa", map[string]any{"id": tarefa.Id, "status": "em_andamento"}, &tarefa)
 	var eventos Eventos
