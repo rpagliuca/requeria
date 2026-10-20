@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 // A tela inicial. Sem filtro, a cadeia a partir do zero, aberta sob demanda; com filtro, só os
-// requisitos que casam, cada um sob o caminho que leva do zero até ele.
+// requisitos que casam, cada um sob o caminho que leva do zero até ele. O grafo vem colapsado.
 export function Requisitos() {
   const { data, isLoading, error } = useRequisitos()
   const origens = useOrigens()
@@ -99,7 +99,7 @@ export function Requisitos() {
       </div>
       <p className="text-muted-foreground text-xs">
         {recorte
-          ? `${recorte.casam.size} de ${data?.length ?? 0} requisitos, com o caminho desde o zero (esmaecido)`
+          ? `${recorte.casam.size} de ${data?.length ?? 0} requisitos, sob o caminho desde o zero (esmaecido) · clique para abrir`
           : `${data?.length ?? 0} requisitos · clique para abrir os que derivam de cada um`}{" "}
         ·{" "}
         <button type="button" className="underline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
@@ -124,7 +124,7 @@ export function Requisitos() {
           <p className="text-muted-foreground text-sm">Nenhum requisito com esses filtros.</p>
         ) : (
           <div className="rounded-md border p-2">
-            <GrafoDeRequisitos key={params.toString()} raizes={raizes} porId={porId} recorte={recorte} abertosNoInicio={raizes} />
+            <GrafoDeRequisitos key={params.toString()} raizes={raizes} porId={porId} recorte={recorte} />
           </div>
         ))}
     </div>
