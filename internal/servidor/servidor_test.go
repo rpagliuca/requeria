@@ -598,8 +598,8 @@ func TestComponentes(t *testing.T) {
 	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &r)
 	tarefa := a.tarefa("Mexer no módulo")
 	var c api.Componente
-	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacao: org}, 201, &c)
-	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacao: org}, 409, nil)
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacoes: []string{org}}, 201, &c)
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacoes: []string{org}}, 409, nil)
 	a.chamar("POST", "/requisitos/"+r.Id+"/componentes", "", api.VinculoComponente{Componente: c.Id}, 200, &r)
 	a.chamar("POST", "/tarefas/"+tarefa.Id+"/componentes", "", api.VinculoComponente{Componente: c.Id}, 200, &tarefa)
 	if len(r.Componentes) != 1 || tarefa.Componentes == nil || len(*tarefa.Componentes) != 1 {
@@ -615,6 +615,15 @@ func TestComponentes(t *testing.T) {
 		t.Fatalf("desvinculado: %+v", sem.Componentes)
 	}
 	a.chamar("POST", "/requisitos/"+r.Id+"/componentes", "", api.VinculoComponente{Componente: "C-0099"}, 404, nil)
+
+	// Várias organizações; nenhuma é recusado.
+	var duas api.Componente
+	a.chamar("PATCH", "/componentes/"+c.Id, "", api.AlteracaoComponente{Organizacoes: &[]string{"Outra", org}}, 200, &duas)
+	if len(duas.Organizacoes) != 2 || duas.Organizacoes[0] != org {
+		t.Fatalf("organizações: %+v", duas.Organizacoes)
+	}
+	a.chamar("PATCH", "/componentes/"+c.Id, "", api.AlteracaoComponente{Organizacoes: &[]string{" "}}, 400, nil)
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Sem organização", Organizacoes: []string{}}, 400, nil)
 }
 
 func TestBuscaArvoreETrilhas(t *testing.T) {
@@ -646,7 +655,7 @@ func TestBuscaArvoreETrilhas(t *testing.T) {
 	}
 
 	var c api.Componente
-	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Backup", Organizacao: org}, 201, &c)
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Backup", Organizacoes: []string{org}}, 201, &c)
 	var tarefa api.Tarefa
 	a.chamar("POST", "/tarefas", "", api.NovaTarefa{Titulo: "Testar restauração", Organizacao: org,
 		Requisitos: &[]string{backup.Id}, Componentes: &[]string{c.Id}}, 201, &tarefa)

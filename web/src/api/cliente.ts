@@ -183,15 +183,15 @@ export const useComponentes = () => {
   return useQuery({
     queryKey: ["componentes"],
     queryFn: () => obter<Componente[]>("/componentes"),
-    select: daOrganizacao<Componente>(organizacao),
+    select: (itens: Componente[]) => (organizacao ? itens.filter((c) => c.organizacoes.includes(organizacao)) : itens),
   })
 }
 
 export const useCriarComponente = () =>
-  useEscrita((novo: { nome: string; organizacao: string; descricao?: string }) => obter<Componente>("/componentes", "POST", novo))
+  useEscrita((novo: { nome: string; organizacoes: string[]; descricao?: string }) => obter<Componente>("/componentes", "POST", novo))
 
 export const useAlterarComponente = (id: string) =>
-  useEscrita((alteracao: { nome?: string; organizacao?: string; descricao?: string }) => obter<Componente>(`/componentes/${id}`, "PATCH", alteracao))
+  useEscrita((alteracao: { nome?: string; organizacoes?: string[]; descricao?: string }) => obter<Componente>(`/componentes/${id}`, "PATCH", alteracao))
 
 // alvo: "requisitos" ou "tarefas".
 export const useVincularComponente = (alvo: string, id: string) =>

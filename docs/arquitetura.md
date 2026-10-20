@@ -98,7 +98,8 @@ Um periódico cuja última instância é mais antiga que a periodicidade (ou que
 sem instância aberta, aparece como devido.
 
 **Componentes** são qualquer coisa reaproveitável a que requisitos e tarefas se referem
-(repositório, módulo, lugar físico, funcionalidade), sem tipo. Requisitos e tarefas se ligam a vários
+(repositório, módulo, lugar físico, funcionalidade), sem tipo, de uma ou mais organizações (a
+escolhida no topo só lista os dela). Requisitos e tarefas se ligam a vários
 componentes; a página do componente reúne os dois, e a tela de Requisitos filtra por componente.
 
 **Organização atual.** A barra superior escolhe uma organização, e todas as telas passam a mostrar só

@@ -905,12 +905,15 @@ components:
     Componente:
       type: object
       description: Qualquer coisa reaproveitável a que requisitos e tarefas se referem (repositório, módulo, lugar, funcionalidade).
-      required: [id, nome, descricao, organizacao, requisitos, tarefas, criado_em]
+      required: [id, nome, descricao, organizacoes, requisitos, tarefas, criado_em]
       properties:
         id: { type: string, example: C-0001 }
         nome: { type: string }
         descricao: { type: string }
-        organizacao: { type: string }
+        organizacoes:
+          type: array
+          description: Organizações a que o componente pertence (pelo menos uma)
+          items: { type: string }
         requisitos:
           type: array
           items: { type: string }
@@ -920,17 +923,22 @@ components:
         criado_em: { type: string, format: date-time }
     NovoComponente:
       type: object
-      required: [nome, organizacao]
+      required: [nome, organizacoes]
       properties:
         nome: { type: string }
         descricao: { type: string }
-        organizacao: { type: string }
+        organizacoes:
+          type: array
+          items: { type: string }
     AlteracaoComponente:
       type: object
       properties:
         nome: { type: string }
         descricao: { type: string }
-        organizacao: { type: string }
+        organizacoes:
+          type: array
+          description: Substitui a lista inteira (pelo menos uma)
+          items: { type: string }
     VinculoComponente:
       type: object
       required: [componente]

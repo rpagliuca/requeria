@@ -3,6 +3,7 @@ package servidor
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -29,10 +30,49 @@ func idsLigados(c consultor, formato func(int64) string, consulta string, args .
 	return ids, linhas.Err()
 }
 
+func idsDeTexto(c consultor, consulta string, args ...any) ([]string, error) {
+	linhas, err := c.Query(consulta, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer linhas.Close()
+	valores := []string{}
+	for linhas.Next() {
+		var v string
+		if err := linhas.Scan(&v); err != nil {
+			return nil, err
+		}
+		valores = append(valores, v)
+	}
+	return valores, linhas.Err()
+}
+
+// gravarOrganizacoes substitui as organizações do componente; pelo menos uma.
+func gravarOrganizacoes(tx *sql.Tx, n int64, orgs []string) error {
+	var limpas []string
+	for _, o := range orgs {
+		if !vazio(o) {
+			limpas = append(limpas, strings.TrimSpace(o))
+		}
+	}
+	if len(limpas) == 0 {
+		return falha(http.StatusBadRequest, "o componente precisa de pelo menos uma organização")
+	}
+	if _, err := tx.Exec(`DELETE FROM componente_organizacao WHERE componente_id = ?`, n); err != nil {
+		return err
+	}
+	for _, o := range limpas {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO componente_organizacao (componente_id, organizacao) VALUES (?, ?)`, n, o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func carregarComponente(c consultor, n int64) (api.Componente, error) {
 	var x api.Componente
 	var criado string
-	err := c.QueryRow(`SELECT nome, descricao, organizacao, criado_em FROM componentes WHERE id = ?`, n).Scan(&x.Nome, &x.Descricao, &x.Organizacao, &criado)
+	err := c.QueryRow(`SELECT nome, descricao, criado_em FROM componentes WHERE id = ?`, n).Scan(&x.Nome, &x.Descricao, &criado)
 	if errors.Is(err, sql.ErrNoRows) {
 		return x, falha(http.StatusNotFound, "componente %s não encontrado", idComponente(n))
 	}
@@ -40,6 +80,9 @@ func carregarComponente(c consultor, n int64) (api.Componente, error) {
 		return x, err
 	}
 	x.Id, x.CriadoEm = idComponente(n), lerMomento(criado)
+	if x.Organizacoes, err = idsDeTexto(c, `SELECT organizacao FROM componente_organizacao WHERE componente_id = ? ORDER BY organizacao`, n); err != nil {
+		return x, err
+	}
 	if x.Requisitos, err = idsLigados(c, idRequisito, `SELECT requisito_id FROM requisito_componente WHERE componente_id = ? ORDER BY requisito_id`, n); err != nil {
 		return x, err
 	}
@@ -84,20 +127,23 @@ func (s *Servidor) CriarComponente(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if vazio(novo.Nome) || vazio(novo.Organizacao) {
-			return falha(http.StatusBadRequest, "nome e organização são obrigatórios")
+		if vazio(novo.Nome) {
+			return falha(http.StatusBadRequest, "o nome é obrigatório")
 		}
 		descricao := ""
 		if novo.Descricao != nil {
 			descricao = *novo.Descricao
 		}
-		res, err := tx.Exec(`INSERT INTO componentes (nome, descricao, organizacao, criado_em) VALUES (?, ?, ?, ?)`,
-			strings.TrimSpace(novo.Nome), descricao, strings.TrimSpace(novo.Organizacao), s.momento())
+		res, err := tx.Exec(`INSERT INTO componentes (nome, descricao, criado_em) VALUES (?, ?, ?)`,
+			strings.TrimSpace(novo.Nome), descricao, s.momento())
 		if err != nil {
 			return nomeDeComponenteEmUso(err, novo.Nome)
 		}
 		n, err := res.LastInsertId()
 		if err != nil {
+			return err
+		}
+		if err := gravarOrganizacoes(tx, n, novo.Organizacoes); err != nil {
 			return err
 		}
 		if criado, err = carregarComponente(tx, n); err != nil {
@@ -147,24 +193,28 @@ func (s *Servidor) AlterarComponente(w http.ResponseWriter, r *http.Request, id 
 			return err
 		}
 		campos := map[string]any{}
-		for coluna, valor := range map[string]*string{"nome": alteracao.Nome, "organizacao": alteracao.Organizacao} {
-			if valor != nil {
-				if vazio(*valor) {
-					return falha(http.StatusBadRequest, "%s não pode ficar vazio", coluna)
-				}
-				campos[coluna] = strings.TrimSpace(*valor)
+		if alteracao.Nome != nil {
+			if vazio(*alteracao.Nome) {
+				return falha(http.StatusBadRequest, "o nome não pode ficar vazio")
 			}
+			campos["nome"] = strings.TrimSpace(*alteracao.Nome)
 		}
 		if alteracao.Descricao != nil {
 			campos["descricao"] = *alteracao.Descricao
 		}
-		if len(campos) == 0 {
+		if len(campos) == 0 && alteracao.Organizacoes == nil {
 			return falha(http.StatusBadRequest, "nenhum campo para alterar")
 		}
 		for coluna, valor := range campos {
 			if _, err := tx.Exec(`UPDATE componentes SET `+coluna+` = ? WHERE id = ?`, valor, n); err != nil {
-				return nomeDeComponenteEmUso(err, *alteracao.Nome)
+				return nomeDeComponenteEmUso(err, fmt.Sprint(campos["nome"]))
 			}
+		}
+		if alteracao.Organizacoes != nil {
+			if err := gravarOrganizacoes(tx, n, *alteracao.Organizacoes); err != nil {
+				return err
+			}
+			campos["organizacoes"] = *alteracao.Organizacoes
 		}
 		if alterado, err = carregarComponente(tx, n); err != nil {
 			return err

@@ -66,7 +66,7 @@ export function ComponentesLigados({
           onSubmit={(e) => {
             e.preventDefault()
             if (!novo.trim()) return
-            criar.mutate({ nome: novo.trim(), organizacao }, { onSuccess: (c) => vincular.mutate(c.id, { onSuccess: () => setNovo("") }) })
+            criar.mutate({ nome: novo.trim(), organizacoes: [organizacao] }, { onSuccess: (c) => vincular.mutate(c.id, { onSuccess: () => setNovo("") }) })
           }}
         >
           <Input className="h-8 sm:w-48" placeholder="ou criar novo…" value={novo} onChange={(e) => setNovo(e.target.value)} />
