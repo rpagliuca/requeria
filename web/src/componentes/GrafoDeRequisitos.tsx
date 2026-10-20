@@ -100,9 +100,9 @@ function No({
 }) {
   const r = porId.get(id)
   if (!r) return null
-  const filhos = recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados
+  const filhos = (recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados).filter((f) => porId.has(f))
   const estaAberto = aberto(chave)
-  const tarefas = [...r.tarefas].sort((a, b) => abertaPrimeiro(tarefasPorId.get(a)) - abertaPrimeiro(tarefasPorId.get(b)))
+  const tarefas = r.tarefas.filter((t) => tarefasPorId.has(t)).sort((a, b) => abertaPrimeiro(tarefasPorId.get(a)) - abertaPrimeiro(tarefasPorId.get(b)))
   const abre = filhos.length > 0 || tarefas.length > 0
   const abaixo = r.derivados.length > 0 ? descendentes(id, porId) : new Set<string>()
   const emTrabalhoAbaixo = [...abaixo].filter((x) => porId.get(x)?.estado === "em_trabalho").length

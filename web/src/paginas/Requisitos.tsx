@@ -1,7 +1,9 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { useOrigens, useRequisitos } from "@/api/cliente"
+import { useDefinirZero, useOrigens, useRequisitos, useZero } from "@/api/cliente"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GrafoDeRequisitos, recortar } from "@/componentes/GrafoDeRequisitos"
 import { Estado } from "@/componentes/Estado"
 import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, ordemDosEstados } from "@/componentes/rotulos"
@@ -14,6 +16,7 @@ import { Input } from "@/components/ui/input"
 // requisitos que casam, cada um sob o caminho que leva do zero até ele. O grafo vem colapsado.
 export function Requisitos() {
   const { data, isLoading, error } = useRequisitos()
+  const { organizacao } = useOrganizacaoAtual()
   const origens = useOrigens()
   const [params, setParams] = useFiltrosLembrados("requisitos", "estado=em_trabalho")
   const texto = params.get("q") ?? ""
@@ -34,7 +37,8 @@ export function Requisitos() {
   const orgs = params.has("org") ? lista("org") : organizacoes
   const origensSel = params.has("origem") ? lista("origem") : idsOrigem
   const atencao = lista("atencao")
-  const filtrando = !!texto || ["estado", "org", "origem", "atencao"].some((c) => params.has(c))
+  const filtraOrg = !organizacao && params.has("org")
+  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao"].some((c) => params.has(c))
 
   const recorte = useMemo(() => {
     if (!filtrando) return undefined
@@ -43,7 +47,7 @@ export function Requisitos() {
       const alvo = `${r.id} ${r.titulo} ${r.descricao} ${r.organizacao} ${nomesOrigem.get(r.origem ?? "") ?? ""}`.toLowerCase()
       return (
         estados.includes(r.estado) &&
-        (!params.has("org") || orgs.includes(r.organizacao)) &&
+        (!filtraOrg || orgs.includes(r.organizacao)) &&
         (!params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem))) &&
         (atencao.length === 0 || r.atencao.some((a) => atencao.includes(a.motivo))) &&
         termos.every((t) => alvo.includes(t))
@@ -53,7 +57,8 @@ export function Requisitos() {
 
   const contagem = (estado: string) => (data ?? []).filter((r) => r.estado === estado).length
   const contagemAtencao = (m: string) => (data ?? []).filter((r) => r.atencao.some((a) => a.motivo === m)).length
-  const raizes = (data ?? []).filter((r) => r.deriva_de.length === 0).map((r) => r.id)
+  const zero = useZero()
+  const raizes = zero ? [zero] : []
 
   return (
     <div className="space-y-4">
@@ -68,13 +73,13 @@ export function Requisitos() {
             { rotulo: "Pendentes", valores: ["em_trabalho", "nao_atendido", "nao_validado", "validacao_expirada"] },
           ]}
         />
-        <SelecaoMultipla
+        {!organizacao && <SelecaoMultipla
           rotulo="Organização"
           opcoes={organizacoes.map((o) => ({ valor: o, rotulo: o }))}
           selecionados={orgs}
           alterar={(v) => alterar("org", v.length === organizacoes.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
-        />
+        />}
         <SelecaoMultipla
           rotulo="Origem"
           opcoes={(origens.data ?? []).map((o) => ({ valor: o.id, rotulo: o.nome }))}
@@ -120,6 +125,8 @@ export function Requisitos() {
               Criar o zero
             </Link>
           </p>
+        ) : !zero && organizacao ? (
+          <DefinirZero organizacao={organizacao} />
         ) : recorte && recorte.casam.size === 0 ? (
           <p className="text-muted-foreground text-sm">Nenhum requisito com esses filtros.</p>
         ) : (
@@ -127,6 +134,36 @@ export function Requisitos() {
             <GrafoDeRequisitos key={params.toString()} memoria={`requisitos?${params.toString()}`} raizes={raizes} porId={porId} recorte={recorte} />
           </div>
         ))}
+    </div>
+  )
+}
+
+// Cada organização tem o seu zero; sem ele, a visão da organização não tem por onde começar.
+function DefinirZero({ organizacao }: { organizacao: string }) {
+  const requisitos = useRequisitos()
+  const definir = useDefinirZero(organizacao)
+  const [escolhido, setEscolhido] = useState("")
+  return (
+    <div className="space-y-2 rounded-md border p-3 text-sm">
+      <p>{organizacao} ainda não tem requisito zero: escolha o requisito do qual todos os outros dela derivam.</p>
+      <div className="flex flex-wrap gap-2">
+        <Select value={escolhido} onValueChange={setEscolhido}>
+          <SelectTrigger className="sm:w-96">
+            <SelectValue placeholder="Requisito zero…" />
+          </SelectTrigger>
+          <SelectContent>
+            {(requisitos.data ?? []).map((r) => (
+              <SelectItem key={r.id} value={r.id}>
+                {r.id} {r.titulo}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button disabled={!escolhido || definir.isPending} onClick={() => definir.mutate(escolhido)}>
+          Definir zero
+        </Button>
+      </div>
+      {definir.error && <p className="text-destructive">{definir.error.message}</p>}
     </div>
   )
 }

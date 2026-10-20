@@ -7,6 +7,7 @@ import { FormularioDeTemplate, Periodicidade } from "@/componentes/FormularioDeT
 import { Data } from "@/componentes/rotulos"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -23,6 +24,7 @@ const tipoDe = (t: Template) => (t.devido ? "devido" : t.periodicidade_dias ? "p
 // os que já deveriam ter virado tarefa.
 export function Templates() {
   const { data, isLoading, error } = useTemplates()
+  const { organizacao } = useOrganizacaoAtual()
   const [params, setParams] = useFiltrosLembrados("templates")
   const texto = params.get("q") ?? ""
   const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
@@ -41,7 +43,7 @@ export function Templates() {
     const termos = texto.toLowerCase().split(/\s+/).filter(Boolean)
     return (data ?? [])
       .filter((t) => sel.includes(tipoDe(t)))
-      .filter((t) => !params.has("org") || orgs.includes(t.organizacao))
+      .filter((t) => !(params.has("org") && !organizacao) || orgs.includes(t.organizacao))
       .filter((t) => termos.every((termo) => `${t.id} ${t.titulo} ${t.descricao}`.toLowerCase().includes(termo)))
       .sort((a, b) => Number(b.devido) - Number(a.devido) || a.titulo.localeCompare(b.titulo))
   }, [data, params]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -56,6 +58,7 @@ export function Templates() {
           alterar={(v) => alterar("tipo", v.length === todosOsTipos.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: todosOsTipos }]}
         />
+        {!organizacao && (
         <SelecaoMultipla
           rotulo="Organização"
           opcoes={organizacoes.map((o) => ({ valor: o, rotulo: o }))}
@@ -63,6 +66,7 @@ export function Templates() {
           alterar={(v) => alterar("org", v.length === organizacoes.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
         />
+        )}
         <Input className="sm:w-56" placeholder="Buscar" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
         <NovoTemplate />
       </div>

@@ -241,6 +241,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organizacoes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Organizações em uso (tarefas, requisitos, templates) e o zero de cada uma. */
+        get: operations["listarOrganizacoes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizacoes/{nome}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nome: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Atribui o zero da organização (um requisito dela). */
+        put: operations["definirOrganizacao"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tarefas/{id}/requisitos": {
         parameters: {
             query?: never;
@@ -554,6 +590,17 @@ export interface components {
             /** @description Padrão: o título do template com a data */
             titulo?: string;
         };
+        Organizacao: {
+            nome: string;
+            /**
+             * @description Requisito do qual todos os outros da organização derivam
+             * @example R-0002
+             */
+            zero?: string;
+        };
+        DefinicaoDeOrganizacao: {
+            zero: string;
+        };
         NovaTarefa: {
             titulo: string;
             descricao?: string;
@@ -661,7 +708,7 @@ export interface components {
             detalhe: string;
         };
         /** @enum {string} */
-        MotivoDeAtencao: "muitos_filhos" | "sem_origem" | "sem_descricao" | "sem_tarefa" | "trabalho_parado";
+        MotivoDeAtencao: "muitos_filhos" | "sem_origem" | "sem_descricao" | "sem_tarefa" | "trabalho_parado" | "outra_organizacao";
         NovoRequisito: {
             titulo: string;
             descricao?: string;
@@ -1362,6 +1409,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Tarefa"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    listarOrganizacoes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organizações */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organizacao"][];
+                };
+            };
+        };
+    };
+    definirOrganizacao: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nome: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefinicaoDeOrganizacao"];
+            };
+        };
+        responses: {
+            /** @description Organização */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organizacao"];
                 };
             };
             400: components["responses"]["Erro"];

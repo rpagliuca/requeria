@@ -9,7 +9,9 @@ import { Sessao } from "@/paginas/Sessao"
 import { Sessoes } from "@/paginas/Sessoes"
 import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
-import { useTemplates } from "@/api/cliente"
+import { useOrganizacoes, useTemplates } from "@/api/cliente"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tarefa } from "@/paginas/Tarefa"
 import { Tarefas } from "@/paginas/Tarefas"
 import { cn } from "@/lib/utils"
@@ -41,6 +43,7 @@ export default function App() {
         <NavLink to="/sessoes" className={aba}>
           Sessões
         </NavLink>
+        <EscolherOrganizacao />
       </nav>
       <Routes>
         <Route path="/" element={<Navigate to="/requisitos" replace />} />
@@ -57,5 +60,27 @@ export default function App() {
         <Route path="/sessoes/:id" element={<Sessao />} />
       </Routes>
     </div>
+  )
+}
+
+// Escolha global: com uma organização, todas as telas mostram só o que é dela (bom para compartilhar a tela).
+function EscolherOrganizacao() {
+  const { organizacao, escolher } = useOrganizacaoAtual()
+  const organizacoes = useOrganizacoes()
+  const comZero = (organizacoes.data ?? []).filter((o) => o.zero || o.nome === organizacao)
+  return (
+    <Select value={organizacao || "_todas"} onValueChange={(v) => escolher(v === "_todas" ? "" : v)}>
+      <SelectTrigger className={cn("ml-auto h-8 w-auto gap-2", organizacao && "border-primary font-medium")}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end">
+        <SelectItem value="_todas">Todas as organizações</SelectItem>
+        {(comZero.length > 0 ? comZero : organizacoes.data ?? []).map((o) => (
+          <SelectItem key={o.nome} value={o.nome}>
+            {o.nome}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

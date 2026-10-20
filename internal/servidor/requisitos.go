@@ -195,6 +195,9 @@ type ligacoes struct {
 	// filhosN: derivados por número; estados: memória do estado (herdado) de cada um.
 	filhosN map[int64][]int64
 	estados map[int64]api.EstadoDoRequisito
+	// orgs: organização de cada requisito; zeros: os zeros atribuídos às organizações.
+	orgs  map[int64]string
+	zeros map[int64]bool
 }
 
 type tarefaLigada struct {
@@ -213,7 +216,11 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 	l := ligacoes{pais: map[int64][]string{}, filhos: map[int64][]string{}, tarefas: map[int64][]string{},
 		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC(),
 		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{},
-		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{}}
+		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{},
+		orgs: map[int64]string{}, zeros: map[int64]bool{}}
+	if err := carregarOrganizacoesDosRequisitos(c, &l); err != nil {
+		return l, err
+	}
 	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
 	if err != nil {
 		return l, err
@@ -267,6 +274,47 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 	return l, linhas.Err()
 }
 
+// paisN devolve os pais de n por número.
+func (l ligacoes) paisN(n int64) []int64 {
+	var pais []int64
+	for _, p := range l.pais[n] {
+		pais = append(pais, mustNumero(p, "R"))
+	}
+	return pais
+}
+
+func carregarOrganizacoesDosRequisitos(c consultor, l *ligacoes) error {
+	linhas, err := c.Query(`SELECT id, organizacao FROM requisitos`)
+	if err != nil {
+		return err
+	}
+	for linhas.Next() {
+		var n int64
+		var org string
+		if err := linhas.Scan(&n, &org); err != nil {
+			linhas.Close()
+			return err
+		}
+		l.orgs[n] = org
+	}
+	if err := linhas.Close(); err != nil {
+		return err
+	}
+	linhas, err = c.Query(`SELECT zero_id FROM organizacoes WHERE zero_id IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	defer linhas.Close()
+	for linhas.Next() {
+		var n int64
+		if err := linhas.Scan(&n); err != nil {
+			return err
+		}
+		l.zeros[n] = true
+	}
+	return linhas.Err()
+}
+
 func naoNulo(ids []string) []string {
 	if ids == nil {
 		return []string{}
@@ -291,6 +339,15 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	}
 	x.DerivaDe, x.Derivados, x.Tarefas = naoNulo(l.pais[n]), naoNulo(l.filhos[n]), naoNulo(l.tarefas[n])
 	x.Atencao = atencao(x, l.trabalho[n], l.agora)
+	if !l.zeros[n] {
+		for _, pai := range l.paisN(n) {
+			if l.orgs[pai] != x.Organizacao {
+				x.Atencao = append(x.Atencao, api.Atencao{Motivo: api.OutraOrganizacao, Detalhe: fmt.Sprintf(
+					"deriva de %s, da organização %s: na visão de %s ele fica fora da cadeia (só o zero da organização deriva de fora dela)",
+					idRequisito(pai), l.orgs[pai], x.Organizacao)})
+			}
+		}
+	}
 	x.TarefasAbertas = naoNulo(l.abertas[n])
 	if e, ok := l.ultimas[n]; ok {
 		x.UltimaExecucao = &e

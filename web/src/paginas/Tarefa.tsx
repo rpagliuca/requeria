@@ -4,6 +4,8 @@ import { useSessoesDaTarefa, useTarefa } from "@/api/cliente"
 import { AlterarStatus } from "@/componentes/AlterarStatus"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
+import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Voltar } from "@/componentes/Voltar"
 import { Eventos } from "@/componentes/Eventos"
 import { Data } from "@/componentes/rotulos"
@@ -14,9 +16,11 @@ import { Texto } from "@/componentes/Texto"
 export function Tarefa() {
   const { id = "" } = useParams()
   const tarefa = useTarefa(id)
+  const { organizacao } = useOrganizacaoAtual()
   const sessoes = useSessoesDaTarefa(id)
   const t = tarefa.data
   if (!t) return <Estado carregando={tarefa.isLoading} erro={tarefa.error} />
+  if (organizacao && t.organizacao !== organizacao) return <ForaDaOrganizacao />
 
   return (
     <div className="space-y-6">

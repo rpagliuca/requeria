@@ -16,6 +16,7 @@ import {
 import { GrafoDeRequisitos } from "@/componentes/GrafoDeRequisitos"
 import { EscolherOrigem } from "@/componentes/EscolherOrigem"
 import { Estado } from "@/componentes/Estado"
+import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { Eventos } from "@/componentes/Eventos"
 import { Data, EstadoDoRequisito, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
@@ -35,7 +36,7 @@ export function Requisito() {
   const tarefas = useTarefas()
   const porId = useMemo(() => new Map((requisitos.data ?? []).map((r) => [r.id, r])), [requisitos.data])
   const r = porId.get(id)
-  if (!r) return <Estado carregando={requisitos.isLoading} erro={requisitos.error} />
+  if (!r) return requisitos.data ? <ForaDaOrganizacao /> : <Estado carregando={requisitos.isLoading} erro={requisitos.error} />
   const origem = origens.data?.find((o) => o.id === r.origem)
   const tarefasPorId = new Map((tarefas.data ?? []).map((t) => [t.id, t]))
 

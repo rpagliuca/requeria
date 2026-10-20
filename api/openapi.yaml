@@ -343,6 +343,40 @@ paths:
               schema: { $ref: '#/components/schemas/Tarefa' }
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
+  /organizacoes:
+    get:
+      operationId: listarOrganizacoes
+      description: Organizações em uso (tarefas, requisitos, templates) e o zero de cada uma.
+      responses:
+        '200':
+          description: Organizações
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Organizacao' }
+  /organizacoes/{nome}:
+    parameters:
+      - name: nome
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      operationId: definirOrganizacao
+      description: Atribui o zero da organização (um requisito dela).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DefinicaoDeOrganizacao' }
+      responses:
+        '200':
+          description: Organização
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organizacao' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
   /tarefas/{id}/requisitos:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -698,6 +732,17 @@ components:
       type: object
       properties:
         titulo: { type: string, description: 'Padrão: o título do template com a data' }
+    Organizacao:
+      type: object
+      required: [nome]
+      properties:
+        nome: { type: string }
+        zero: { type: string, example: R-0002, description: 'Requisito do qual todos os outros da organização derivam' }
+    DefinicaoDeOrganizacao:
+      type: object
+      required: [zero]
+      properties:
+        zero: { type: string }
     NovaTarefa:
       type: object
       required: [titulo, organizacao]
@@ -813,7 +858,7 @@ components:
         detalhe: { type: string }
     MotivoDeAtencao:
       type: string
-      enum: [muitos_filhos, sem_origem, sem_descricao, sem_tarefa, trabalho_parado]
+      enum: [muitos_filhos, sem_origem, sem_descricao, sem_tarefa, trabalho_parado, outra_organizacao]
     NovoRequisito:
       type: object
       required: [titulo]

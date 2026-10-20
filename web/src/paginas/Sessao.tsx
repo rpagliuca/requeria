@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom"
 import { useSessao, useTarefas } from "@/api/cliente"
 import { CartaoSessao } from "@/componentes/CartaoSessao"
 import { Estado } from "@/componentes/Estado"
+import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Voltar } from "@/componentes/Voltar"
 import { Eventos } from "@/componentes/Eventos"
 import { StatusDaTarefa } from "@/componentes/rotulos"
@@ -13,10 +15,12 @@ import { TituloDasTarefas } from "@/componentes/TituloDasTarefas"
 export function Sessao() {
   const { id = "" } = useParams()
   const sessao = useSessao(id)
+  const { organizacao } = useOrganizacaoAtual()
   const tarefas = useTarefas()
   const s = sessao.data
   if (!s) return <Estado carregando={sessao.isLoading} erro={sessao.error} />
   const porId = new Map((tarefas.data ?? []).map((t) => [t.id, t]))
+  if (organizacao && tarefas.data && (s.tarefas.length === 0 || s.tarefas.some((t) => !porId.has(t)))) return <ForaDaOrganizacao />
 
   return (
     <div className="space-y-6">

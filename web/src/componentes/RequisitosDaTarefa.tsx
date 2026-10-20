@@ -24,9 +24,13 @@ export function RequisitosDaTarefa({ tarefa }: { tarefa: Tarefa }) {
         <ul className="divide-y rounded-md border">
           {ligados.map((rid) => (
             <li key={rid} className="flex items-center justify-between gap-2 px-3 py-2">
-              <Link to={`/requisitos/${rid}`} className="hover:underline">
-                <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
-              </Link>
+              {porId.has(rid) || !requisitos.data ? (
+                <Link to={`/requisitos/${rid}`} className="hover:underline">
+                  <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground text-sm">um requisito de outra organização</span>
+              )}
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => desvincular.mutate(rid)}>
                 desvincular
               </Button>

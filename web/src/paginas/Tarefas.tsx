@@ -5,6 +5,7 @@ import { type StatusTarefa, useTarefas } from "@/api/cliente"
 import { Estado } from "@/componentes/Estado"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
+import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Data, StatusDaTarefa, nomesStatusTarefa } from "@/componentes/rotulos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ const abertas = todosOsStatus.filter((s) => s !== "concluida")
 // filtro, todas. O padrão da primeira visita são as abertas.
 export function Tarefas() {
   const { data, isLoading, error } = useTarefas()
+  const { organizacao } = useOrganizacaoAtual()
   const [params, setParams] = useFiltrosLembrados("tarefas", `status=${abertas.join(",")}`)
   const texto = params.get("q") ?? ""
   const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
@@ -31,7 +33,7 @@ export function Tarefas() {
   const organizacoes = useMemo(() => [...new Set((data ?? []).map((t) => t.organizacao))].sort(), [data])
   // Sem "org" na URL, todas as organizações.
   const orgs = params.has("org") ? lista("org") : organizacoes
-  const naOrganizacao = (o: string) => !params.has("org") || orgs.includes(o)
+  const naOrganizacao = (o: string) => !(params.has("org") && !organizacao) || orgs.includes(o)
 
   const contagemStatus = useMemo(() => {
     const c = {} as Record<string, number>
@@ -69,6 +71,7 @@ export function Tarefas() {
             { rotulo: "Todos", valores: todosOsStatus },
           ]}
         />
+        {!organizacao && (
         <SelecaoMultipla
           rotulo="Organização"
           opcoes={organizacoes.map((o) => ({ valor: o, rotulo: o, contagem: contagemOrg[o] ?? 0 }))}
@@ -76,6 +79,7 @@ export function Tarefas() {
           alterar={(v) => alterar("org", v.length === organizacoes.length ? null : v.join(","))}
           atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
         />
+        )}
         <Input className="sm:w-56" placeholder="Buscar" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
         <Button asChild variant="outline">
           <Link to="/tarefas/nova">Nova tarefa</Link>
