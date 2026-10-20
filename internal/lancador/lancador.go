@@ -66,7 +66,7 @@ type Modelo struct {
 	Argumentos []string `json:"argumentos"`
 }
 
-const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do requerial ({titulo}). " +
+const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do Requerial ({titulo}). " +
 	"A sua sessão de trabalho já foi aberta pelo lançador. Carregue a skill requerial e siga o ciclo dela: " +
 	"leia a tarefa e as sessões anteriores, confira a sessão com sessao_atual e trabalhe."
 

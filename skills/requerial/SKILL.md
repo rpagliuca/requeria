@@ -1,12 +1,12 @@
 ---
 name: requerial
-description: "Ciclo de trabalho de um agente de IA no requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, encerrar com resumo e atender ao pedido de encerramento do lançador. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
+description: "Ciclo de trabalho de um agente de IA no Requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, encerrar com resumo e atender ao pedido de encerramento do lançador. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, Requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
 user-invocable: true
 ---
 
-# requerial: o ciclo de um agente
+# Requerial: o ciclo de um agente
 
-O requerial é a fonte única de **Tarefas** (o que fazer, com status) e **Sessões de Trabalho**
+O Requerial é a fonte única de **Tarefas** (o que fazer, com status) e **Sessões de Trabalho**
 (quem trabalhou, quando, com qual agente e onde está o journal). Você só escreve nele pelas
 ferramentas MCP `mcp__requerial__*`. O servidor impõe as regras; uma recusa é a resposta certa, não
 um obstáculo a contornar.
@@ -109,7 +109,7 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 
 - Não altere o resumo com `alterar_tarefa` para registrar progresso: o resumo é do encerramento.
 - Não abra sessão só para ler; ler não exige sessão.
-- Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do requerial.
+- Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do Requerial.
 - Não mostre nem procure o token da sessão: ele fica no processo MCP.
 - Nunca feche o tmux de outro agente; só o seu, e só depois de encerrar a sua sessão.
 - Para criar tarefas para outros agentes, pausar ou mover tarefas que não são suas: skill
