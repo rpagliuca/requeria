@@ -3,7 +3,8 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import { type Requisito, type Tarefa, useTarefas } from "@/api/cliente"
-import { EstadoDoRequisito, PrioridadeDoRequisito, StatusDaTarefa, ordemDaPrioridade } from "@/componentes/rotulos"
+import { PontosSobPai } from "@/componentes/Pontos"
+import { EstadoDoRequisito, PesoNoTotal, StatusDaTarefa } from "@/componentes/rotulos"
 import { descendentes } from "@/componentes/trilhas"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +25,8 @@ export function recortar(porId: Map<string, Requisito>, casa: (r: Requisito) => 
 
 // Navegação pelo grafo, sempre colapsado de início: clicar num requisito abre as tarefas dele (abertas
 // primeiro) e os que derivam dele.
+// Os irmãos vêm do mais ao menos importante; sob um pai, cada um mostra os pontos (editáveis) e a
+// fatia entre os irmãos, e todos mostram o peso no total.
 // Com recorte, só aparecem os do recorte. Um requisito com vários pais aparece sob cada um; a chave
 // do nó é o caminho até ele.
 export function GrafoDeRequisitos({
@@ -31,8 +34,11 @@ export function GrafoDeRequisitos({
   porId,
   recorte,
   memoria,
+  pai,
 }: {
   raizes: string[]
+  // O pai das raízes, quando elas são os derivados de um requisito: mostra os pontos sob ele.
+  pai?: string
   porId: Map<string, Requisito>
   recorte?: Recorte
   // Com memória, os nós abertos sobrevivem à ida a uma tarefa e à volta.
@@ -50,12 +56,12 @@ export function GrafoDeRequisitos({
       return novo
     })
   const aberto = (chave: string) => abertos.has(chave)
-  const mostradas = recorte ? raizes.filter((id) => recorte.visiveis.has(id)) : raizes
+  const mostradas = ordenarPorFatia(recorte ? raizes.filter((id) => recorte.visiveis.has(id)) : raizes, pai, porId)
   if (mostradas.length === 0) return <p className="text-muted-foreground text-sm">Nenhum.</p>
   return (
     <ul className="space-y-0.5">
       {mostradas.map((id) => (
-        <No key={id} id={id} chave={id} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
+        <No key={id} id={id} pai={pai} chave={id} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
       ))}
     </ul>
   )
@@ -79,10 +85,19 @@ function gravarAbertos(memoria: string | undefined, abertos: Set<string>) {
   }
 }
 
+const fatiaSob = (r: Requisito | undefined, pai?: string) => r?.importancia.find((i) => i.pai === pai)?.fatia ?? 0
+
+// Do mais ao menos importante sob o pai; sem pai (as raízes), pelo peso no total.
+function ordenarPorFatia(ids: string[], pai: string | undefined, porId: Map<string, Requisito>) {
+  const chave = (id: string) => (pai ? fatiaSob(porId.get(id), pai) : (porId.get(id)?.peso ?? 0))
+  return [...ids].sort((a, b) => chave(b) - chave(a))
+}
+
 const abertaPrimeiro = (t?: Tarefa) => (t?.status === "concluida" ? 1 : 0)
 
 function No({
   id,
+  pai,
   chave,
   porId,
   tarefasPorId,
@@ -91,6 +106,7 @@ function No({
   recorte,
 }: {
   id: string
+  pai?: string
   chave: string
   porId: Map<string, Requisito>
   tarefasPorId: Map<string, Tarefa>
@@ -100,10 +116,11 @@ function No({
 }) {
   const r = porId.get(id)
   if (!r) return null
-  const prioridade = (x: string) => ordemDaPrioridade[porId.get(x)?.prioridade ?? "nao_triado"]
-  const filhos = (recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados)
-    .filter((f) => porId.has(f))
-    .sort((a, b) => prioridade(a) - prioridade(b))
+  const filhos = ordenarPorFatia(
+    (recorte ? r.derivados.filter((f) => recorte.visiveis.has(f)) : r.derivados).filter((f) => porId.has(f)),
+    id,
+    porId,
+  )
   const estaAberto = aberto(chave)
   const tarefas = r.tarefas.filter((t) => tarefasPorId.has(t)).sort((a, b) => abertaPrimeiro(tarefasPorId.get(a)) - abertaPrimeiro(tarefasPorId.get(b)))
   const abre = filhos.length > 0 || tarefas.length > 0
@@ -128,7 +145,7 @@ function No({
             <span>{r.titulo}</span>
             <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
               <EstadoDoRequisito estado={r.estado} className="h-5 px-1.5 text-[11px]" />
-              <PrioridadeDoRequisito prioridade={r.prioridade} className="h-5 px-1.5 text-[11px]" />
+              <PesoNoTotal peso={r.peso} className="h-5 px-1.5 text-[11px]" />
               {filhos.length > 0 && <span>{recorte ? [...abaixo].filter((x) => recorte.casam.has(x)).length : abaixo.size} abaixo</span>}
               {r.tarefas.length > 0 && <span>{r.tarefas.length} tarefas</span>}
               {!recorte && emTrabalhoAbaixo > 0 && <span className="text-tom-andamento-fg">● {emTrabalhoAbaixo} em trabalho abaixo</span>}
@@ -141,6 +158,7 @@ function No({
             </span>
           </span>
         </button>
+        {pai && <PontosSobPai requisito={r} pai={pai} className="py-1" />}
         <Link
           to={`/requisitos/${id}`}
           className="px-2 py-1.5 text-muted-foreground hover:text-foreground"
@@ -170,7 +188,7 @@ function No({
             )
           })}
           {filhos.map((f) => (
-            <No key={f} id={f} chave={`${chave}>${f}`} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
+            <No key={f} id={f} pai={id} chave={`${chave}>${f}`} porId={porId} tarefasPorId={tarefasPorId} aberto={aberto} alternar={alternar} recorte={recorte} />
           ))}
         </ul>
       )}

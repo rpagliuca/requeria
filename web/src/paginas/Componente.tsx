@@ -5,7 +5,7 @@ import { useAlterarComponente, useComponentes, useOrganizacoes, useRequisitos, u
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
-import { EstadoDoRequisito, PrioridadeDoRequisito, StatusDaTarefa } from "@/componentes/rotulos"
+import { EstadoDoRequisito, PesoNoTotal, StatusDaTarefa } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Texto } from "@/componentes/Texto"
 import { Voltar } from "@/componentes/Voltar"
@@ -57,7 +57,7 @@ export function Componente() {
                     <span className="font-mono text-muted-foreground text-xs">{rid}</span> {r.titulo}
                   </span>
                   <span className="flex shrink-0 gap-1">
-                    <PrioridadeDoRequisito prioridade={r.prioridade} />
+                    <PesoNoTotal peso={r.peso} />
                     <EstadoDoRequisito estado={r.estado} />
                   </span>
                 </Link>

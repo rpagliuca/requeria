@@ -1,8 +1,12 @@
 package servidor
 
 import (
+	"cmp"
+	"fmt"
 	"net/http"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/rpagliuca/rex/api"
@@ -176,8 +180,8 @@ func (s *Servidor) ArvoreDeRequisitos(w http.ResponseWriter, r *http.Request, pa
 	}
 	var b strings.Builder
 	n := 0
-	var descer func(id string, nivel int, caminho map[string]bool)
-	descer = func(id string, nivel int, caminho map[string]bool) {
+	var descer func(id, pai string, nivel int, caminho map[string]bool)
+	descer = func(id, pai string, nivel int, caminho map[string]bool) {
 		x, ok := porId[id]
 		if !ok || caminho[id] || visiveis != nil && !visiveis[id] {
 			return
@@ -186,15 +190,48 @@ func (s *Servidor) ArvoreDeRequisitos(w http.ResponseWriter, r *http.Request, pa
 			return
 		}
 		n++
-		b.WriteString(strings.Repeat("  ", nivel) + id + " " + x.Titulo + "\n")
+		b.WriteString(strings.Repeat("  ", nivel) + id + " " + importanciaEmTexto(x, pai) + x.Titulo + "\n")
 		caminho[id] = true
-		for _, f := range x.Derivados {
-			descer(f, nivel+1, caminho)
+		filhos := slices.Clone(x.Derivados)
+		// Os mais importantes primeiro; a ordem por id desempata.
+		slices.SortStableFunc(filhos, func(a, b string) int { return cmp.Compare(fatiaSob(porId[b], id), fatiaSob(porId[a], id)) })
+		for _, f := range filhos {
+			descer(f, id, nivel+1, caminho)
 		}
 		delete(caminho, id)
 	}
-	descer(zero, 0, map[string]bool{})
+	descer(zero, "", 0, map[string]bool{})
 	responder(w, http.StatusOK, api.ArvoreDeRequisitos{Texto: b.String(), Requisitos: n})
+}
+
+func fatiaSob(x api.Requisito, pai string) float32 {
+	for _, i := range x.Importancia {
+		if i.Pai == pai {
+			return i.Fatia
+		}
+	}
+	return 0
+}
+
+// importanciaEmTexto: "[3 pts · 60% · 12% do total] " sob o pai; "?" nos pontos de ligação não triada.
+func importanciaEmTexto(x api.Requisito, pai string) string {
+	for _, i := range x.Importancia {
+		if i.Pai == pai {
+			pontos := "?"
+			if i.Pontos != nil {
+				pontos = strconv.Itoa(*i.Pontos)
+			}
+			return fmt.Sprintf("[%s pts · %s · %s do total] ", pontos, percentual(i.Fatia), percentual(x.Peso))
+		}
+	}
+	return ""
+}
+
+func percentual(f float32) string {
+	if f > 0 && f < 0.001 {
+		return "<0,1%"
+	}
+	return strings.Replace(strconv.FormatFloat(float64(f)*100, 'f', 1, 32), ".", ",", 1) + "%"
 }
 
 // trilhas: cada caminho do zero até n, em "id título" separados por " › " (no máximo 5).

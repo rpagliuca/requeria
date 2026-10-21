@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -595,6 +596,65 @@ func TestPrioridade(t *testing.T) {
 		t.Fatalf("vazio volta a não triado: %+v", limpo)
 	}
 }
+
+// Os pontos ficam na ligação; a fatia é entre irmãos e o peso no total vem de cima (R-0432).
+func TestPontosDeImportancia(t *testing.T) {
+	a := novoAmbiente(t)
+	geral := "Geral"
+	var zero, yes, cart, pes, ambos api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Tudo bem", Organizacao: &geral}, 201, &zero)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Yes"}, 201, &yes)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cartório"}, 201, &cart)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Pessoal"}, 201, &pes)
+	a.chamar("GET", "/requisitos/"+yes.Id, "", nil, 200, &yes)
+	if yes.Importancia[0].Pontos != nil || !perto(yes.Peso, 1.0/3) {
+		t.Fatalf("nasce não triado, contando 1: %+v", yes)
+	}
+	pontos := func(r api.Requisito, pai string, p int) api.Requisito {
+		var x api.Requisito
+		a.chamar("PUT", "/requisitos/"+r.Id+"/derivacoes/"+pai, "", api.Pontos{Pontos: &p}, 200, &x)
+		return x
+	}
+	pontos(yes, zero.Id, 6)
+	pontos(cart, zero.Id, 3)
+	pontos(pes, zero.Id, 1)
+	a.chamar("GET", "/requisitos/"+yes.Id, "", nil, 200, &yes)
+	if !perto(yes.Peso, 0.6) || !perto(yes.Importancia[0].Fatia, 0.6) || *yes.Importancia[0].Pontos != 6 {
+		t.Fatalf("Yes 6 de 10: %+v", yes)
+	}
+	// Mudar um valor recalcula só os irmãos: Yes de 6 para 20 vai a 20/24.
+	yes = pontos(yes, zero.Id, 20)
+	if !perto(yes.Peso, 20.0/24) {
+		t.Fatalf("Yes 20 de 24: %+v", yes)
+	}
+	// Dois pais: o peso soma os dois caminhos. Sob o Cartório ele é filho único (100%); sob o
+	// Pessoal, derivado depois, ganha 1 ponto por padrão e também é filho único.
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Comum", DerivaDe: &[]string{cart.Id}}, 201, &ambos)
+	a.chamar("POST", "/requisitos/"+ambos.Id+"/derivacoes", "", api.Derivacao{Pai: pes.Id}, 200, &ambos)
+	if p := ambos.Importancia[1].Pontos; p == nil || *p != 1 {
+		t.Fatalf("segundo pai, 1 ponto: %+v", ambos.Importancia)
+	}
+	if !perto(ambos.Peso, 4.0/24) {
+		t.Fatalf("peso somado dos dois pais: %v", ambos.Peso)
+	}
+	a.chamar("PUT", "/requisitos/"+ambos.Id+"/derivacoes/"+cart.Id, "", api.Pontos{Pontos: new(int)}, 400, nil)
+	a.chamar("PUT", "/requisitos/"+ambos.Id+"/derivacoes/"+zero.Id, "", api.Pontos{}, 404, nil)
+	// A tarefa pesa a soma dos requisitos dela.
+	tarefa := a.tarefa("Atender o comum")
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: ambos.Id}, 200, nil)
+	var tarefas []api.Tarefa
+	a.chamar("GET", "/tarefas", "", nil, 200, &tarefas)
+	if tarefas[0].Peso == nil || !perto(*tarefas[0].Peso, 4.0/24) {
+		t.Fatalf("peso da tarefa: %+v", tarefas[0])
+	}
+	var arvore api.ArvoreDeRequisitos
+	a.chamar("GET", "/arvore/requisitos", "", nil, 200, &arvore)
+	if !strings.Contains(arvore.Texto, yes.Id+" [20 pts · 83,3% · 83,3% do total] Yes") {
+		t.Fatalf("árvore: %s", arvore.Texto)
+	}
+}
+
+func perto(a float32, b float64) bool { return math.Abs(float64(a)-b) < 1e-4 }
 
 func TestComponentes(t *testing.T) {
 	a := novoAmbiente(t)

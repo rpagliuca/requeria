@@ -6,7 +6,7 @@ import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GrafoDeRequisitos, recortar } from "@/componentes/GrafoDeRequisitos"
 import { Estado } from "@/componentes/Estado"
-import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, nomesPrioridade, ordemDosEstados } from "@/componentes/rotulos"
+import { nomesEstadoDoRequisito, nomesMotivoDeAtencao, ordemDosEstados } from "@/componentes/rotulos"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { Button } from "@/components/ui/button"
@@ -40,10 +40,13 @@ export function Requisitos() {
   const componentes = useComponentes()
   const idsComp = [...(componentes.data ?? []).map((c) => c.id), "_nenhum"]
   const compSel = params.has("comp") ? lista("comp") : idsComp
-  const prioridades = Object.keys(nomesPrioridade)
-  const prioSel = params.has("prio") ? lista("prio") : prioridades
+  // Triagem: triado quando toda ligação com um pai tem pontos (o zero, sem pais, conta como triado).
+  const triagens = ["triado", "nao_triado"]
+  const nomesTriagem: Record<string, string> = { triado: "Com pontos", nao_triado: "Sem pontos" }
+  const triagem = (r: { importancia: { pontos?: number }[] }) => (r.importancia.every((i) => i.pontos !== undefined) ? "triado" : "nao_triado")
+  const triagemSel = params.has("triagem") ? lista("triagem") : triagens
   const filtraOrg = !organizacao && params.has("org")
-  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao", "prio", "comp"].some((c) => params.has(c))
+  const filtrando = !!texto || filtraOrg || ["estado", "origem", "atencao", "triagem", "comp"].some((c) => params.has(c))
 
   const recorte = useMemo(() => {
     if (!filtrando) return undefined
@@ -52,7 +55,7 @@ export function Requisitos() {
       const alvo = `${r.id} ${r.titulo} ${r.descricao} ${r.organizacao} ${nomesOrigem.get(r.origem ?? "") ?? ""}`.toLowerCase()
       return (
         estados.includes(r.estado) &&
-        prioSel.includes(r.prioridade ?? "nao_triado") &&
+        triagemSel.includes(triagem(r)) &&
         (!params.has("comp") || (r.componentes.length === 0 ? compSel.includes("_nenhum") : r.componentes.some((c) => compSel.includes(c)))) &&
         (!filtraOrg || orgs.includes(r.organizacao)) &&
         (!params.has("origem") || (r.origem !== undefined && origensSel.includes(r.origem))) &&
@@ -81,14 +84,10 @@ export function Requisitos() {
           ]}
         />
         <SelecaoMultipla
-          rotulo="Prioridade"
-          opcoes={prioridades.map((p) => ({ valor: p, rotulo: nomesPrioridade[p], contagem: (data ?? []).filter((r) => (r.prioridade ?? "nao_triado") === p).length }))}
-          selecionados={prioSel}
-          alterar={(v) => alterar("prio", v.length === prioridades.length ? null : v.join(","))}
-          atalhos={[
-            { rotulo: "Todas", valores: prioridades },
-            { rotulo: "Triados", valores: ["alta", "media", "baixa"] },
-          ]}
+          rotulo="Pontos"
+          opcoes={triagens.map((t) => ({ valor: t, rotulo: nomesTriagem[t], contagem: (data ?? []).filter((r) => triagem(r) === t).length }))}
+          selecionados={triagemSel}
+          alterar={(v) => alterar("triagem", v.length === triagens.length ? null : v.join(","))}
         />
         <SelecaoMultipla
           rotulo="Componente"

@@ -147,6 +147,12 @@ export const useAlterarRequisito = (id: string) =>
 export const useDerivar = (id: string) =>
   useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes`, "POST", { pai }))
 
+// Pontos de importância do requisito sob um pai; null volta a não triado.
+export const useDefinirPontos = (id: string) =>
+  useEscrita(({ pai, pontos }: { pai: string; pontos: number | null }) =>
+    obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "PUT", pontos === null ? {} : { pontos }),
+  )
+
 export const useDesfazerDerivacao = (id: string) =>
   useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "DELETE"))
 

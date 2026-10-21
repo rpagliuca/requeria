@@ -19,7 +19,8 @@ import { ComponentesLigados } from "@/componentes/ComponentesLigados"
 import { Estado } from "@/componentes/Estado"
 import { ForaDaOrganizacao } from "@/componentes/ForaDaOrganizacao"
 import { Eventos } from "@/componentes/Eventos"
-import { Data, EstadoDoRequisito, StatusDaTarefa, nomesMotivoDeAtencao, nomesPrioridade } from "@/componentes/rotulos"
+import { PontosSobPai } from "@/componentes/Pontos"
+import { Data, EstadoDoRequisito, PesoNoTotal, StatusDaTarefa, nomesMotivoDeAtencao } from "@/componentes/rotulos"
 import { Secao } from "@/componentes/Secao"
 import { Trilha, trilhasAteOZero } from "@/componentes/trilhas"
 import { Texto } from "@/componentes/Texto"
@@ -54,7 +55,7 @@ export function Requisito() {
         <h1 className="font-semibold text-xl">{r.titulo}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm">
           <EstadoDoRequisito estado={r.estado} />
-          <Triagem requisito={r} />
+          <PesoNoTotal peso={r.peso} />
           <span className="font-mono">{r.id}</span>
           <span>{r.organizacao}</span>
           {origem && (
@@ -100,7 +101,7 @@ export function Requisito() {
       </Secao>
 
       <Secao titulo="O que deriva dele">
-        <GrafoDeRequisitos key={r.id} memoria={r.id} raizes={r.derivados} porId={porId} />
+        <GrafoDeRequisitos key={r.id} memoria={r.id} raizes={r.derivados} porId={porId} pai={r.id} />
         <Button asChild size="sm" variant="outline">
           <Link to={`/requisitos/novo?deriva_de=${r.id}`}>Derivar novo requisito</Link>
         </Button>
@@ -135,7 +136,7 @@ export function Requisito() {
   )
 }
 
-// Os pais diretos, com a opção de desfazer cada derivação, e a de acrescentar um pai.
+// Os pais diretos, com os pontos sob cada um, a opção de desfazer cada derivação e a de acrescentar um pai.
 function Pais({ requisito, porId }: { requisito: TipoRequisito; porId: Map<string, TipoRequisito> }) {
   const derivar = useDerivar(requisito.id)
   const desfazer = useDesfazerDerivacao(requisito.id)
@@ -153,11 +154,14 @@ function Pais({ requisito, porId }: { requisito: TipoRequisito; porId: Map<strin
               <Link to={`/requisitos/${p}`} className="text-sm hover:underline">
                 <span className="font-mono text-muted-foreground text-xs">{p}</span> {porId.get(p)?.titulo}
               </Link>
+              <span className="flex items-center gap-1">
+              <PontosSobPai requisito={requisito} pai={p} />
               {requisito.deriva_de.length > 1 && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => desfazer.mutate(p)}>
                   desfazer
                 </Button>
               )}
+              </span>
             </li>
           ))}
         </ul>
@@ -409,22 +413,3 @@ function RegistrarExecucao({ requisito }: { requisito: TipoRequisito }) {
   )
 }
 
-// Triagem num clique: a prioridade muda na hora.
-function Triagem({ requisito }: { requisito: TipoRequisito }) {
-  const alterar = useAlterarRequisito(requisito.id)
-  return (
-    <Select value={requisito.prioridade ?? "nao_triado"} onValueChange={(v) => alterar.mutate({ prioridade: v === "nao_triado" ? "" : v })}>
-      <SelectTrigger className="h-7 w-auto gap-1 text-xs">
-        <span className="text-muted-foreground">Prioridade:</span>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {Object.entries(nomesPrioridade).map(([valor, nome]) => (
-          <SelectItem key={valor} value={valor}>
-            {nome}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}

@@ -55,6 +55,13 @@ func carregarTarefa(c consultor, n int64) (api.Tarefa, error) {
 		return t, err
 	}
 	t.Requisitos = &requisitos
+	pesos, err := pesosDasTarefas(c)
+	if err != nil {
+		return t, err
+	}
+	if p, ok := pesos[n]; ok {
+		t.Peso = &p
+	}
 	componentes, err := idsLigados(c, idComponente, `SELECT componente_id FROM tarefa_componente WHERE tarefa_id = ? ORDER BY componente_id`, n)
 	t.Componentes = &componentes
 	return t, err
@@ -81,6 +88,11 @@ func (s *Servidor) ListarTarefas(w http.ResponseWriter, r *http.Request, params 
 		consulta += ` AND t.organizacao = ?`
 		args = append(args, *params.Organizacao)
 	}
+	pesos, err := pesosDasTarefas(s.db)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
 	linhas, err := s.db.Query(consulta+` ORDER BY t.id`, args...)
 	if err != nil {
 		responderErro(w, err)
@@ -93,6 +105,9 @@ func (s *Servidor) ListarTarefas(w http.ResponseWriter, r *http.Request, params 
 		if err != nil {
 			responderErro(w, err)
 			return
+		}
+		if p, ok := pesos[mustNumero(t.Id, "T")]; ok {
+			t.Peso = &p
 		}
 		tarefas = append(tarefas, t)
 	}
@@ -298,4 +313,26 @@ func (s *Servidor) ListarSessoesDaTarefa(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	responder(w, http.StatusOK, sessoes)
+}
+
+// pesosDasTarefas: para cada tarefa ligada a requisitos, a soma do peso no total deles.
+func pesosDasTarefas(c consultor) (map[int64]float32, error) {
+	l, err := carregarLigacoes(c)
+	if err != nil {
+		return nil, err
+	}
+	linhas, err := c.Query(`SELECT tarefa_id, requisito_id FROM tarefa_requisito`)
+	if err != nil {
+		return nil, err
+	}
+	defer linhas.Close()
+	pesos := map[int64]float32{}
+	for linhas.Next() {
+		var tarefa, requisito int64
+		if err := linhas.Scan(&tarefa, &requisito); err != nil {
+			return nil, err
+		}
+		pesos[tarefa] += float32(l.peso(requisito))
+	}
+	return pesos, linhas.Err()
 }

@@ -144,7 +144,7 @@ type AlteracaoRequisito struct {
 	// Origem Vazio remove a origem
 	Origem *string `json:"origem,omitempty"`
 
-	// Prioridade alta, media ou baixa; vazio volta a não triado
+	// Prioridade Obsoleta (use os pontos da derivação): alta, media ou baixa; vazio limpa
 	Prioridade *string `json:"prioridade,omitempty"`
 	Titulo     *string `json:"titulo,omitempty"`
 }
@@ -233,6 +233,9 @@ type DefinicaoDeOrganizacao struct {
 type Derivacao struct {
 	// Pai Requisito do qual este deriva
 	Pai string `json:"pai"`
+
+	// Pontos Pontos de importância sob este pai; padrão: 1 se o requisito já tem outro pai, senão não triado
+	Pontos *int `json:"pontos,omitempty"`
 }
 
 // Encerramento defines model for Encerramento.
@@ -305,6 +308,16 @@ type ImportacaoTarefa struct {
 	Sessoes []SessaoImportada `json:"sessoes"`
 	Status  StatusTarefa      `json:"status"`
 	Titulo  string            `json:"titulo"`
+}
+
+// Importancia defines model for Importancia.
+type Importancia struct {
+	// Fatia Pontos / soma dos pontos dos irmãos sob este pai, de 0 a 1
+	Fatia float32 `json:"fatia"`
+	Pai   string  `json:"pai"`
+
+	// Pontos Ausente: a ligação ainda não foi triada (conta como 1)
+	Pontos *int `json:"pontos,omitempty"`
 }
 
 // Lembrete defines model for Lembrete.
@@ -504,7 +517,13 @@ type Pendencias struct {
 	UltimoEvento int64 `json:"ultimo_evento"`
 }
 
-// Prioridade Escolhida na triagem; ausente, o requisito ainda não foi triado.
+// Pontos defines model for Pontos.
+type Pontos struct {
+	// Pontos Ausente: volta a não triado
+	Pontos *int `json:"pontos,omitempty"`
+}
+
+// Prioridade Obsoleta, substituída pelos pontos de importância; guardada só como histórico.
 type Prioridade string
 
 // Repasse defines model for Repasse.
@@ -551,12 +570,18 @@ type Requisito struct {
 	EstadoProprio EstadoDoRequisito `json:"estado_proprio"`
 	Id            string            `json:"id"`
 
+	// Importancia Os pontos e a fatia entre irmãos sob cada pai, na ordem de deriva_de
+	Importancia []Importancia `json:"importancia"`
+
 	// LimitadoPor Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio
 	LimitadoPor []string `json:"limitado_por"`
 	Organizacao string   `json:"organizacao"`
 	Origem      *string  `json:"origem,omitempty"`
 
-	// Prioridade Escolhida na triagem; ausente, o requisito ainda não foi triado.
+	// Peso Peso no total, de 0 a 1: o zero vale 1; cada requisito soma, sobre os pais, o peso do pai vezes a fatia sob ele
+	Peso float32 `json:"peso"`
+
+	// Prioridade Obsoleta, substituída pelos pontos de importância; guardada só como histórico.
 	Prioridade *Prioridade `json:"prioridade,omitempty"`
 
 	// Tarefas Tarefas que tentam atender este requisito
@@ -655,6 +680,9 @@ type Tarefa struct {
 	Descricao   string    `json:"descricao"`
 	Id          string    `json:"id"`
 	Organizacao string    `json:"organizacao"`
+
+	// Peso Soma do peso no total dos requisitos que a tarefa tenta atender, de 0 a 1; a fila ordena por ele
+	Peso *float32 `json:"peso,omitempty"`
 
 	// Requisitos Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
 	Requisitos *[]string `json:"requisitos,omitempty"`
@@ -829,6 +857,9 @@ type VincularComponenteARequisitoJSONRequestBody = VinculoComponente
 
 // DerivarRequisitoJSONRequestBody defines body for DerivarRequisito for application/json ContentType.
 type DerivarRequisitoJSONRequestBody = Derivacao
+
+// DefinirPontosJSONRequestBody defines body for DefinirPontos for application/json ContentType.
+type DefinirPontosJSONRequestBody = Pontos
 
 // RegistrarExecucaoJSONRequestBody defines body for RegistrarExecucao for application/json ContentType.
 type RegistrarExecucaoJSONRequestBody = NovaExecucao
@@ -1074,6 +1105,11 @@ type ClientInterface interface {
 
 	// DesfazerDerivacao request
 	DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DefinirPontosWithBody request with any body
+	DefinirPontosWithBody(ctx context.Context, id Id, pai string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DefinirPontos(ctx context.Context, id Id, pai string, body DefinirPontosJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarExecucoes request
 	ListarExecucoes(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1731,6 +1767,30 @@ func (c *Client) DerivarRequisito(ctx context.Context, id Id, body DerivarRequis
 
 func (c *Client) DesfazerDerivacao(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDesfazerDerivacaoRequest(c.Server, id, pai)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DefinirPontosWithBody(ctx context.Context, id Id, pai string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDefinirPontosRequestWithBody(c.Server, id, pai, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DefinirPontos(ctx context.Context, id Id, pai string, body DefinirPontosJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDefinirPontosRequest(c.Server, id, pai, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3733,6 +3793,60 @@ func NewDesfazerDerivacaoRequest(server string, id Id, pai string) (*http.Reques
 	return req, nil
 }
 
+// NewDefinirPontosRequest calls the generic DefinirPontos builder with application/json body
+func NewDefinirPontosRequest(server string, id Id, pai string, body DefinirPontosJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDefinirPontosRequestWithBody(server, id, pai, "application/json", bodyReader)
+}
+
+// NewDefinirPontosRequestWithBody generates requests for DefinirPontos with any type of body
+func NewDefinirPontosRequestWithBody(server string, id Id, pai string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "pai", runtime.ParamLocationPath, pai)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/derivacoes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListarExecucoesRequest generates requests for ListarExecucoes
 func NewListarExecucoesRequest(server string, id Id) (*http.Request, error) {
 	var err error
@@ -5058,6 +5172,11 @@ type ClientWithResponsesInterface interface {
 	// DesfazerDerivacaoWithResponse request
 	DesfazerDerivacaoWithResponse(ctx context.Context, id Id, pai string, reqEditors ...RequestEditorFn) (*DesfazerDerivacaoResponse, error)
 
+	// DefinirPontosWithBodyWithResponse request with any body
+	DefinirPontosWithBodyWithResponse(ctx context.Context, id Id, pai string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DefinirPontosResponse, error)
+
+	DefinirPontosWithResponse(ctx context.Context, id Id, pai string, body DefinirPontosJSONRequestBody, reqEditors ...RequestEditorFn) (*DefinirPontosResponse, error)
+
 	// ListarExecucoesWithResponse request
 	ListarExecucoesWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ListarExecucoesResponse, error)
 
@@ -5912,6 +6031,30 @@ func (r DesfazerDerivacaoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DesfazerDerivacaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DefinirPontosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON400      *Erro
+	JSON404      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r DefinirPontosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DefinirPontosResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6959,6 +7102,23 @@ func (c *ClientWithResponses) DesfazerDerivacaoWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseDesfazerDerivacaoResponse(rsp)
+}
+
+// DefinirPontosWithBodyWithResponse request with arbitrary body returning *DefinirPontosResponse
+func (c *ClientWithResponses) DefinirPontosWithBodyWithResponse(ctx context.Context, id Id, pai string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DefinirPontosResponse, error) {
+	rsp, err := c.DefinirPontosWithBody(ctx, id, pai, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDefinirPontosResponse(rsp)
+}
+
+func (c *ClientWithResponses) DefinirPontosWithResponse(ctx context.Context, id Id, pai string, body DefinirPontosJSONRequestBody, reqEditors ...RequestEditorFn) (*DefinirPontosResponse, error) {
+	rsp, err := c.DefinirPontos(ctx, id, pai, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDefinirPontosResponse(rsp)
 }
 
 // ListarExecucoesWithResponse request returning *ListarExecucoesResponse
@@ -8455,6 +8615,46 @@ func ParseDesfazerDerivacaoResponse(rsp *http.Response) (*DesfazerDerivacaoRespo
 	return response, nil
 }
 
+// ParseDefinirPontosResponse parses an HTTP response from a DefinirPontosWithResponse call
+func ParseDefinirPontosResponse(rsp *http.Response) (*DefinirPontosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DefinirPontosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListarExecucoesResponse parses an HTTP response from a ListarExecucoesWithResponse call
 func ParseListarExecucoesResponse(rsp *http.Response) (*ListarExecucoesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -9599,6 +9799,9 @@ type ServerInterface interface {
 	// (DELETE /requisitos/{id}/derivacoes/{pai})
 	DesfazerDerivacao(w http.ResponseWriter, r *http.Request, id Id, pai string)
 
+	// (PUT /requisitos/{id}/derivacoes/{pai})
+	DefinirPontos(w http.ResponseWriter, r *http.Request, id Id, pai string)
+
 	// (GET /requisitos/{id}/execucoes)
 	ListarExecucoes(w http.ResponseWriter, r *http.Request, id Id)
 
@@ -10511,6 +10714,40 @@ func (siw *ServerInterfaceWrapper) DesfazerDerivacao(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// DefinirPontos operation middleware
+func (siw *ServerInterfaceWrapper) DefinirPontos(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "pai" -------------
+	var pai string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pai", r.PathValue("pai"), &pai, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pai", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DefinirPontos(w, r, id, pai)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListarExecucoes operation middleware
 func (siw *ServerInterfaceWrapper) ListarExecucoes(w http.ResponseWriter, r *http.Request) {
 
@@ -11360,6 +11597,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/componentes/{componente}", wrapper.DesvincularComponenteDeRequisito)
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/derivacoes", wrapper.DerivarRequisito)
 	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DesfazerDerivacao)
+	m.HandleFunc("PUT "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DefinirPontos)
 	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.ListarExecucoes)
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.RegistrarExecucao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
