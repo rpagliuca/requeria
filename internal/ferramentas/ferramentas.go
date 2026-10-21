@@ -63,7 +63,9 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 		Instructions: "Tarefas e Sessões de Trabalho do rex. Regra: toda sessão de trabalho é registrada " +
 			"antes da primeira ação que muda estado, qualquer que seja a origem do chat (carregue a skill rex). " +
 			"Comece por sessao_atual (o lançador pode já ter aberto a sua); senão, iniciar_sessao na tarefa, ou sem " +
-			"tarefa e depois criar_tarefa + vincular_tarefa. Ao terminar, encerrar_sessao com um resumo para o próximo agente.",
+			"tarefa e depois criar_tarefa + vincular_tarefa. aguardar_resposta e retomar_trabalho só numa espera real (entregou ou " +
+			"bloqueou e vai ficar parado até o Rafael responder), nunca a cada mensagem do chat. Ao encerrar, a pedido, " +
+			"encerrar_sessao com um resumo para o próximo agente.",
 	})
 
 	mcp.AddTool(s, &mcp.Tool{Name: "obter_tarefa", Description: "Obtém uma tarefa, incluindo o resumo para retomar e a sessão ativa."}, f.obterTarefa)
@@ -101,8 +103,8 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "adiar_lembrete", Description: "Reagenda um lembrete para daqui a N minutos ou para uma hora (RFC 3339)."}, f.adiarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "confirmar_lembrete", Description: "Marca o lembrete como visto: ele para de pedir atenção. Só quando o Rafael disser que viu ou fez."}, f.confirmarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
-	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
-	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
+	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e vai ficar parada até o Rafael responder (aprovar um PR, decidir, trazer uma informação). Aparece nas pendências e nas notificações até retomar_trabalho ou o encerramento. Uma chamada ao entrar na espera, não uma por mensagem: pergunta e resposta numa conversa corrida não é espera. Repetir com a mesma mensagem não faz nada."}, f.aguardarResposta)
+	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera registrada por aguardar_resposta: a resposta chegou e o trabalho recomeçou. Só depois de um aguardar_resposta; sem espera registrada, não chame."}, f.retomarTrabalho)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
 }

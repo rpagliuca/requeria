@@ -97,7 +97,16 @@ func (s *Servidor) AguardarResposta(w http.ResponseWriter, r *http.Request, id a
 			return falha(http.StatusBadRequest, "a mensagem é obrigatória: é o que o Rafael precisa responder")
 		}
 		mensagem := strings.TrimSpace(espera.Mensagem)
-		if _, err := tx.Exec(`UPDATE sessoes SET aguardando = ?, aguardando_desde = ? WHERE id = ?`, mensagem, s.momento(), n); err != nil {
+		// Repetir a espera não é uma espera nova: a mesma mensagem não gera evento, e outra mensagem
+		// troca o texto sem reiniciar o desde.
+		var atual sql.NullString
+		if err := tx.QueryRow(`SELECT aguardando FROM sessoes WHERE id = ?`, n).Scan(&atual); err != nil {
+			return err
+		}
+		if atual.Valid && atual.String == mensagem {
+			return nil
+		}
+		if _, err := tx.Exec(`UPDATE sessoes SET aguardando = ?, aguardando_desde = COALESCE(aguardando_desde, ?) WHERE id = ?`, mensagem, s.momento(), n); err != nil {
 			return err
 		}
 		return s.registrarEvento(tx, idSessao(n), idSessao(n), "sessao_aguardando", map[string]any{"mensagem": mensagem})

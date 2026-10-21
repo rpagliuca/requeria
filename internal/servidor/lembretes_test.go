@@ -108,6 +108,26 @@ func TestPendencias(t *testing.T) {
 	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: "aprovar o PR"}, 200, nil)
 	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", "", api.Espera{Mensagem: "x"}, 401, nil)
 
+	// Repetir a espera não gera evento nem reinicia o desde; outra mensagem só troca o texto.
+	var antes []api.Evento
+	a.chamar("GET", "/eventos?tipo=sessao_aguardando", "", nil, 200, &antes)
+	var primeira api.Sessao
+	a.chamar("GET", "/sessoes/"+s.Sessao.Id, "", nil, 200, &primeira)
+	*agora = agora.Add(time.Minute)
+	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: " aprovar o PR "}, 200, nil)
+	var depois []api.Evento
+	a.chamar("GET", "/eventos?tipo=sessao_aguardando", "", nil, 200, &depois)
+	if len(antes) != 1 || len(depois) != 1 {
+		t.Fatalf("espera repetida gerou evento: antes %d, depois %d", len(antes), len(depois))
+	}
+	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: "aprovar o PR #2"}, 200, nil)
+	var trocada api.Sessao
+	a.chamar("GET", "/sessoes/"+s.Sessao.Id, "", nil, 200, &trocada)
+	if trocada.Aguardando.Mensagem != "aprovar o PR #2" || !trocada.Aguardando.Desde.Equal(primeira.Aguardando.Desde) {
+		t.Fatalf("troca de mensagem: %+v, desde original %v", trocada.Aguardando, primeira.Aguardando.Desde)
+	}
+	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: "aprovar o PR"}, 200, nil)
+
 	var p api.Pendencias
 	a.chamar("GET", "/integracao/pendencias", "", nil, 200, &p)
 	if len(p.Lembretes) != 2 || p.Lembretes[0].Status != api.Disparado || p.Lembretes[1].Id != "L-0002" {

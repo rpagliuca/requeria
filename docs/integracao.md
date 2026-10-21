@@ -35,7 +35,8 @@ alcançam o rex por polling. Não são a fonte de verdade.
   `horizonte_ate`;
 - `tarefas_em_validacao`: o que espera validação do humano;
 - `sessoes_aguardando`: sessões cujo agente entregou ou está bloqueado e espera resposta
-  (`POST /sessoes/{id}/espera`, desfeito por `DELETE` ou pelo encerramento);
+  (`POST /sessoes/{id}/espera`, desfeito por `DELETE` ou pelo encerramento; repetir a mesma
+  mensagem não gera evento, e outra mensagem troca o texto sem reiniciar o `desde`);
 - `ultimo_evento`: cursor para continuar por `GET /eventos?depois=`.
 
 ## Eventos

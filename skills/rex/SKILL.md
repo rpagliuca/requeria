@@ -98,10 +98,29 @@ custa nada; um agente que se encerrou sozinho obriga a subir outro e reler tudo.
 2. Mande ao Rafael a entrega ou o bloqueio, curto: o que ficou feito, o que falta e o que precisa
    dele (perguntas numeradas, alternativas em letras). Se uma ferramenta pediu aprovação e não havia
    quem respondesse, diga exatamente o que ele precisa fazer.
-3. `aguardar_resposta` com o que você precisa dele, em uma linha ("aprovar o PR #51", "decidir 1A ou
+3. Se a resposta pode demorar (ele vai precisar sair do chat para aprovar, testar ou decidir),
+   `aguardar_resposta` com o que você precisa dele, em uma linha ("aprovar o PR #51", "decidir 1A ou
    1B"): a espera aparece nas integrações da instalação (celular, barra) até você seguir.
-4. **Espere.** A tarefa fica em `em_andamento` e a sessão aberta. Quando ele responder e você voltar
-   a trabalhar, `retomar_trabalho`.
+4. **Espere.** A tarefa fica em `em_andamento` e a sessão aberta. Quando a resposta chegar e você
+   voltar a trabalhar, `retomar_trabalho`, uma vez.
+
+**Espera é um estado, não o fim de cada mensagem.** O par `aguardar_resposta`/`retomar_trabalho`
+marca o intervalo em que você está parado por causa do Rafael; cada chamada vira notificação no
+celular e na barra. Uma chamada ao entrar na espera, uma ao sair, e nada entre elas.
+
+| Situação | Espera? |
+|---|---|
+| Entregou o PR e precisa que ele aprove ou mergeie | Sim |
+| Bloqueado: falta credencial, acesso, decisão de negócio ou algo que só ele roda (laptop2021, YubiKey) | Sim |
+| Mandou perguntas 1A/1B no meio do trabalho e não há mais nada a fazer até ele decidir | Sim |
+| Conversa corrida: ele pergunta, você responde, ele pergunta de novo | Não |
+| Respondeu uma dúvida, mostrou um resultado, pediu confirmação de um detalhe com ele no chat | Não |
+| Fez um ajuste de texto que ele pediu e devolveu | Não |
+| Já está em espera e manda outra mensagem (lembrete, complemento) | Não chame de novo |
+| Recebeu uma mensagem e não estava em espera | Não chame `retomar_trabalho` |
+
+Na dúvida, não registre: o Rafael está no chat e vê a sua resposta. Registre quando a entrega ou o
+bloqueio encerra o seu trabalho até ele voltar.
 
 Encerre **só** quando o desejo de encerrar for claro:
 

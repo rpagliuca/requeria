@@ -942,7 +942,8 @@ paths:
       operationId: aguardarResposta
       description: |
         O agente entregou ou ficou bloqueado e está esperando o Rafael. Fica em `aguardando` na sessão
-        e nas pendências até `DELETE` (o agente retomou) ou o encerramento da sessão.
+        e nas pendências até `DELETE` (o agente retomou) ou o encerramento da sessão. Repetir com a
+        mesma mensagem não gera evento; outra mensagem troca o texto e mantém o `desde`.
       security:
         - tokenDaSessao: []
       requestBody:
