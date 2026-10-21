@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/captura"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/captura"
 )
 
 // autorDaCaptura é o autor, no log de eventos, de tudo que entra por POST /captura.
@@ -22,7 +22,7 @@ const tamanhoDaFrase = 200
 func responderFrase(w http.ResponseWriter, status int, id, frase string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if id != "" {
-		w.Header().Set("X-Requerial-Id", id)
+		w.Header().Set("X-rex-Id", id)
 	}
 	w.WriteHeader(status)
 	fmt.Fprint(w, captura.Encurtar(frase, tamanhoDaFrase))
@@ -39,17 +39,17 @@ func frase(antes, texto, depois string) string {
 
 func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 	if s.integracao.TokenDeCaptura == "" {
-		responderFrase(w, http.StatusNotFound, "", "A captura não está ligada neste Requerial.")
+		responderFrase(w, http.StatusNotFound, "", "A captura não está ligada neste rex.")
 		return
 	}
 	token := tokenDaRequisicao(r)
 	if subtle.ConstantTimeCompare([]byte(token), []byte(s.integracao.TokenDeCaptura)) != 1 {
-		responderFrase(w, http.StatusUnauthorized, "", "O Requerial recusou o token de captura.")
+		responderFrase(w, http.StatusUnauthorized, "", "O rex recusou o token de captura.")
 		return
 	}
 	var c api.Captura
 	if err := ler(r, &c); err != nil {
-		responderFrase(w, http.StatusBadRequest, "", "O pedido chegou malformado ao Requerial.")
+		responderFrase(w, http.StatusBadRequest, "", "O pedido chegou malformado ao rex.")
 		return
 	}
 	if vazio(c.Texto) {
@@ -81,7 +81,7 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			responderFrase(w, http.StatusInternalServerError, "", "O Requerial falhou ao entender o pedido.")
+			responderFrase(w, http.StatusInternalServerError, "", "O rex falhou ao entender o pedido.")
 			return
 		}
 	}
@@ -177,7 +177,7 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 		responderFrase(w, h.status, "", h.mensagem)
 		return
 	case err != nil:
-		responderFrase(w, http.StatusInternalServerError, "", "O Requerial falhou ao registrar. Tente de novo.")
+		responderFrase(w, http.StatusInternalServerError, "", "O rex falhou ao registrar. Tente de novo.")
 		return
 	}
 	if mudanca != nil {

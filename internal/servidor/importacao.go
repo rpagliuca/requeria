@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // ImportarTarefa grava uma tarefa vinda de fora com as datas originais e as sessões dela, já

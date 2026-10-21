@@ -1,4 +1,4 @@
-module github.com/rpagliuca/requerial
+module github.com/rpagliuca/rex
 
 go 1.25.0
 

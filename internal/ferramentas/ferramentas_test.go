@@ -14,9 +14,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/banco"
-	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/banco"
+	"github.com/rpagliuca/rex/internal/servidor"
 )
 
 type chat struct {
@@ -195,7 +195,7 @@ func TestSessaoLancadaUsaTarefaDoAmbienteECriaJournal(t *testing.T) {
 	novoChat(t, endereco).chamar("criar_tarefa", map[string]any{"titulo": "Revisar backup", "organizacao": "Exemplo"}, &tarefa)
 
 	raiz := t.TempDir()
-	c := novoChatCom(t, endereco, map[string]string{"REQUERIAL_TAREFA": tarefa.Id}, raiz)
+	c := novoChatCom(t, endereco, map[string]string{"REX_TAREFA": tarefa.Id}, raiz)
 	var sessao api.Sessao
 	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5"}, &sessao)
 	if len(sessao.Tarefas) != 1 || sessao.Tarefas[0] != tarefa.Id {
@@ -245,7 +245,7 @@ func TestAgenteLancadoAdotaASessaoDoLancador(t *testing.T) {
 	}
 
 	raiz := t.TempDir()
-	c := novoChatCom(t, endereco, map[string]string{"REQUERIAL_SESSAO": criada.Sessao.Id, "REQUERIAL_TOKEN": criada.Token}, raiz)
+	c := novoChatCom(t, endereco, map[string]string{"REX_SESSAO": criada.Sessao.Id, "REX_TOKEN": criada.Token}, raiz)
 	var sessao api.Sessao
 	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5"}, &sessao)
 	if sessao.Id != criada.Sessao.Id {
@@ -381,5 +381,16 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 	c.chamar("retomar_trabalho", map[string]any{}, &retomada)
 	if retomada.Aguardando != nil {
 		t.Fatalf("retomada: %+v", retomada)
+	}
+}
+
+func TestVariavelAceitaONomeLegado(t *testing.T) {
+	ambiente := map[string]string{"REX_SESSAO": "S-0002", "REQUERIAL_SESSAO": "S-0001", "REQUERIAL_TOKEN": "antigo"}
+	f := &Ferramentas{ambiente: func(nome string) string { return ambiente[nome] }}
+	if v := f.variavel("SESSAO"); v != "S-0002" {
+		t.Fatalf("REX_SESSAO deveria valer sobre a legada: %q", v)
+	}
+	if v := f.variavel("TOKEN"); v != "antigo" {
+		t.Fatalf("REQUERIAL_TOKEN não lido na falta de REX_TOKEN: %q", v)
 	}
 }

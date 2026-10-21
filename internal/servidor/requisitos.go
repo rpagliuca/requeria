@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 func idOrigem(n int64) string    { return idCom("O", n) }
@@ -206,7 +206,7 @@ type tarefaLigada struct {
 	atualizada time.Time
 }
 
-// MaxFilhos é a boa prática do Requerial: cada requisito se desdobra em no máximo cinco. Não é
+// MaxFilhos é a boa prática do rex: cada requisito se desdobra em no máximo cinco. Não é
 // imposto; acima disso, o requisito pede atenção.
 const MaxFilhos = 5
 

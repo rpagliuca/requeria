@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/banco"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/banco"
 )
 
 type ambiente struct {

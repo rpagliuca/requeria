@@ -1,4 +1,4 @@
-# Identidade visual do Requerial
+# Identidade visual do rex
 
 A interface é **tinta sobre papel**: preto e branco levemente quentes, sem cor de marca. **Só o
 estado tem cor**, então o que pede atenção (uma tarefa bloqueada, um requisito não atendido) se
@@ -65,5 +65,5 @@ um tom existente; um tom novo só entra se nenhum dos seis servir, e com matiz d
 - Desenho em grade de 32×32, traço de 2,6, pontas arredondadas, em uma cor só (`currentColor`).
 - Componente: `web/src/componentes/Logotipo.tsx`. Favicon: `web/public/favicon.svg`, com a mesma
   geometria e cor que acompanha o tema do sistema.
-- Ao lado do símbolo, o nome com inicial maiúscula e peso semibold: **Requerial**.
+- Ao lado do símbolo, o nome sempre em minúsculas e peso semibold: **rex**, inclusive no início de frase.
 - Não colorir o símbolo com um tom semântico, não preencher o nó vazado, não usar abaixo de 16px.

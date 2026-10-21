@@ -1,4 +1,4 @@
-// Package servidor implementa a API do Requerial sobre o SQLite.
+// Package servidor implementa a API do rex sobre o SQLite.
 //
 // Toda escrita passa por aqui, numa transação, e gera um evento no log. As invariantes são
 // conferidas antes da escrita, para dar uma mensagem clara, e o banco as impõe de novo.
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // Servidor implementa api.ServerInterface.

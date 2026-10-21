@@ -4,10 +4,10 @@
 // humano no frontend, ou um agente que só coordena), o lançador abre uma sessão tmux com o agente
 // configurado e um prompt que o manda trabalhar na tarefa. Quando a tarefa sai de em_andamento por
 // mão de outro, o lançador pede ao agente vivo que escreva o resumo e encerre a sessão. Depois do
-// encerramento, o próprio agente fecha o seu tmux (skill requerial); um tmux que sobrar é fechado
+// encerramento, o próprio agente fecha o seu tmux (skill rex); um tmux que sobrar é fechado
 // quando a tarefa ganhar um agente novo.
 //
-// A sessão tmux carrega REQUERIAL_TAREFA no ambiente: é assim que o lançador a reencontra, sem
+// A sessão tmux carrega REX_TAREFA no ambiente: é assim que o lançador a reencontra, sem
 // guardar estado, e que o agente e o servidor MCP sabem em que tarefa estão.
 package lancador
 
@@ -24,12 +24,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/servidor"
 )
 
 // VariavelTarefa é a variável de ambiente da sessão tmux com o identificador da tarefa.
-const VariavelTarefa = "REQUERIAL_TAREFA"
+const VariavelTarefa = "REX_TAREFA"
+
+// VariavelTarefaLegada é o nome que a variável tinha quando o app se chamava requerial: os agentes
+// subidos antes da renomeação ainda a carregam. Sai quando não restar nenhum deles.
+const VariavelTarefaLegada = "REQUERIAL_TAREFA"
 
 // Config vem de um arquivo JSON, particular de cada instalação.
 type Config struct {
@@ -65,14 +69,14 @@ type Modelo struct {
 	Argumentos []string `json:"argumentos"`
 }
 
-const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do Requerial ({titulo}). " +
-	"A sua sessão de trabalho já foi aberta pelo lançador. Carregue a skill requerial e siga o ciclo dela: " +
+const promptIniciarPadrao = "Você vai trabalhar na tarefa {tarefa} do rex ({titulo}). " +
+	"A sua sessão de trabalho já foi aberta pelo lançador. Carregue a skill rex e siga o ciclo dela: " +
 	"leia a tarefa e as sessões anteriores, confira a sessão com sessao_atual e trabalhe. " +
 	"Ao terminar, ou se ficar bloqueado, entregue ao usuário e espere: não encerre a sessão sem pedido claro dele."
 
 const promptEncerrarPadrao = "A tarefa {tarefa} foi movida para {status} por outra pessoa. " +
 	"Pare o que está fazendo, atualize o journal e encerre a sessão de trabalho com um resumo para retomar " +
-	"(skill requerial). Não altere o status da tarefa."
+	"(skill rex). Não altere o status da tarefa."
 
 // Sessoes abre e encerra no servidor a sessão de um agente lançado.
 type Sessoes interface {
@@ -83,8 +87,8 @@ type Sessoes interface {
 
 // Variáveis que levam ao agente (e ao MCP dele) a sessão já aberta pelo lançador.
 const (
-	VariavelSessao = "REQUERIAL_SESSAO"
-	VariavelToken  = "REQUERIAL_TOKEN"
+	VariavelSessao = "REX_SESSAO"
+	VariavelToken  = "REX_TOKEN"
 )
 
 // Lancador reage às mudanças do servidor.
@@ -405,16 +409,18 @@ func (l *Lancador) avisar(t api.Tarefa) error {
 	return nil
 }
 
-// encontrar devolve a sessão tmux com REQUERIAL_TAREFA igual ao id, ou "".
+// encontrar devolve a sessão tmux com REX_TAREFA (ou a legada REQUERIAL_TAREFA) igual ao id, ou "".
 func (l *Lancador) encontrar(id string) (string, error) {
 	saida, err := l.executar("list-sessions", "-F", "#{session_name}")
 	if err != nil {
 		return "", nil // sem servidor tmux, não há sessão
 	}
 	for _, nome := range strings.Fields(saida) {
-		valor, err := l.executar("show-environment", "-t", "="+nome, VariavelTarefa)
-		if err == nil && valor == VariavelTarefa+"="+id {
-			return nome, nil
+		for _, variavel := range []string{VariavelTarefa, VariavelTarefaLegada} {
+			valor, err := l.executar("show-environment", "-t", "="+nome, variavel)
+			if err == nil && valor == variavel+"="+id {
+				return nome, nil
+			}
 		}
 	}
 	return "", nil

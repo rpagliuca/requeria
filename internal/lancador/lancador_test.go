@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/servidor"
 )
 
 // tmuxFalso simula as sessões tmux: nome → tarefa do ambiente.
@@ -32,8 +32,15 @@ func (f *tmuxFalso) executar(args ...string) (string, error) {
 		}
 		return strings.Join(nomes, "\n"), nil
 	case "show-environment":
+		// O valor é a tarefa (em VariavelTarefa) ou "VARIAVEL=tarefa", para simular outra variável.
 		if t, ok := f.sessoes[alvo()]; ok && t != "" {
-			return VariavelTarefa + "=" + t, nil
+			variavel, id := VariavelTarefa, t
+			if v, i, achou := strings.Cut(t, "="); achou {
+				variavel, id = v, i
+			}
+			if variavel == args[len(args)-1] {
+				return variavel + "=" + id, nil
+			}
 		}
 		return "", errFalso
 	case "has-session":
@@ -143,6 +150,20 @@ func TestAvisaAgenteAoSairDeAndamento(t *testing.T) {
 
 }
 
+func TestAvisaAgenteSubidoAntesDaRenomeacao(t *testing.T) {
+	l, f := novoLancador(t)
+	f.sessoes["antigo"] = VariavelTarefaLegada + "=T-0008"
+	tarefa := api.Tarefa{Id: "T-0008", Titulo: "Antigo", Status: api.Pausada, SessaoAtiva: ptr("S-0003")}
+
+	l.MudouStatus(servidor.MudancaDeStatus{Tarefa: tarefa, Anterior: api.EmAndamento, Autor: "local"})
+	for _, c := range f.chamadas {
+		if strings.HasPrefix(c, "send-keys -t =antigo: -l") {
+			return
+		}
+	}
+	t.Fatalf("o agente com REQUERIAL_TAREFA não foi avisado: %v", f.chamadas)
+}
+
 func TestNomeCurto(t *testing.T) {
 	casos := map[string]string{
 		"Revisão do backup de fotos":    "backup-fotos",
@@ -246,7 +267,7 @@ func TestLancadorAbreASessaoAntesDoAgente(t *testing.T) {
 
 func TestAvisaAgenteIniciadoAMaoPeloChat(t *testing.T) {
 	l, f := novoLancador(t)
-	f.sessoes["manual"] = "" // tmux sem REQUERIAL_TAREFA: o lançador não subiu este agente
+	f.sessoes["manual"] = "" // tmux sem REX_TAREFA: o lançador não subiu este agente
 	l.sessoes = &sessoesFalsas{}
 	// MCP (pid 700) → claude (650) → shell do painel (500).
 	l.processoDoChat = func(chat string) int {

@@ -1,6 +1,6 @@
 # Integração
 
-O Requerial não fala com nenhum sistema de notificação, celular ou assistente de voz. Ele publica o
+O rex não fala com nenhum sistema de notificação, celular ou assistente de voz. Ele publica o
 que acontece e o que está pendente por interfaces genéricas, e cada instalação liga a elas o que
 quiser por configuração, sem código particular neste repositório.
 
@@ -20,12 +20,12 @@ barra do i3, com polling de 1 min no laptop e uma função na nuvem) precisa de 
 disparado continua pedindo atenção até alguém confirmar ou adiar, e "silêncio nunca é tudo bem". Um
 gancho perdido (consumidor fora do ar, rede caída) num desenho só de eventos deixaria o lembrete
 sumir em silêncio. O retrato de pendências se corrige sozinho na chamada seguinte, e a lógica de
-apresentação (quanto antes aparecer, quando tocar alarme) fica toda no consumidor: o Requerial
+apresentação (quanto antes aparecer, quando tocar alarme) fica toda no consumidor: o rex
 guarda só a hora marcada, e `horizonte` deixa o consumidor ver o que vence nas próximas horas.
 
 Os ganchos existem para a latência (avisar no instante em que o lembrete é criado ou dispara, para
 o consumidor reagendar o alarme no celular antes de o laptop desligar) e para consumidores que não
-alcançam o Requerial por polling. Não são a fonte de verdade.
+alcançam o rex por polling. Não são a fonte de verdade.
 
 ## Pendências
 
@@ -60,14 +60,14 @@ a integrações:
 
 ## Ganchos
 
-`requerial servir -integracoes integracoes.json`. Arquivo particular de cada instalação:
+`rex servir -integracoes integracoes.json`. Arquivo particular de cada instalação:
 
 ```json
 {
   "fuso": "America/Sao_Paulo",
   "base_publica": "http://exemplo:8790",
   "captura": {
-    "token_ambiente": "REQUERIAL_TOKEN_CAPTURA",
+    "token_ambiente": "REX_TOKEN_CAPTURA",
     "organizacao": "Pessoal"
   },
   "ganchos": [
@@ -80,7 +80,7 @@ a integrações:
       "nome": "nuvem",
       "eventos": ["lembrete_*"],
       "webhook": {
-        "url": "https://exemplo/requerial",
+        "url": "https://exemplo/rex",
         "cabecalhos": { "Authorization": "env:TOKEN_DA_NUVEM" }
       }
     }
@@ -116,7 +116,7 @@ lista, sobre os mesmos eventos.
 
 ## Agendador de lembretes
 
-Dentro do `requerial servir`, a cada 15 s: todo lembrete agendado ou adiado com `quando` no
+Dentro do `rex servir`, a cada 15 s: todo lembrete agendado ou adiado com `quando` no
 passado vira `disparado` e gera `lembrete_disparado`. Ao subir, o servidor dispara de uma vez os que
 venceram enquanto ele estava parado, com `atrasado: true`; nada some em silêncio.
 
@@ -132,7 +132,7 @@ Resposta em `text/plain`, uma frase de até 200 caracteres para ser falada:
 
 | Código | Significa | O canal deve |
 |---|---|---|
-| 201 | criado; a frase repete o que foi entendido; `X-Requerial-Id` traz o id | falar a frase |
+| 201 | criado; a frase repete o que foi entendido; `X-rex-Id` traz o id | falar a frase |
 | 200 | `chave` repetida (devolve o mesmo resultado) ou `simular: true` | falar a frase |
 | 422 | precisa de esclarecimento (hora ausente, ambígua ou no passado em relação a `dita_em`) | falar a pergunta e pedir de novo |
 | 400, 401, 404 | recusado (pedido malformado, token errado, captura desligada) | falar o motivo; não reenviar |

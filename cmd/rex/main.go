@@ -1,7 +1,7 @@
-// Comando Requerial.
+// Comando rex.
 //
-//	requerial servir   servidor da API (único processo que escreve no banco)
-//	requerial mcp      servidor MCP por stdio, para um agente de IA, falando com a API
+//	rex servir   servidor da API (único processo que escreve no banco)
+//	rex mcp      servidor MCP por stdio, para um agente de IA, falando com a API
 package main
 
 import (
@@ -17,19 +17,19 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requerial/internal/banco"
-	"github.com/rpagliuca/requerial/internal/ferramentas"
-	"github.com/rpagliuca/requerial/internal/integracao"
-	"github.com/rpagliuca/requerial/internal/lancador"
-	"github.com/rpagliuca/requerial/internal/servidor"
-	"github.com/rpagliuca/requerial/web"
+	"github.com/rpagliuca/rex/internal/banco"
+	"github.com/rpagliuca/rex/internal/ferramentas"
+	"github.com/rpagliuca/rex/internal/integracao"
+	"github.com/rpagliuca/rex/internal/lancador"
+	"github.com/rpagliuca/rex/internal/servidor"
+	"github.com/rpagliuca/rex/web"
 )
 
 const enderecoPadrao = "127.0.0.1:8787"
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "uso: requerial servir | mcp [opções]")
+		fmt.Fprintln(os.Stderr, "uso: rex servir | mcp [opções]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -45,7 +45,7 @@ func main() {
 
 func servir(args []string) {
 	opcoes := flag.NewFlagSet("servir", flag.ExitOnError)
-	caminho := opcoes.String("banco", "requerial.db", "arquivo do SQLite")
+	caminho := opcoes.String("banco", "rex.db", "arquivo do SQLite")
 	endereco := opcoes.String("endereco", enderecoPadrao, "endereços HTTP separados por vírgula (ex.: o local e o IP do Tailscale)")
 	configLancador := opcoes.String("lancador", "", "arquivo JSON do lançador de agentes (opcional)")
 	configIntegracoes := opcoes.String("integracoes", "", "arquivo JSON das integrações: ganchos, captura e fuso (opcional; ver docs/integracao.md)")
@@ -82,7 +82,7 @@ func servir(args []string) {
 	falhou := make(chan error, len(enderecos))
 	for _, e := range enderecos {
 		e := strings.TrimSpace(e)
-		log.Printf("requerial ouvindo em http://%s (banco %s)", e, *caminho)
+		log.Printf("rex ouvindo em http://%s (banco %s)", e, *caminho)
 		go func() { falhou <- http.ListenAndServe(e, handler) }()
 	}
 	log.Fatal(<-falhou)
@@ -102,7 +102,7 @@ func rotas(apiHandler http.Handler) http.Handler {
 
 func servirMCP(args []string) {
 	opcoes := flag.NewFlagSet("mcp", flag.ExitOnError)
-	endereco := opcoes.String("api", "http://"+enderecoPadrao, "endereço da API do requerial")
+	endereco := opcoes.String("api", "http://"+enderecoPadrao, "endereço da API do rex")
 	journals := opcoes.String("journals", "", "raiz dos journals: cada sessão ganha <raiz>/<S-0001>/journal.md (opcional)")
 	opcoes.Parse(args)
 

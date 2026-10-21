@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // Busca e árvore: o que um agente precisa para achar o requisito certo gastando poucos tokens.

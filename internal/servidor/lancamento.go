@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 func (s *Servidor) OpcoesDoLancador(w http.ResponseWriter, r *http.Request) {

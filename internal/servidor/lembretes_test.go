@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // relogio fixa a hora do servidor; avancar a muda.
@@ -152,7 +152,7 @@ func (a *ambiente) capturar(token string, c api.Captura) (int, string, string) {
 	}
 	defer resp.Body.Close()
 	frase, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(frase), resp.Header.Get("X-Requerial-Id")
+	return resp.StatusCode, string(frase), resp.Header.Get("X-rex-Id")
 }
 
 func TestCaptura(t *testing.T) {

@@ -1,14 +1,14 @@
 ---
-name: requerial
-description: "Ciclo de trabalho de um agente de IA no Requerial pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, entregar e esperar (nunca se encerrar sem pedido claro do Rafael ou do lançador), encerrar com resumo. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__requerial__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REQUERIAL_TAREFA ou REQUERIAL_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, Requerial, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
+name: rex
+description: "Ciclo de trabalho de um agente de IA no rex pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, entregar e esperar (nunca se encerrar sem pedido claro do Rafael ou do lançador), encerrar com resumo. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__rex__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REX_TAREFA ou REX_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, rex, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
 user-invocable: true
 ---
 
-# Requerial: o ciclo de um agente
+# rex: o ciclo de um agente
 
-O Requerial é a fonte única de **Tarefas** (o que fazer, com status) e **Sessões de Trabalho**
+O rex é a fonte única de **Tarefas** (o que fazer, com status) e **Sessões de Trabalho**
 (quem trabalhou, quando, com qual agente e onde está o journal). Você só escreve nele pelas
-ferramentas MCP `mcp__requerial__*`. O servidor impõe as regras; uma recusa é a resposta certa, não
+ferramentas MCP `mcp__rex__*`. O servidor impõe as regras; uma recusa é a resposta certa, não
 um obstáculo a contornar.
 
 Se as ferramentas não estiverem disponíveis, diga isso ao usuário e pare. Não fale com a API por
@@ -23,7 +23,7 @@ Se as ferramentas não estiverem disponíveis, diga isso ao usuário e pare. Nã
 - **Journal**: o seu registro do trabalho, num arquivo da **pasta da sessão**, criada pelo
   `iniciar_sessao`. Artefatos da sessão ficam na mesma pasta.
 - **Lançador**: quando alguém põe uma tarefa em andamento, ele sobe um agente para ela (talvez você)
-  com `REQUERIAL_TAREFA` no ambiente; quando alguém a tira de andamento, ele pede ao agente que
+  com `REX_TAREFA` no ambiente; quando alguém a tira de andamento, ele pede ao agente que
   encerre.
 
 ## Ao começar
@@ -34,7 +34,7 @@ Primeiro, `sessao_atual`: se o lançador já abriu a sua sessão, siga o primeir
 
 Há dois caminhos.
 
-**Você foi lançado para uma tarefa** (o prompt cita a tarefa; `REQUERIAL_SESSAO` está no ambiente):
+**Você foi lançado para uma tarefa** (o prompt cita a tarefa; `REX_SESSAO` está no ambiente):
 
 1. A sua sessão de trabalho **já está aberta**: o lançador a abriu com o seu modelo e esforço.
    `sessao_atual` mostra qual é e o `journal` (`<máquina>:<caminho>/S-0001/journal.md`), já criado.
@@ -151,14 +151,14 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 Compromisso com hora marcada que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar
 o certificado na sexta às 9"): `criar_lembrete` com a hora em RFC 3339 com fuso, ligado à tarefa
 quando for dela. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
-que viu ou fez. O Requerial guarda a hora; avisar com antecedência é das integrações.
+que viu ou fez. O rex guarda a hora; avisar com antecedência é das integrações.
 
 ## O que não fazer
 
 - Não altere o resumo com `alterar_tarefa` para registrar progresso: o resumo é do encerramento.
 - Não abra sessão só para ler; ler não exige sessão.
-- Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do Requerial.
+- Não mantenha status de tarefa em outro lugar (pastas, listas, arquivos): o status é o do rex.
 - Não mostre nem procure o token da sessão: ele fica no processo MCP.
 - Nunca feche o tmux de outro agente; só o seu, e só depois de encerrar a sua sessão.
 - Para criar tarefas para outros agentes, pausar ou mover tarefas que não são suas: skill
-  `requerial-coordenacao`.
+  `rex-coordenacao`.

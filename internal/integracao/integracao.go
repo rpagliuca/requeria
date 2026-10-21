@@ -1,4 +1,4 @@
-// Package integracao liga o Requerial ao que cada instalação quiser, por configuração: ganchos
+// Package integracao liga o rex ao que cada instalação quiser, por configuração: ganchos
 // (comando ou webhook) chamados a cada evento do log, e o agendador que dispara os lembretes.
 //
 // Os ganchos leem o log de eventos por um cursor gravado no banco: a entrega segue a ordem do log,
@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/servidor"
 )
 
 // Config vem de um arquivo JSON, particular de cada instalação.

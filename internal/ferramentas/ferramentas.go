@@ -1,4 +1,4 @@
-// Package ferramentas expõe a API do Requerial como servidor MCP para agentes de IA.
+// Package ferramentas expõe a API do rex como servidor MCP para agentes de IA.
 //
 // É uma camada fina sobre a API HTTP: quem escreve no banco continua sendo só o servidor.
 // Cada processo MCP corresponde a um chat do agente e guarda o token da sessão aberta nele;
@@ -21,7 +21,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // Ferramentas guarda o cliente da API e a sessão aberta neste processo.
@@ -36,7 +36,7 @@ type Ferramentas struct {
 	mu     sync.Mutex
 	sessao string
 	token  string
-	// adotada diz que a sessão veio pronta do lançador (REQUERIAL_SESSAO e REQUERIAL_TOKEN), e
+	// adotada diz que a sessão veio pronta do lançador (REX_SESSAO e REX_TOKEN), e
 	// conferida indica que o ambiente já foi lido.
 	adotada   bool
 	conferida bool
@@ -59,9 +59,9 @@ func (f *Ferramentas) ComJournals(dir string) *Ferramentas {
 
 // Servidor monta o servidor MCP com todas as ferramentas registradas.
 func (f *Ferramentas) Servidor() *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "requerial", Version: "0.1.0"}, &mcp.ServerOptions{
-		Instructions: "Tarefas e Sessões de Trabalho do Requerial. Regra: toda sessão de trabalho é registrada " +
-			"antes da primeira ação que muda estado, qualquer que seja a origem do chat (carregue a skill requerial). " +
+	s := mcp.NewServer(&mcp.Implementation{Name: "rex", Version: "0.1.0"}, &mcp.ServerOptions{
+		Instructions: "Tarefas e Sessões de Trabalho do rex. Regra: toda sessão de trabalho é registrada " +
+			"antes da primeira ação que muda estado, qualquer que seja a origem do chat (carregue a skill rex). " +
 			"Comece por sessao_atual (o lançador pode já ter aberto a sua); senão, iniciar_sessao na tarefa, ou sem " +
 			"tarefa e depois criar_tarefa + vincular_tarefa. Ao terminar, encerrar_sessao com um resumo para o próximo agente.",
 	})
@@ -95,7 +95,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "instanciar_template", Description: "Cria uma tarefa (a fazer) a partir de uma pré-moldada, com o contexto desta vez no topo da descrição e os requisitos dela. Não sobe agente: para isso, lancar_agente na tarefa criada."}, f.instanciarTemplate)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_origens", Description: "Lista as origens de requisitos (pessoas e documentos), para reaproveitar em vez de duplicar."}, f.listarOrigens)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_origem", Description: "Cria uma origem de requisitos: uma pessoa (quem pede) ou um documento (lei, norma, contrato)."}, f.criarOrigem)
-	mcp.AddTool(s, &mcp.Tool{Name: "criar_lembrete", Description: "Agenda um lembrete para o Rafael numa hora marcada (RFC 3339 com fuso), solto ou ligado a uma tarefa ou requisito. As integrações da instalação o avisam; o Requerial guarda só a hora."}, f.criarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "criar_lembrete", Description: "Agenda um lembrete para o Rafael numa hora marcada (RFC 3339 com fuso), solto ou ligado a uma tarefa ou requisito. As integrações da instalação o avisam; o rex guarda só a hora."}, f.criarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "proximos_lembretes", Description: "Lembretes que pedem atenção: os disparados e os que vencem nas próximas horas (padrão 24). Só id, texto, hora e status."}, f.proximosLembretes)
 	mcp.AddTool(s, &mcp.Tool{Name: "adiar_lembrete", Description: "Reagenda um lembrete para daqui a N minutos ou para uma hora (RFC 3339)."}, f.adiarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "confirmar_lembrete", Description: "Marca o lembrete como visto: ele para de pedir atenção. Só quando o Rafael disser que viu ou fez."}, f.confirmarLembrete)
@@ -117,6 +117,15 @@ func (f *Ferramentas) autorizar(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
+// variavel lê REX_<nome> do ambiente e, na falta, REQUERIAL_<nome>, o nome de quando o app se
+// chamava requerial (agentes subidos antes da renomeação). O legado sai quando não restar nenhum deles.
+func (f *Ferramentas) variavel(nome string) string {
+	if v := f.ambiente("REX_" + nome); v != "" {
+		return v
+	}
+	return f.ambiente("REQUERIAL_" + nome)
+}
+
 // adotar assume a sessão que o lançador abriu para este agente, se houver, e cria a pasta do journal
 // dela. Roda uma vez, na primeira ferramenta que precisa da sessão.
 func (f *Ferramentas) adotar(ctx context.Context) {
@@ -126,7 +135,7 @@ func (f *Ferramentas) adotar(ctx context.Context) {
 		return
 	}
 	f.conferida = true
-	id, token := f.ambiente("REQUERIAL_SESSAO"), f.ambiente("REQUERIAL_TOKEN")
+	id, token := f.variavel("SESSAO"), f.variavel("TOKEN")
 	if id == "" || token == "" {
 		f.mu.Unlock()
 		return
@@ -198,7 +207,7 @@ type NovaSessao struct {
 	Chat     *string  `json:"chat,omitempty" jsonschema:"identificador do chat; padrão: o informado pelo cliente do agente"`
 	Servidor *string  `json:"servidor,omitempty" jsonschema:"máquina onde a sessão roda; padrão: o nome desta máquina"`
 	Journal  *string  `json:"journal,omitempty" jsonschema:"localizador do journal: <maquina>:<caminho>"`
-	Tarefas  []string `json:"tarefas,omitempty" jsonschema:"tarefas em que a sessão vai trabalhar; pode ficar vazio e ser vinculado depois. Padrão: a tarefa em REQUERIAL_TAREFA, se o lançador definiu"`
+	Tarefas  []string `json:"tarefas,omitempty" jsonschema:"tarefas em que a sessão vai trabalhar; pode ficar vazio e ser vinculado depois. Padrão: a tarefa em REX_TAREFA, se o lançador definiu"`
 }
 
 type Repasse struct {
@@ -295,7 +304,7 @@ func (f *Ferramentas) iniciarSessao(ctx context.Context, _ *mcp.CallToolRequest,
 	}
 	tarefas := in.Tarefas
 	if len(tarefas) == 0 {
-		if t := f.ambiente("REQUERIAL_TAREFA"); t != "" {
+		if t := f.variavel("TAREFA"); t != "" {
 			tarefas = []string{t}
 		}
 	}

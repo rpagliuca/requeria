@@ -620,7 +620,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Importa uma tarefa já existente fora do Requerial, com as datas originais e as sessões que
+        /** @description Importa uma tarefa já existente fora do rex, com as datas originais e as sessões que
          *     trabalharam nela, todas já encerradas. Os eventos registram o momento real da importação.
          *      */
         post: operations["importarTarefa"];
@@ -2863,7 +2863,7 @@ export interface operations {
             200: {
                 headers: {
                     /** @description Identificador já criado (ausente na simulação) */
-                    "X-Requerial-Id"?: string;
+                    "X-rex-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2874,7 +2874,7 @@ export interface operations {
             201: {
                 headers: {
                     /** @description Identificador criado (L-0001, T-0001 ou R-0001) */
-                    "X-Requerial-Id"?: string;
+                    "X-rex-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
