@@ -78,6 +78,12 @@ No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux
 O MCP, com `rex mcp -journals /caminho/dos/journals`, cria a pasta de cada sessão
 (`S-0001/journal.md`) ao iniciá-la e registra o localizador.
 
+## Login pelo Google (opcional)
+
+Com `-endereco-com-login` e `-login login.json`, os endereços expostos ao navegador exigem login
+pelo Google, liberado só para os e-mails da configuração; os de `-endereco` (loopback, para o MCP,
+o lançador e as integrações) continuam abertos. Configuração e HTTPS em [`docs/login.md`](docs/login.md).
+
 ## Lembretes e integrações (opcional)
 
 Lembretes (`/lembretes`) têm hora marcada e são disparados pelo próprio `rex servir` (a cada
