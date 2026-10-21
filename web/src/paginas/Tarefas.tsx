@@ -6,9 +6,10 @@ import { Estado } from "@/componentes/Estado"
 import { SelecaoMultipla } from "@/componentes/SelecaoMultipla"
 import { useFiltrosLembrados } from "@/hooks/useFiltrosLembrados"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
-import { Data, StatusDaTarefa, nomesStatusTarefa } from "@/componentes/rotulos"
+import { Data, StatusDaTarefa, nomesStatusTarefa, percentual } from "@/componentes/rotulos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const todosOsStatus = Object.keys(nomesStatusTarefa) as StatusTarefa[]
 const abertas = todosOsStatus.filter((s) => s !== "concluida")
@@ -22,6 +23,8 @@ export function Tarefas() {
   const texto = params.get("q") ?? ""
   const lista = (chave: string) => (params.get(chave) ?? "").split(",").filter(Boolean)
   const status = params.has("status") ? (lista("status") as StatusTarefa[]) : todosOsStatus
+  // A fila segue o peso no total dos requisitos de cada tarefa; sem requisito, por último.
+  const ordem = params.get("ordem") === "atualizacao" ? "atualizacao" : "peso"
 
   const alterar = (chave: string, valor: string | null) => {
     const novos = new URLSearchParams(params)
@@ -55,7 +58,9 @@ export function Tarefas() {
         const alvo = `${t.id} ${t.titulo} ${t.organizacao} ${t.descricao} ${t.resumo}`.toLowerCase()
         return termos.every((termo) => alvo.includes(termo))
       })
-      .sort((a, b) => b.atualizada_em.localeCompare(a.atualizada_em))
+      .sort((a, b) =>
+        ordem === "peso" ? (b.peso ?? 0) - (a.peso ?? 0) || b.atualizada_em.localeCompare(a.atualizada_em) : b.atualizada_em.localeCompare(a.atualizada_em),
+      )
   }, [data, params]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -80,6 +85,16 @@ export function Tarefas() {
           atalhos={[{ rotulo: "Todas", valores: organizacoes }]}
         />
         )}
+        <Select value={ordem} onValueChange={(v) => alterar("ordem", v === "peso" ? null : v)}>
+          <SelectTrigger className="sm:w-56">
+            <span className="text-muted-foreground">Ordem:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="peso">Importância</SelectItem>
+            <SelectItem value="atualizacao">Atualização</SelectItem>
+          </SelectContent>
+        </Select>
         <Input className="sm:w-56" placeholder="Buscar" value={texto} onChange={(e) => alterar("q", e.target.value || null)} />
         <Button asChild variant="outline">
           <Link to="/tarefas/nova">Nova tarefa</Link>
@@ -106,6 +121,7 @@ export function Tarefas() {
                   <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground text-xs">
                     <span className="font-mono">{t.id}</span>
                     <span>{t.organizacao}</span>
+                    {t.peso !== undefined && <span className="tabular-nums" title="Peso no total dos requisitos da tarefa">{percentual(t.peso)} do total</span>}
                     {t.sessao_ativa && <span className="text-tom-andamento-fg">● {t.sessao_ativa}</span>}
                     <span>
                       atualizada <Data valor={t.atualizada_em} />

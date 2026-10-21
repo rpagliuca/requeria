@@ -199,7 +199,12 @@ type ligacoes struct {
 	// orgs: organização de cada requisito; zeros: os zeros atribuídos às organizações.
 	orgs  map[int64]string
 	zeros map[int64]bool
+	// pontos: os de cada ligação filho → pai (ausente: não triada); pesos: memória do peso no total.
+	pontos map[ligacao]int
+	pesos  map[int64]float64
 }
+
+type ligacao struct{ filho, pai int64 }
 
 type tarefaLigada struct {
 	status     api.StatusTarefa
@@ -218,22 +223,27 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		trabalho: map[int64][]tarefaLigada{}, agora: time.Now().UTC(),
 		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{},
 		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{},
-		orgs: map[int64]string{}, zeros: map[int64]bool{}, componentes: map[int64][]string{}}
+		orgs: map[int64]string{}, zeros: map[int64]bool{}, componentes: map[int64][]string{},
+		pontos: map[ligacao]int{}, pesos: map[int64]float64{}}
 	if err := carregarOrganizacoesDosRequisitos(c, &l); err != nil {
 		return l, err
 	}
 	if err := carregarComponentesDosRequisitos(c, &l); err != nil {
 		return l, err
 	}
-	linhas, err := c.Query(`SELECT requisito_id, pai_id FROM derivacoes ORDER BY pai_id, requisito_id`)
+	linhas, err := c.Query(`SELECT requisito_id, pai_id, pontos FROM derivacoes ORDER BY pai_id, requisito_id`)
 	if err != nil {
 		return l, err
 	}
 	for linhas.Next() {
 		var filho, pai int64
-		if err := linhas.Scan(&filho, &pai); err != nil {
+		var pontos sql.NullInt64
+		if err := linhas.Scan(&filho, &pai, &pontos); err != nil {
 			linhas.Close()
 			return l, err
+		}
+		if pontos.Valid {
+			l.pontos[ligacao{filho, pai}] = int(pontos.Int64)
 		}
 		l.pais[filho] = append(l.pais[filho], idRequisito(pai))
 		l.filhos[pai] = append(l.filhos[pai], idRequisito(filho))
@@ -276,6 +286,45 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		}
 	}
 	return l, linhas.Err()
+}
+
+// pontosEfetivos: os da ligação, ou 1 se ela ainda não foi triada.
+func (l ligacoes) pontosEfetivos(filho, pai int64) int {
+	if p, ok := l.pontos[ligacao{filho, pai}]; ok {
+		return p
+	}
+	return 1
+}
+
+// fatia é a parte do filho entre os irmãos sob o pai: pontos / soma dos pontos dos irmãos.
+func (l ligacoes) fatia(filho, pai int64) float64 {
+	soma := 0
+	for _, irmao := range l.filhosN[pai] {
+		soma += l.pontosEfetivos(irmao, pai)
+	}
+	if soma == 0 {
+		return 0
+	}
+	return float64(l.pontosEfetivos(filho, pai)) / float64(soma)
+}
+
+// peso no total: o zero (sem pais) vale 1; os demais somam, sobre os pais, o peso do pai vezes a
+// fatia sob ele. A soma das folhas fecha 1.
+func (l ligacoes) peso(n int64) float64 {
+	if p, ok := l.pesos[n]; ok {
+		return p
+	}
+	l.pesos[n] = 0 // a derivação não tem ciclo; isto só protege de dados inconsistentes
+	pais := l.paisN(n)
+	p := 0.0
+	if len(pais) == 0 {
+		p = 1
+	}
+	for _, pai := range pais {
+		p += l.peso(pai) * l.fatia(n, pai)
+	}
+	l.pesos[n] = p
+	return p
 }
 
 // paisN devolve os pais de n por número.
@@ -363,6 +412,15 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 		x.Origem = &o
 	}
 	x.DerivaDe, x.Derivados, x.Tarefas = naoNulo(l.pais[n]), naoNulo(l.filhos[n]), naoNulo(l.tarefas[n])
+	x.Importancia = []api.Importancia{}
+	for _, pai := range l.paisN(n) {
+		i := api.Importancia{Pai: idRequisito(pai), Fatia: float32(l.fatia(n, pai))}
+		if p, ok := l.pontos[ligacao{n, pai}]; ok {
+			i.Pontos = &p
+		}
+		x.Importancia = append(x.Importancia, i)
+	}
+	x.Peso = float32(l.peso(n))
 	x.Componentes = naoNulo(l.componentes[n])
 	x.Atencao = atencao(x, l.trabalho[n], l.agora)
 	if !l.zeros[n] {
@@ -528,7 +586,7 @@ func raiz(c consultor) (int64, error) {
 }
 
 // derivar liga filho → pai, recusando o que fecharia um ciclo: o pai não pode já descender do filho.
-func derivar(tx *sql.Tx, filho, pai int64) error {
+func derivar(tx *sql.Tx, filho, pai int64, pontos *int) error {
 	if filho == pai {
 		return falha(http.StatusBadRequest, "um requisito não deriva de si mesmo")
 	}
@@ -545,7 +603,10 @@ func derivar(tx *sql.Tx, filho, pai int64) error {
 	if ciclo > 0 {
 		return falha(http.StatusConflict, "%s já deriva de %s; a derivação fecharia um ciclo", idRequisito(pai), idRequisito(filho))
 	}
-	_, err = tx.Exec(`INSERT OR IGNORE INTO derivacoes (requisito_id, pai_id) VALUES (?, ?)`, filho, pai)
+	if pontos != nil && *pontos < 1 {
+		return falha(http.StatusBadRequest, "pontos inválidos: %d (mínimo 1)", *pontos)
+	}
+	_, err = tx.Exec(`INSERT OR IGNORE INTO derivacoes (requisito_id, pai_id, pontos) VALUES (?, ?, ?)`, filho, pai, pontos)
 	return err
 }
 
@@ -691,7 +752,7 @@ func (s *Servidor) inserirRequisito(tx *sql.Tx, quem string, novo api.NovoRequis
 		return criado, err
 	}
 	for _, pai := range pais {
-		if err := derivar(tx, n, pai); err != nil {
+		if err := derivar(tx, n, pai, nil); err != nil {
 			return criado, err
 		}
 	}
@@ -855,10 +916,44 @@ func (s *Servidor) DerivarRequisito(w http.ResponseWriter, r *http.Request, id a
 		if err != nil {
 			return err
 		}
-		if err := derivar(tx, n, pai); err != nil {
+		// Ao derivar de mais um pai, o padrão é 1 ponto: já triado, o menor peso entre os irmãos.
+		pontos := d.Pontos
+		if pontos == nil {
+			var pais int
+			if err := tx.QueryRow(`SELECT count(*) FROM derivacoes WHERE requisito_id = ? AND pai_id <> ?`, n, pai).Scan(&pais); err != nil {
+				return err
+			}
+			if pais > 0 {
+				um := 1
+				pontos = &um
+			}
+		}
+		if err := derivar(tx, n, pai, pontos); err != nil {
 			return err
 		}
-		return s.registrarEvento(tx, quem, idRequisito(n), "derivacao_registrada", map[string]any{"pai": idRequisito(pai)})
+		return s.registrarEvento(tx, quem, idRequisito(n), "derivacao_registrada", map[string]any{"pai": idRequisito(pai), "pontos": pontos})
+	})
+}
+
+// DefinirPontos dá ao requisito os pontos de importância sob um pai; só as fatias dos irmãos mudam.
+func (s *Servidor) DefinirPontos(w http.ResponseWriter, r *http.Request, id api.Id, paiID string) {
+	var p api.Pontos
+	s.mudarCadeia(w, r, id, &p, func(tx *sql.Tx, n int64, quem string) error {
+		pai, err := numero(paiID, "R")
+		if err != nil {
+			return err
+		}
+		if p.Pontos != nil && *p.Pontos < 1 {
+			return falha(http.StatusBadRequest, "pontos inválidos: %d (mínimo 1; sem pontos, volta a não triado)", *p.Pontos)
+		}
+		res, err := tx.Exec(`UPDATE derivacoes SET pontos = ? WHERE requisito_id = ? AND pai_id = ?`, p.Pontos, n, pai)
+		if err != nil {
+			return err
+		}
+		if afetadas, _ := res.RowsAffected(); afetadas == 0 {
+			return falha(http.StatusNotFound, "%s não deriva de %s", idRequisito(n), idRequisito(pai))
+		}
+		return s.registrarEvento(tx, quem, idRequisito(n), "pontos_definidos", map[string]any{"pai": idRequisito(pai), "pontos": p.Pontos})
 	})
 }
 

@@ -85,27 +85,18 @@ export function EstadoDoRequisito({ estado, className }: { estado: EstadoDoRequi
   )
 }
 
-export const nomesPrioridade: Record<string, string> = {
-  alta: "Alta",
-  media: "Média",
-  baixa: "Baixa",
-  nao_triado: "Não triado",
+// Fração de 0 a 1 como percentual curto: "60%", "8,3%", "<0,1%".
+export function percentual(f: number): string {
+  if (f > 0 && f < 0.001) return "<0,1%"
+  const p = f * 100
+  return `${p >= 10 || Number.isInteger(p) ? Math.round(p) : p.toFixed(1).replace(".", ",")}%`
 }
 
-export const ordemDaPrioridade: Record<string, number> = { alta: 0, media: 1, baixa: 2, nao_triado: 3 }
-
-const tomDaPrioridade: Record<string, Tom> = {
-  alta: "perigo",
-  media: "atencao",
-  baixa: "neutro",
-}
-
-// Prioridade da triagem; sem ela, nada aparece.
-export function PrioridadeDoRequisito({ prioridade, className }: { prioridade?: string; className?: string }) {
-  if (!prioridade) return null
+// Peso no total: a parte do requisito no trabalho todo (o zero vale 100%).
+export function PesoNoTotal({ peso, className }: { peso: number; className?: string }) {
   return (
-    <Badge variant="outline" className={cn(contornoDoTom[tomDaPrioridade[prioridade] ?? "neutro"], className)}>
-      ↑ {nomesPrioridade[prioridade]}
+    <Badge variant="outline" className={cn(contornoDoTom.neutro, "tabular-nums", className)} title="Peso no total">
+      {percentual(peso)} do total
     </Badge>
   )
 }

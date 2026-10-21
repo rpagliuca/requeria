@@ -158,7 +158,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** @description Define os pontos de importância do requisito sob este pai. Os pontos só se comparam entre
+         *     irmãos: a fatia é pontos / soma dos pontos dos irmãos. Sem pontos, a ligação volta a não
+         *     triada (conta como 1).
+         *      */
+        put: operations["definirPontos"];
         post?: never;
         /** @description Recusa deixar o requisito sem pai (só o zero não deriva de nenhum). */
         delete: operations["desfazerDerivacao"];
@@ -849,6 +853,8 @@ export interface components {
             componentes?: string[];
             /** @description Requisitos que a tarefa tenta atender (só na leitura de uma tarefa) */
             requisitos?: string[];
+            /** @description Soma do peso no total dos requisitos que a tarefa tenta atender, de 0 a 1; a fila ordena por ele */
+            peso?: number;
             /** Format: date-time */
             criada_em: string;
             /** Format: date-time */
@@ -1015,6 +1021,10 @@ export interface components {
             atencao: components["schemas"]["Atencao"][];
             estado: components["schemas"]["EstadoDoRequisito"];
             prioridade?: components["schemas"]["Prioridade"];
+            /** @description Os pontos e a fatia entre irmãos sob cada pai, na ordem de deriva_de */
+            importancia: components["schemas"]["Importancia"][];
+            /** @description Peso no total, de 0 a 1: o zero vale 1; cada requisito soma, sobre os pais, o peso do pai vezes a fatia sob ele */
+            peso: number;
             /** @description Só ao obter um requisito: cada caminho do zero até ele, em títulos ("R-0001 … › R-0003 …") */
             trilhas?: string[];
             /** @description Componentes a que o requisito se refere */
@@ -1030,8 +1040,20 @@ export interface components {
             /** Format: date-time */
             atualizado_em: string;
         };
+        Importancia: {
+            /** @example R-0001 */
+            pai: string;
+            /** @description Ausente: a ligação ainda não foi triada (conta como 1) */
+            pontos?: number;
+            /** @description Pontos / soma dos pontos dos irmãos sob este pai, de 0 a 1 */
+            fatia: number;
+        };
+        Pontos: {
+            /** @description Ausente: volta a não triado */
+            pontos?: number;
+        };
         /**
-         * @description Escolhida na triagem; ausente, o requisito ainda não foi triado.
+         * @description Obsoleta, substituída pelos pontos de importância; guardada só como histórico.
          * @enum {string}
          */
         Prioridade: "alta" | "media" | "baixa";
@@ -1095,12 +1117,14 @@ export interface components {
             organizacao?: string;
             /** @description Vazio remove a origem */
             origem?: string;
-            /** @description alta, media ou baixa; vazio volta a não triado */
+            /** @description Obsoleta (use os pontos da derivação): alta, media ou baixa; vazio limpa */
             prioridade?: string;
         };
         Derivacao: {
             /** @description Requisito do qual este deriva */
             pai: string;
+            /** @description Pontos de importância sob este pai; padrão: 1 se o requisito já tem outro pai, senão não triado */
+            pontos?: number;
         };
         VinculoRequisito: {
             requisito: string;
@@ -1719,6 +1743,35 @@ export interface operations {
             400: components["responses"]["Erro"];
             404: components["responses"]["Erro"];
             409: components["responses"]["Erro"];
+        };
+    };
+    definirPontos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                pai: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Pontos"];
+            };
+        };
+        responses: {
+            /** @description Requisito com os pontos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
         };
     };
     desfazerDerivacao: {

@@ -78,11 +78,12 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "encerrar_sessao", Description: "Encerra a sessão deste chat e grava o resumo em cada tarefa dela."}, f.encerrarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "repassar_sessao", Description: "Troca de agente: encerra a sessão deste chat e abre outra com o agente novo, nas mesmas tarefas."}, f.repassarSessao)
 	mcp.AddTool(s, &mcp.Tool{Name: "buscar_requisitos", Description: "Busca requisitos por palavras (título pesa mais; sem acento; prefixo). Devolve só id, título, estado e componentes dos mais relevantes. Use antes de criar um requisito ou ligar uma tarefa."}, f.buscarRequisitos)
-	mcp.AddTool(s, &mcp.Tool{Name: "arvore_de_requisitos", Description: "A cadeia de requisitos em texto (id e título, indentada), a partir do zero da organização; com componente, só os dele e os ancestrais. Use só para escolher o pai de um requisito novo: custa mais que buscar."}, f.arvoreDeRequisitos)
+	mcp.AddTool(s, &mcp.Tool{Name: "arvore_de_requisitos", Description: "A cadeia de requisitos em texto (id, [pontos · fatia entre irmãos · peso no total] e título, indentada; irmãos do mais ao menos importante), a partir do zero da organização; com componente, só os dele e os ancestrais. Use para escolher o pai de um requisito novo ou para a triagem por pontos: custa mais que buscar."}, f.arvoreDeRequisitos)
 	mcp.AddTool(s, &mcp.Tool{Name: "obter_requisito", Description: "Obtém um requisito: trilhas até o zero (em títulos), origem, cadeia (deriva_de acima, derivados abaixo), componentes e tarefas que tentam atendê-lo."}, f.obterRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_requisito", Description: "Cria um requisito, com origem e os requisitos dos quais deriva (a organização vem do primeiro, se omitida)."}, f.criarRequisito)
-	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização, origem ou prioridade (triagem: alta, media, baixa; vazio volta a não triado) de um requisito."}, f.alterarRequisito)
-	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos."}, f.derivarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização ou origem de um requisito. A importância não fica aqui: é dada em pontos na ligação com cada pai (definir_pontos)."}, f.alterarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos. Pontos opcionais; ao derivar de mais um pai, o padrão é 1."}, f.derivarRequisito)
+	mcp.AddTool(s, &mcp.Tool{Name: "definir_pontos", Description: "Triagem: dá ao requisito os pontos de importância sob um pai. Os pontos só se comparam entre irmãos: a fatia é pontos / soma dos irmãos, e o peso no total soma, sobre os pais, peso do pai × fatia. Sem pontos, volta a não triado (conta como 1)."}, f.definirPontos)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_requisito", Description: "Registra que uma tarefa tenta atender um requisito."}, f.vincularRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "registrar_execucao", Description: "Registra uma execução de conformidade: o requisito foi verificado e está atendido, com a evidência e a validade em dias (depois dela, a validação expira). Só registre o que você verificou de fato."}, f.registrarExecucao)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_componentes", Description: "Lista os componentes (repositórios, módulos, lugares, funcionalidades…) com os requisitos e tarefas de cada um, para reaproveitar em vez de duplicar."}, f.listarComponentes)
@@ -432,8 +433,15 @@ type AlteracaoRequisito struct {
 }
 
 type Derivacao struct {
-	Id  string `json:"id" jsonschema:"requisito que deriva, como R-0002"`
-	Pai string `json:"pai" jsonschema:"requisito do qual ele deriva, como R-0001"`
+	Id     string `json:"id" jsonschema:"requisito que deriva, como R-0002"`
+	Pai    string `json:"pai" jsonschema:"requisito do qual ele deriva, como R-0001"`
+	Pontos *int   `json:"pontos,omitempty" jsonschema:"pontos de importância sob este pai (mínimo 1)"`
+}
+
+type PontosDoRequisito struct {
+	Id     string `json:"id" jsonschema:"requisito, como R-0002"`
+	Pai    string `json:"pai" jsonschema:"pai sob o qual valem os pontos, como R-0001"`
+	Pontos *int   `json:"pontos,omitempty" jsonschema:"pontos de importância (mínimo 1); ausente volta a não triado"`
 }
 
 type VinculoRequisito struct {
@@ -561,7 +569,13 @@ func (f *Ferramentas) alterarRequisito(ctx context.Context, _ *mcp.CallToolReque
 
 func (f *Ferramentas) derivarRequisito(ctx context.Context, _ *mcp.CallToolRequest, in Derivacao) (*mcp.CallToolResult, api.Requisito, error) {
 	var out api.Requisito
-	resp, err := f.cliente.DerivarRequisito(ctx, in.Id, api.Derivacao{Pai: in.Pai}, f.autorizar)
+	resp, err := f.cliente.DerivarRequisito(ctx, in.Id, api.Derivacao{Pai: in.Pai, Pontos: in.Pontos}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) definirPontos(ctx context.Context, _ *mcp.CallToolRequest, in PontosDoRequisito) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	resp, err := f.cliente.DefinirPontos(ctx, in.Id, in.Pai, api.Pontos{Pontos: in.Pontos}, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }
 

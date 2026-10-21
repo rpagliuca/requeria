@@ -101,8 +101,12 @@ de "cópia fora do ambiente principal", que deriva de "cumprir a lei de dados".
   `em_trabalho`, `nao_validado` (tarefas todas concluídas, sem execução), `validacao_expirada`,
   `validado`. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles. `estado_proprio` ignora os de
   baixo. Tarefas concluídas **não** provam nada.
-- **Triagem:** `prioridade` (alta, media, baixa; ausente = não triado) é escolhida pelo Rafael. Ao propor
-  prioridades, diga o porquê; só altere com o aval dele.
+- **Triagem por pontos de importância:** os pontos ficam na ligação com cada pai (`definir_pontos`) e
+  só se comparam entre irmãos: a fatia é pontos / soma dos irmãos; o `peso` no total soma, sobre os
+  pais, peso do pai × fatia (o zero vale 100%). Sem pontos, a ligação não foi triada (conta como 1).
+  A triagem é breadth-first, a partir do zero; `arvore_de_requisitos` mostra pontos, fatia e peso.
+  Os pontos são escolhidos pelo Rafael: ao propor, diga o porquê; só altere com o aval dele. A
+  antiga `prioridade` (alta, media, baixa) é só histórico.
 - `registrar_execucao` registra uma verificação de conformidade, com a evidência e a validade em
   dias. Só registre o que foi verificado de fato, agora; nunca porque as tarefas acabaram.
 - O campo `atencao` de cada requisito diz o que falta para ele estar bem cuidado (muitos filhos,

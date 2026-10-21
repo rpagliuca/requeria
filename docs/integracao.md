@@ -142,7 +142,7 @@ Resposta em `text/plain`, uma frase de até 200 caracteres para ser falada:
   chegada). Se a hora já passou quando o pedido chega (fila atrasada), o lembrete é criado e
   disparado na hora, marcado como atrasado, e a frase diz isso.
 - **tarefa**: sempre `a_fazer`; nunca aciona o lançador.
-- **requisito**: título verbatim, sob o zero da organização, sem prioridade (vai para a triagem).
+- **requisito**: título verbatim, sob o zero da organização, sem pontos de importância (vai para a triagem).
 
 O autor de tudo no log de eventos é `captura`.
 

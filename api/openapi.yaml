@@ -230,6 +230,25 @@ paths:
         in: path
         required: true
         schema: { type: string }
+    put:
+      operationId: definirPontos
+      description: |
+        Define os pontos de importância do requisito sob este pai. Os pontos só se comparam entre
+        irmãos: a fatia é pontos / soma dos pontos dos irmãos. Sem pontos, a ligação volta a não
+        triada (conta como 1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Pontos' }
+      responses:
+        '200':
+          description: Requisito com os pontos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
     delete:
       operationId: desfazerDerivacao
       description: Recusa deixar o requisito sem pai (só o zero não deriva de nenhum).
@@ -1095,6 +1114,9 @@ components:
           type: array
           description: Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
           items: { type: string }
+        peso:
+          type: number
+          description: 'Soma do peso no total dos requisitos que a tarefa tenta atender, de 0 a 1; a fila ordena por ele'
         criada_em: { type: string, format: date-time }
         atualizada_em: { type: string, format: date-time }
     Template:
@@ -1272,7 +1294,7 @@ components:
         descricao: { type: string }
     Requisito:
       type: object
-      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, componentes, atencao, estado, estado_proprio, limitado_por, tarefas_abertas, criado_em, atualizado_em]
+      required: [id, titulo, descricao, organizacao, deriva_de, derivados, tarefas, componentes, atencao, estado, estado_proprio, limitado_por, tarefas_abertas, importancia, peso, criado_em, atualizado_em]
       properties:
         id: { type: string, example: R-0001 }
         titulo: { type: string }
@@ -1297,6 +1319,13 @@ components:
           items: { $ref: '#/components/schemas/Atencao' }
         estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
         prioridade: { $ref: '#/components/schemas/Prioridade' }
+        importancia:
+          type: array
+          description: Os pontos e a fatia entre irmãos sob cada pai, na ordem de deriva_de
+          items: { $ref: '#/components/schemas/Importancia' }
+        peso:
+          type: number
+          description: 'Peso no total, de 0 a 1: o zero vale 1; cada requisito soma, sobre os pais, o peso do pai vezes a fatia sob ele'
         trilhas:
           type: array
           description: 'Só ao obter um requisito: cada caminho do zero até ele, em títulos ("R-0001 … › R-0003 …")'
@@ -1317,9 +1346,20 @@ components:
         ultima_execucao: { $ref: '#/components/schemas/Execucao' }
         criado_em: { type: string, format: date-time }
         atualizado_em: { type: string, format: date-time }
+    Importancia:
+      type: object
+      required: [pai, fatia]
+      properties:
+        pai: { type: string, example: R-0001 }
+        pontos: { type: integer, minimum: 1, description: 'Ausente: a ligação ainda não foi triada (conta como 1)' }
+        fatia: { type: number, description: 'Pontos / soma dos pontos dos irmãos sob este pai, de 0 a 1' }
+    Pontos:
+      type: object
+      properties:
+        pontos: { type: integer, minimum: 1, description: 'Ausente: volta a não triado' }
     Prioridade:
       type: string
-      description: Escolhida na triagem; ausente, o requisito ainda não foi triado.
+      description: 'Obsoleta, substituída pelos pontos de importância; guardada só como histórico.'
       enum: [alta, media, baixa]
     EstadoDoRequisito:
       type: string
@@ -1377,12 +1417,13 @@ components:
         descricao: { type: string }
         organizacao: { type: string }
         origem: { type: string, description: 'Vazio remove a origem' }
-        prioridade: { type: string, description: 'alta, media ou baixa; vazio volta a não triado' }
+        prioridade: { type: string, description: 'Obsoleta (use os pontos da derivação): alta, media ou baixa; vazio limpa' }
     Derivacao:
       type: object
       required: [pai]
       properties:
         pai: { type: string, description: Requisito do qual este deriva }
+        pontos: { type: integer, minimum: 1, description: 'Pontos de importância sob este pai; padrão: 1 se o requisito já tem outro pai, senão não triado' }
     VinculoRequisito:
       type: object
       required: [requisito]
