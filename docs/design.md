@@ -67,7 +67,7 @@ quadrado com check). O nome ao lado, em minúsculas e em negrito: **rex**, inclu
 - Desenho vetorizado da arte escolhida pelo Rafael (T-0216), em uma cor só: preenchido com
   `currentColor`, segue a tinta nos dois temas.
 - Componentes em `web/src/componentes/Logotipo.tsx`: `Assinatura` (símbolo e nome, usado no topo)
-  e `Logotipo` (só o símbolo). Favicon: `web/public/favicon.svg`, só o símbolo. Arquivo para fora
+  e `Logotipo` (só o símbolo). Favicon: `web/public/favicon.svg`, o símbolo como silhueta cheia (olho e caixa vazados), porque o traço fino some em 16px. Arquivo para fora
   do app: `docs/logotipo.svg`.
 - O nome faz parte do desenho; não recompor a assinatura com texto em outra fonte.
 - Não colorir com um tom semântico, não preencher o contorno do rex, não usar a assinatura abaixo
