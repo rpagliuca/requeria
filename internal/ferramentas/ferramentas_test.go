@@ -364,6 +364,11 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 	if l.Status != "confirmado" {
 		t.Fatalf("confirmado: %+v", l)
 	}
+	c.chamar("reabrir_lembrete", map[string]any{"id": "L-0001"}, &l)
+	if l.Status != "agendado" {
+		t.Fatalf("reaberto: %+v", l)
+	}
+	c.chamar("cancelar_lembrete", map[string]any{"id": "L-0001"}, &l)
 
 	var eventos Eventos
 	c.chamar("listar_eventos", map[string]any{"entidade": "L-0001"}, &eventos)
@@ -371,6 +376,12 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 		if e.Autor != sessao.Id {
 			t.Fatalf("evento do lembrete sem a sessão como autora: %+v", e)
 		}
+	}
+
+	var apagados api.LembretesApagados
+	c.chamar("limpar_lembretes", map[string]any{}, &apagados)
+	if len(apagados.Apagados) != 1 || apagados.Apagados[0] != "L-0001" {
+		t.Fatalf("apagados: %+v", apagados)
 	}
 
 	c.chamar("aguardar_resposta", map[string]any{"mensagem": "aprovar o PR"}, &sessao)

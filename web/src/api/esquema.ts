@@ -744,6 +744,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/lembretes/{id}/reabertura": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Desfaz a confirmação ou o cancelamento: o lembrete volta a agendado, se a hora marcada ainda
+         *     não passou, ou a disparado, se já passou. Só vale para confirmado e cancelado (409).
+         *      */
+        post: operations["reabrirLembrete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lembretes/limpeza": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Apaga de vez lembretes confirmados ou cancelados, com a captura que os criou; o id não é
+         *     reaproveitado. O log de eventos guarda só um `lembrete_apagado` sem o texto. Sem `ids`, apaga
+         *     todos os encerrados (da `organizacao`, se informada). Um id que não esteja encerrado é recusado
+         *     (409) e nada é apagado.
+         *      */
+        post: operations["limparLembretes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessoes/{id}/espera": {
         parameters: {
             query?: never;
@@ -1224,8 +1266,8 @@ export interface components {
         };
         /**
          * @description agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
-         *     adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
-         *     (finais).
+         *     adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado (a tela diz
+         *     "feito") e cancelado (a tela diz "excluído"): encerrados, voltam com a reabertura.
          *
          * @enum {string}
          */
@@ -1286,6 +1328,13 @@ export interface components {
             tarefa?: string;
             /** @description Vazio remove a ligação */
             requisito?: string;
+        };
+        Limpeza: {
+            ids?: string[];
+            organizacao?: string;
+        };
+        LembretesApagados: {
+            apagados: string[];
         };
         Adiamento: {
             /** Format: date-time */
@@ -2762,6 +2811,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    reabrirLembrete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lembrete reaberto */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lembrete"];
+                };
+            };
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    limparLembretes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limpeza"];
+            };
+        };
+        responses: {
+            /** @description Lembretes apagados */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LembretesApagados"];
                 };
             };
             404: components["responses"]["Erro"];

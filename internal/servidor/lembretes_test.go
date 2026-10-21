@@ -92,6 +92,70 @@ func TestCicloDoLembrete(t *testing.T) {
 	}
 }
 
+func TestReabrirELimparLembretes(t *testing.T) {
+	a := novoAmbiente(t)
+	fuso := time.FixedZone("-03", -3*3600)
+	agora := a.relogio(time.Date(2026, 10, 20, 14, 0, 0, 0, fuso))
+	quando := time.Date(2026, 10, 20, 15, 0, 0, 0, fuso)
+	var l api.Lembrete
+	for _, texto := range []string{"segredo um", "segredo dois", "aberto"} {
+		a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: texto, Quando: quando, Organizacao: "Exemplo"}, 201, &l)
+	}
+
+	// Reabrir só vale para encerrado; antes da hora volta a agendado, depois a disparado.
+	a.chamar("POST", "/lembretes/L-0001/reabertura", "", nil, 409, nil)
+	a.chamar("POST", "/lembretes/L-0001/confirmacao", "", nil, 200, nil)
+	a.chamar("POST", "/lembretes/L-0001/reabertura", "", nil, 200, &l)
+	if l.Status != api.Agendado || l.ConfirmadoEm != nil {
+		t.Fatalf("reaberto antes da hora: %+v", l)
+	}
+	a.chamar("POST", "/lembretes/L-0002/cancelamento", "", nil, 200, nil)
+	*agora = quando.Add(time.Minute)
+	a.chamar("POST", "/lembretes/L-0002/reabertura", "", nil, 200, &l)
+	if l.Status != api.Disparado || *l.Atrasado {
+		t.Fatalf("reaberto depois da hora: %+v", l)
+	}
+
+	// O texto editado não vai para o log.
+	novo := "segredo editado"
+	a.chamar("PATCH", "/lembretes/L-0001", "", api.AlteracaoLembrete{Texto: &novo}, 200, nil)
+	var eventos []api.Evento
+	a.chamar("GET", "/eventos?entidade=L-0001&tipo=lembrete_alterado", "", nil, 200, &eventos)
+	if len(eventos) != 1 || eventos[0].Dados["texto"] != true {
+		t.Fatalf("evento de alteração: %+v", eventos)
+	}
+
+	// Limpar recusa o que não está encerrado e não apaga nada; depois apaga os encerrados.
+	a.chamar("POST", "/lembretes/L-0001/confirmacao", "", nil, 200, nil)
+	a.chamar("POST", "/lembretes/L-0002/cancelamento", "", nil, 200, nil)
+	a.chamar("POST", "/lembretes/limpeza", "", api.Limpeza{Ids: &[]string{"L-0001", "L-0003"}}, 409, nil)
+	a.chamar("GET", "/lembretes/L-0001", "", nil, 200, nil)
+	var apagados api.LembretesApagados
+	a.chamar("POST", "/lembretes/limpeza", "", api.Limpeza{}, 200, &apagados)
+	if len(apagados.Apagados) != 2 {
+		t.Fatalf("apagados: %+v", apagados)
+	}
+	a.chamar("GET", "/lembretes/L-0001", "", nil, 404, nil)
+	a.chamar("GET", "/lembretes/L-0003", "", nil, 200, nil)
+	a.chamar("GET", "/eventos?entidade=L-0002&tipo=lembrete_apagado", "", nil, 200, &eventos)
+	if len(eventos) != 1 {
+		t.Fatalf("evento de apagado: %+v", eventos)
+	}
+
+	// O id apagado não volta, nem quando era o maior.
+	a.chamar("POST", "/lembretes/L-0003/cancelamento", "", nil, 200, nil)
+	a.chamar("POST", "/lembretes/limpeza", "", api.Limpeza{}, 200, nil)
+	a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: "novo", Quando: quando.Add(time.Hour), Organizacao: "Exemplo"}, 201, &l)
+	if l.Id != "L-0004" {
+		t.Fatalf("id reaproveitado: %s", l.Id)
+	}
+	var texto string
+	a.servidor.db.QueryRow(`SELECT group_concat(dados) FROM eventos`).Scan(&texto)
+	if bytes.Contains([]byte(texto), []byte("segredo")) {
+		t.Fatalf("texto no log: %s", texto)
+	}
+}
+
 func TestPendencias(t *testing.T) {
 	a := novoAmbiente(t)
 	agora := a.relogio(time.Date(2026, 10, 20, 14, 0, 0, 0, time.UTC))

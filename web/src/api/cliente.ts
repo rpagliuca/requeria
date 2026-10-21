@@ -30,6 +30,9 @@ export type Lembrete = components["schemas"]["Lembrete"]
 export type StatusLembrete = components["schemas"]["StatusLembrete"]
 export type NovoLembrete = components["schemas"]["NovoLembrete"]
 export type Adiamento = components["schemas"]["Adiamento"]
+export type AlteracaoLembrete = components["schemas"]["AlteracaoLembrete"]
+export type Limpeza = components["schemas"]["Limpeza"]
+export type LembretesApagados = components["schemas"]["LembretesApagados"]
 
 // A API fica na mesma origem do frontend; em desenvolvimento, o Vite encaminha.
 async function obter<T>(caminho: string, metodo = "GET", corpo?: unknown): Promise<T> {
@@ -226,3 +229,14 @@ export const useCancelarLembrete = () =>
 
 export const useAdiarLembrete = () =>
   useEscrita(({ id, ...adiamento }: Adiamento & { id: string }) => obter<Lembrete>(`/lembretes/${id}/adiamento`, "POST", adiamento))
+
+export const useAlterarLembrete = () =>
+  useEscrita(({ id, ...alteracao }: AlteracaoLembrete & { id: string }) => obter<Lembrete>(`/lembretes/${id}`, "PATCH", alteracao))
+
+// Desfaz a confirmação ou o cancelamento.
+export const useReabrirLembrete = () =>
+  useEscrita((id: string) => obter<Lembrete>(`/lembretes/${id}/reabertura`, "POST"))
+
+// Apaga de vez os encerrados (irreversível).
+export const useLimparLembretes = () =>
+  useEscrita((limpeza: Limpeza) => obter<LembretesApagados>("/lembretes/limpeza", "POST", limpeza))

@@ -17,7 +17,8 @@ var migracoes embed.FS
 // Abrir abre (ou cria) o banco no caminho dado e aplica as migrações pendentes.
 // Use ":memory:" para um banco efêmero.
 func Abrir(caminho string) (*sql.DB, error) {
-	dsn := "file:" + caminho + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
+	// secure_delete: o que é apagado (lembretes, por privacidade) é zerado no arquivo, não só desligado.
+	dsn := "file:" + caminho + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=secure_delete(1)"
 	if caminho != ":memory:" {
 		dsn += "&_pragma=journal_mode(WAL)"
 	}

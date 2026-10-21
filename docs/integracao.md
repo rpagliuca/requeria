@@ -46,11 +46,13 @@ a integrações:
 | Tipo | Entidade | Dados |
 |---|---|---|
 | `lembrete_criado` | L-… | `quando` |
-| `lembrete_alterado` | L-… | campos alterados |
+| `lembrete_alterado` | L-… | campos alterados, com o valor novo; `texto` vai só como `true` (o texto não entra no log) |
 | `lembrete_disparado` | L-… | `quando`, `atrasado` |
 | `lembrete_adiado` | L-… | `quando` (nova hora) |
 | `lembrete_confirmado` | L-… | — |
 | `lembrete_cancelado` | L-… | — |
+| `lembrete_reaberto` | L-… | `status` (agendado, ou disparado se a hora já passou) |
+| `lembrete_apagado` | L-… | — (a notificação vai sem `lembrete`: ele não existe mais) |
 | `tarefa_alterada` | T-… | campos alterados (`status: em_validacao` = foi para validação) |
 | `agente_pedido` | T-… | `modelo`, `esforco`, `instrucao` |
 | `sessao_iniciada`, `sessao_encerrada`, `sessao_substituida` | S-… | — |

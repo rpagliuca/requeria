@@ -99,7 +99,9 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "proximos_lembretes", Description: "Lembretes que pedem atenção: os disparados e os que vencem nas próximas horas (padrão 24). Só id, texto, hora e status."}, f.proximosLembretes)
 	mcp.AddTool(s, &mcp.Tool{Name: "adiar_lembrete", Description: "Reagenda um lembrete para daqui a N minutos ou para uma hora (RFC 3339)."}, f.adiarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "confirmar_lembrete", Description: "Marca o lembrete como visto: ele para de pedir atenção. Só quando o Rafael disser que viu ou fez."}, f.confirmarLembrete)
-	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais (a tela diz \"excluído\"; dá para reabrir)."}, f.cancelarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "reabrir_lembrete", Description: "Desfaz a confirmação ou o cancelamento: volta a agendado, ou a disparado se a hora já passou."}, f.reabrirLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "limpar_lembretes", Description: "Apaga de vez lembretes confirmados ou cancelados (os ids dados, ou todos), sem deixar o texto no Requerial. Irreversível: só quando o Rafael pedir."}, f.limparLembretes)
 	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
 	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
@@ -769,6 +771,30 @@ func (f *Ferramentas) cancelarLembrete(ctx context.Context, _ *mcp.CallToolReque
 		return nil, ResumoDeLembrete{}, err
 	}
 	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) reabrirLembrete(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	var x api.Lembrete
+	resp, err := f.cliente.ReabrirLembrete(ctx, in.Id, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+type LimpezaDeLembretes struct {
+	Ids         []string `json:"ids,omitempty" jsonschema:"lembretes encerrados a apagar, como L-0001; vazio apaga todos os encerrados"`
+	Organizacao string   `json:"organizacao,omitempty" jsonschema:"sem ids, só os desta organização"`
+}
+
+func (f *Ferramentas) limparLembretes(ctx context.Context, _ *mcp.CallToolRequest, in LimpezaDeLembretes) (*mcp.CallToolResult, api.LembretesApagados, error) {
+	var out api.LembretesApagados
+	pedido := api.Limpeza{Organizacao: opcional(in.Organizacao)}
+	if len(in.Ids) > 0 {
+		pedido.Ids = &in.Ids
+	}
+	resp, err := f.cliente.LimparLembretes(ctx, pedido, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
 }
 
 func (f *Ferramentas) aguardarResposta(ctx context.Context, _ *mcp.CallToolRequest, in Espera) (*mcp.CallToolResult, api.Sessao, error) {
