@@ -297,10 +297,16 @@ func (s *Servidor) AlterarLembrete(w http.ResponseWriter, r *http.Request, id ap
 		campos := map[string]any{}
 		var sets []string
 		var args []any
+		// O evento leva o valor novo, menos o texto: o log não aceita apagar, e o lembrete pode ser
+		// apagado de vez por privacidade.
 		definir := func(coluna string, valor any) {
 			sets = append(sets, coluna+" = ?")
 			args = append(args, valor)
-			campos[coluna] = valor
+			if coluna == "texto" {
+				campos[coluna] = true
+			} else {
+				campos[coluna] = valor
+			}
 		}
 		if alteracao.Texto != nil {
 			if vazio(*alteracao.Texto) {
@@ -405,6 +411,84 @@ func (s *Servidor) CancelarLembrete(w http.ResponseWriter, r *http.Request, id a
 		}
 		return s.registrarEvento(tx, quem, atual.Id, "lembrete_cancelado", nil)
 	})
+}
+
+func (s *Servidor) ReabrirLembrete(w http.ResponseWriter, r *http.Request, id api.Id) {
+	s.operarLembrete(w, r, id, nil, func(tx *sql.Tx, quem string, n int64, atual api.Lembrete) error {
+		if final(atual) == nil {
+			return falha(http.StatusConflict, "o lembrete %s não está encerrado (%s)", atual.Id, atual.Status)
+		}
+		// Hora que já passou volta a pedir atenção, sem contar como atrasado.
+		status, disparado := api.Agendado, any(nil)
+		if !atual.Quando.After(s.agora()) {
+			status, disparado = api.Disparado, s.momento()
+		}
+		if _, err := tx.Exec(`UPDATE lembretes SET status = ?, confirmado_em = NULL, disparado_em = coalesce(?, disparado_em),
+			atrasado = 0, atualizado_em = ? WHERE id = ?`, string(status), disparado, s.momento(), n); err != nil {
+			return err
+		}
+		return s.registrarEvento(tx, quem, atual.Id, "lembrete_reaberto", map[string]any{"status": string(status)})
+	})
+}
+
+// LimparLembretes apaga de vez os encerrados pedidos (ou todos), com a captura que os criou.
+func (s *Servidor) LimparLembretes(w http.ResponseWriter, r *http.Request) {
+	var limpeza api.Limpeza
+	if err := ler(r, &limpeza); err != nil {
+		responderErro(w, err)
+		return
+	}
+	apagados := []string{}
+	err := s.emTransacao(func(tx *sql.Tx) error {
+		quem, err := autor(tx, r)
+		if err != nil {
+			return err
+		}
+		var alvos []api.Lembrete
+		if limpeza.Ids != nil {
+			for _, id := range *limpeza.Ids {
+				n, err := numero(id, "L")
+				if err != nil {
+					return err
+				}
+				x, err := s.carregarLembrete(tx, n)
+				if err != nil {
+					return err
+				}
+				if final(x) == nil {
+					return falha(http.StatusConflict, "o lembrete %s não está encerrado (%s)", x.Id, x.Status)
+				}
+				alvos = append(alvos, x)
+			}
+		} else {
+			filtro, args := emSQL([]api.StatusLembrete{api.Confirmado, api.Cancelado})
+			if limpeza.Organizacao != nil {
+				filtro += ` AND organizacao = ?`
+				args = append(args, *limpeza.Organizacao)
+			}
+			if alvos, err = s.listarLembretes(tx, filtro, args...); err != nil {
+				return err
+			}
+		}
+		for _, x := range alvos {
+			if _, err := tx.Exec(`DELETE FROM lembretes WHERE id = ?`, mustNumero(x.Id, "L")); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`DELETE FROM capturas WHERE criado = ?`, x.Id); err != nil {
+				return err
+			}
+			if err := s.registrarEvento(tx, quem, x.Id, "lembrete_apagado", nil); err != nil {
+				return err
+			}
+			apagados = append(apagados, x.Id)
+		}
+		return nil
+	})
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	responder(w, http.StatusOK, api.LembretesApagados{Apagados: apagados})
 }
 
 // DispararVencidos marca como disparados os lembretes agendados ou adiados cuja hora chegou, com

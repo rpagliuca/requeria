@@ -151,7 +151,9 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 Compromisso com hora marcada que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar
 o certificado na sexta às 9"): `criar_lembrete` com a hora em RFC 3339 com fuso, ligado à tarefa
 quando for dela. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
-que viu ou fez. O Requerial guarda a hora; avisar com antecedência é das integrações.
+que viu ou fez (a tela diz "feito"; `cancelar_lembrete` aparece como "excluído"). Os dois se desfazem
+com `reabrir_lembrete`. `limpar_lembretes` apaga de vez, sem volta: só a pedido dele. O Requerial
+guarda a hora; avisar com antecedência é das integrações.
 
 ## O que não fazer
 

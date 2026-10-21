@@ -916,6 +916,43 @@ paths:
               schema: { $ref: '#/components/schemas/Lembrete' }
         '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
+  /lembretes/{id}/reabertura:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: reabrirLembrete
+      description: |
+        Desfaz a confirmação ou o cancelamento: o lembrete volta a agendado, se a hora marcada ainda
+        não passou, ou a disparado, se já passou. Só vale para confirmado e cancelado (409).
+      responses:
+        '200':
+          description: Lembrete reaberto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lembrete' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /lembretes/limpeza:
+    post:
+      operationId: limparLembretes
+      description: |
+        Apaga de vez lembretes confirmados ou cancelados, com a captura que os criou; o id não é
+        reaproveitado. O log de eventos guarda só um `lembrete_apagado` sem o texto. Sem `ids`, apaga
+        todos os encerrados (da `organizacao`, se informada). Um id que não esteja encerrado é recusado
+        (409) e nada é apagado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Limpeza' }
+      responses:
+        '200':
+          description: Lembretes apagados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LembretesApagados' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
   /sessoes/{id}/espera:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -1522,8 +1559,8 @@ components:
       type: string
       description: |
         agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
-        adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
-        (finais).
+        adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado (a tela diz
+        "feito") e cancelado (a tela diz "excluído"): encerrados, voltam com a reabertura.
       enum: [agendado, disparado, adiado, confirmado, cancelado]
     Lembrete:
       type: object
@@ -1567,6 +1604,20 @@ components:
         organizacao: { type: string }
         tarefa: { type: string, description: 'Vazio remove a ligação' }
         requisito: { type: string, description: 'Vazio remove a ligação' }
+    Limpeza:
+      type: object
+      properties:
+        ids:
+          type: array
+          items: { type: string, example: L-0001 }
+        organizacao: { type: string }
+    LembretesApagados:
+      type: object
+      required: [apagados]
+      properties:
+        apagados:
+          type: array
+          items: { type: string, example: L-0001 }
     Adiamento:
       type: object
       properties:

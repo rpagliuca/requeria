@@ -114,8 +114,8 @@ export const nomesStatusLembrete: Record<StatusLembrete, string> = {
   agendado: "Agendado",
   adiado: "Adiado",
   disparado: "Tocando",
-  confirmado: "Confirmado",
-  cancelado: "Cancelado",
+  confirmado: "Feito",
+  cancelado: "Excluído",
 }
 
 const tomDoStatusLembrete: Record<StatusLembrete, Tom> = {

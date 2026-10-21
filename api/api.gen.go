@@ -334,11 +334,22 @@ type Lembrete struct {
 	Requisito *string   `json:"requisito,omitempty"`
 
 	// Status agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
-	// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
-	// (finais).
+	// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado (a tela diz
+	// "feito") e cancelado (a tela diz "excluído"): encerrados, voltam com a reabertura.
 	Status StatusLembrete `json:"status"`
 	Tarefa *string        `json:"tarefa,omitempty"`
 	Texto  string         `json:"texto"`
+}
+
+// LembretesApagados defines model for LembretesApagados.
+type LembretesApagados struct {
+	Apagados []string `json:"apagados"`
+}
+
+// Limpeza defines model for Limpeza.
+type Limpeza struct {
+	Ids         *[]string `json:"ids,omitempty"`
+	Organizacao *string   `json:"organizacao,omitempty"`
 }
 
 // MotivoDeAtencao defines model for MotivoDeAtencao.
@@ -635,8 +646,8 @@ type SessaoImportada struct {
 }
 
 // StatusLembrete agendado (esperando a hora), disparado (a hora chegou; pede atenção até confirmar ou adiar),
-// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
-// (finais).
+// adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado (a tela diz
+// "feito") e cancelado (a tela diz "excluído"): encerrados, voltam com a reabertura.
 type StatusLembrete string
 
 // StatusSessao defines model for StatusSessao.
@@ -802,6 +813,9 @@ type ImportarTarefaJSONRequestBody = ImportacaoTarefa
 
 // CriarLembreteJSONRequestBody defines body for CriarLembrete for application/json ContentType.
 type CriarLembreteJSONRequestBody = NovoLembrete
+
+// LimparLembretesJSONRequestBody defines body for LimparLembretes for application/json ContentType.
+type LimparLembretesJSONRequestBody = Limpeza
 
 // AlterarLembreteJSONRequestBody defines body for AlterarLembrete for application/json ContentType.
 type AlterarLembreteJSONRequestBody = AlteracaoLembrete
@@ -1000,6 +1014,11 @@ type ClientInterface interface {
 
 	CriarLembrete(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// LimparLembretesWithBody request with any body
+	LimparLembretesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	LimparLembretes(ctx context.Context, body LimparLembretesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ObterLembrete request
 	ObterLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1018,6 +1037,9 @@ type ClientInterface interface {
 
 	// ConfirmarLembrete request
 	ConfirmarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReabrirLembrete request
+	ReabrirLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarOrganizacoes request
 	ListarOrganizacoes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1405,6 +1427,30 @@ func (c *Client) CriarLembrete(ctx context.Context, body CriarLembreteJSONReques
 	return c.Client.Do(req)
 }
 
+func (c *Client) LimparLembretesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLimparLembretesRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) LimparLembretes(ctx context.Context, body LimparLembretesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLimparLembretesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ObterLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewObterLembreteRequest(c.Server, id)
 	if err != nil {
@@ -1479,6 +1525,18 @@ func (c *Client) CancelarLembrete(ctx context.Context, id Id, reqEditors ...Requ
 
 func (c *Client) ConfirmarLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewConfirmarLembreteRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReabrirLembrete(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReabrirLembreteRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2953,6 +3011,46 @@ func NewCriarLembreteRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewLimparLembretesRequest calls the generic LimparLembretes builder with application/json body
+func NewLimparLembretesRequest(server string, body LimparLembretesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewLimparLembretesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewLimparLembretesRequestWithBody generates requests for LimparLembretes with any type of body
+func NewLimparLembretesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/limpeza")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewObterLembreteRequest generates requests for ObterLembrete
 func NewObterLembreteRequest(server string, id Id) (*http.Request, error) {
 	var err error
@@ -3132,6 +3230,40 @@ func NewConfirmarLembreteRequest(server string, id Id) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/lembretes/%s/confirmacao", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReabrirLembreteRequest generates requests for ReabrirLembrete
+func NewReabrirLembreteRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/lembretes/%s/reabertura", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4983,6 +5115,11 @@ type ClientWithResponsesInterface interface {
 
 	CriarLembreteWithResponse(ctx context.Context, body CriarLembreteJSONRequestBody, reqEditors ...RequestEditorFn) (*CriarLembreteResponse, error)
 
+	// LimparLembretesWithBodyWithResponse request with any body
+	LimparLembretesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LimparLembretesResponse, error)
+
+	LimparLembretesWithResponse(ctx context.Context, body LimparLembretesJSONRequestBody, reqEditors ...RequestEditorFn) (*LimparLembretesResponse, error)
+
 	// ObterLembreteWithResponse request
 	ObterLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterLembreteResponse, error)
 
@@ -5001,6 +5138,9 @@ type ClientWithResponsesInterface interface {
 
 	// ConfirmarLembreteWithResponse request
 	ConfirmarLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ConfirmarLembreteResponse, error)
+
+	// ReabrirLembreteWithResponse request
+	ReabrirLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ReabrirLembreteResponse, error)
 
 	// ListarOrganizacoesWithResponse request
 	ListarOrganizacoesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListarOrganizacoesResponse, error)
@@ -5470,6 +5610,30 @@ func (r CriarLembreteResponse) StatusCode() int {
 	return 0
 }
 
+type LimparLembretesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LembretesApagados
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r LimparLembretesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r LimparLembretesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ObterLembreteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5585,6 +5749,30 @@ func (r ConfirmarLembreteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ConfirmarLembreteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReabrirLembreteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Lembrete
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ReabrirLembreteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReabrirLembreteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6718,6 +6906,23 @@ func (c *ClientWithResponses) CriarLembreteWithResponse(ctx context.Context, bod
 	return ParseCriarLembreteResponse(rsp)
 }
 
+// LimparLembretesWithBodyWithResponse request with arbitrary body returning *LimparLembretesResponse
+func (c *ClientWithResponses) LimparLembretesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LimparLembretesResponse, error) {
+	rsp, err := c.LimparLembretesWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLimparLembretesResponse(rsp)
+}
+
+func (c *ClientWithResponses) LimparLembretesWithResponse(ctx context.Context, body LimparLembretesJSONRequestBody, reqEditors ...RequestEditorFn) (*LimparLembretesResponse, error) {
+	rsp, err := c.LimparLembretes(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLimparLembretesResponse(rsp)
+}
+
 // ObterLembreteWithResponse request returning *ObterLembreteResponse
 func (c *ClientWithResponses) ObterLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ObterLembreteResponse, error) {
 	rsp, err := c.ObterLembrete(ctx, id, reqEditors...)
@@ -6777,6 +6982,15 @@ func (c *ClientWithResponses) ConfirmarLembreteWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseConfirmarLembreteResponse(rsp)
+}
+
+// ReabrirLembreteWithResponse request returning *ReabrirLembreteResponse
+func (c *ClientWithResponses) ReabrirLembreteWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ReabrirLembreteResponse, error) {
+	rsp, err := c.ReabrirLembrete(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReabrirLembreteResponse(rsp)
 }
 
 // ListarOrganizacoesWithResponse request returning *ListarOrganizacoesResponse
@@ -7751,6 +7965,46 @@ func ParseCriarLembreteResponse(rsp *http.Response) (*CriarLembreteResponse, err
 	return response, nil
 }
 
+// ParseLimparLembretesResponse parses an HTTP response from a LimparLembretesWithResponse call
+func ParseLimparLembretesResponse(rsp *http.Response) (*LimparLembretesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LimparLembretesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LembretesApagados
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseObterLembreteResponse parses an HTTP response from a ObterLembreteWithResponse call
 func ParseObterLembreteResponse(rsp *http.Response) (*ObterLembreteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7927,6 +8181,46 @@ func ParseConfirmarLembreteResponse(rsp *http.Response) (*ConfirmarLembreteRespo
 	}
 
 	response := &ConfirmarLembreteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Lembrete
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReabrirLembreteResponse parses an HTTP response from a ReabrirLembreteWithResponse call
+func ParseReabrirLembreteResponse(rsp *http.Response) (*ReabrirLembreteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReabrirLembreteResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -9542,6 +9836,9 @@ type ServerInterface interface {
 	// (POST /lembretes)
 	CriarLembrete(w http.ResponseWriter, r *http.Request)
 
+	// (POST /lembretes/limpeza)
+	LimparLembretes(w http.ResponseWriter, r *http.Request)
+
 	// (GET /lembretes/{id})
 	ObterLembrete(w http.ResponseWriter, r *http.Request, id Id)
 
@@ -9556,6 +9853,9 @@ type ServerInterface interface {
 
 	// (POST /lembretes/{id}/confirmacao)
 	ConfirmarLembrete(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /lembretes/{id}/reabertura)
+	ReabrirLembrete(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (GET /organizacoes)
 	ListarOrganizacoes(w http.ResponseWriter, r *http.Request)
@@ -10052,6 +10352,20 @@ func (siw *ServerInterfaceWrapper) CriarLembrete(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// LimparLembretes operation middleware
+func (siw *ServerInterfaceWrapper) LimparLembretes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LimparLembretes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ObterLembrete operation middleware
 func (siw *ServerInterfaceWrapper) ObterLembrete(w http.ResponseWriter, r *http.Request) {
 
@@ -10168,6 +10482,31 @@ func (siw *ServerInterfaceWrapper) ConfirmarLembrete(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ConfirmarLembrete(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReabrirLembrete operation middleware
+func (siw *ServerInterfaceWrapper) ReabrirLembrete(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReabrirLembrete(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11341,11 +11680,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/lancador", wrapper.OpcoesDoLancador)
 	m.HandleFunc("GET "+options.BaseURL+"/lembretes", wrapper.ListarLembretes)
 	m.HandleFunc("POST "+options.BaseURL+"/lembretes", wrapper.CriarLembrete)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes/limpeza", wrapper.LimparLembretes)
 	m.HandleFunc("GET "+options.BaseURL+"/lembretes/{id}", wrapper.ObterLembrete)
 	m.HandleFunc("PATCH "+options.BaseURL+"/lembretes/{id}", wrapper.AlterarLembrete)
 	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/adiamento", wrapper.AdiarLembrete)
 	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/cancelamento", wrapper.CancelarLembrete)
 	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/confirmacao", wrapper.ConfirmarLembrete)
+	m.HandleFunc("POST "+options.BaseURL+"/lembretes/{id}/reabertura", wrapper.ReabrirLembrete)
 	m.HandleFunc("GET "+options.BaseURL+"/organizacoes", wrapper.ListarOrganizacoes)
 	m.HandleFunc("PUT "+options.BaseURL+"/organizacoes/{nome}", wrapper.DefinirOrganizacao)
 	m.HandleFunc("GET "+options.BaseURL+"/origens", wrapper.ListarOrigens)
