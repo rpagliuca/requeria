@@ -1,14 +1,16 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { useOrigens, useRequisitos } from "@/api/cliente"
+import { Button } from "@/components/ui/button"
 import { Estado } from "@/componentes/Estado"
-import { EscolherOrigem } from "@/componentes/EscolherOrigem"
+import { CriarOrigem } from "@/componentes/EscolherOrigem"
 
 // De onde vêm os requisitos: pessoas e documentos, com quantos requisitos cada uma originou.
 export function Origens() {
   const { data, isLoading, error } = useOrigens()
   const requisitos = useRequisitos()
+  const [nova, setNova] = useState(false)
   const contagem = useMemo(() => {
     const c = new Map<string, number>()
     for (const r of requisitos.data ?? []) if (r.origem) c.set(r.origem, (c.get(r.origem) ?? 0) + 1)
@@ -17,11 +19,15 @@ export function Origens() {
 
   return (
     <div className="space-y-4">
-      <Link to="/requisitos" className="text-muted-foreground text-sm hover:underline">
-        ← Requisitos
-      </Link>
-      <h1 className="font-semibold text-xl">Origens</h1>
-      <EscolherOrigem valor="" alterar={() => {}} />
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="font-semibold text-xl">Origens</h1>
+        {!nova && (
+          <Button type="button" size="sm" variant="outline" onClick={() => setNova(true)}>
+            + Nova origem
+          </Button>
+        )}
+      </div>
+      {nova && <CriarOrigem criada={() => setNova(false)} cancelar={() => setNova(false)} />}
       <Estado carregando={isLoading} erro={error} />
       <ul className="divide-y rounded-md border">
         {(data ?? []).map((o) => (

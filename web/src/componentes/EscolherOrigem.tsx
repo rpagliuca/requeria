@@ -8,51 +8,64 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const NENHUMA = "nenhuma"
 const NOVA = "nova"
 
-// Escolhe uma origem existente ou cria uma na hora (pessoa ou documento).
-export function EscolherOrigem({ valor, alterar }: { valor: string; alterar: (id: string) => void }) {
-  const origens = useOrigens()
+// Formulário para criar uma origem (pessoa ou documento).
+export function CriarOrigem({ criada, cancelar }: { criada: (id: string) => void; cancelar: () => void }) {
   const criar = useCriarOrigem()
-  const [nova, setNova] = useState(false)
   const [nome, setNome] = useState("")
   const [tipo, setTipo] = useState<Origem["tipo"]>("pessoa")
 
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input className="sm:w-60" placeholder="Nome (ex.: Provimento CNJ 213/2026)" value={nome} onChange={(e) => setNome(e.target.value)} />
+      <Select value={tipo} onValueChange={(v) => setTipo(v as Origem["tipo"])}>
+        <SelectTrigger className="w-36">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="pessoa">Pessoa</SelectItem>
+          <SelectItem value="documento">Documento</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!nome.trim() || criar.isPending}
+        onClick={() =>
+          criar.mutate(
+            { nome: nome.trim(), tipo },
+            {
+              onSuccess: (o) => {
+                setNome("")
+                criada(o.id)
+              },
+            },
+          )
+        }
+      >
+        Criar origem
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={cancelar}>
+        Cancelar
+      </Button>
+      {criar.error && <p className="w-full text-destructive text-sm">{criar.error.message}</p>}
+    </div>
+  )
+}
+
+// Escolhe uma origem existente ou cria uma na hora (pessoa ou documento).
+export function EscolherOrigem({ valor, alterar }: { valor: string; alterar: (id: string) => void }) {
+  const origens = useOrigens()
+  const [nova, setNova] = useState(false)
+
   if (nova) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Input className="sm:w-60" placeholder="Nome (ex.: Provimento CNJ 213/2026)" value={nome} onChange={(e) => setNome(e.target.value)} />
-        <Select value={tipo} onValueChange={(v) => setTipo(v as Origem["tipo"])}>
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pessoa">Pessoa</SelectItem>
-            <SelectItem value="documento">Documento</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          size="sm"
-          disabled={!nome.trim() || criar.isPending}
-          onClick={() =>
-            criar.mutate(
-              { nome: nome.trim(), tipo },
-              {
-                onSuccess: (o) => {
-                  alterar(o.id)
-                  setNova(false)
-                  setNome("")
-                },
-              },
-            )
-          }
-        >
-          Criar origem
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setNova(false)}>
-          Cancelar
-        </Button>
-        {criar.error && <p className="w-full text-destructive text-sm">{criar.error.message}</p>}
-      </div>
+      <CriarOrigem
+        criada={(id) => {
+          alterar(id)
+          setNova(false)
+        }}
+        cancelar={() => setNova(false)}
+      />
     )
   }
   return (
