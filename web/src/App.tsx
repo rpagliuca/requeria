@@ -1,4 +1,6 @@
-import { Navigate, NavLink, Route, Routes } from "react-router-dom"
+import { useState } from "react"
+import { Plus } from "lucide-react"
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom"
 
 import { NovaTarefa } from "@/paginas/NovaTarefa"
 import { NovoRequisito } from "@/paginas/NovoRequisito"
@@ -15,6 +17,7 @@ import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
 import { useLembretes, useOrganizacoes, useTemplates } from "@/api/cliente"
 import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tarefa } from "@/paginas/Tarefa"
 import { Tarefas } from "@/paginas/Tarefas"
@@ -39,14 +42,6 @@ export default function App() {
         <NavLink to="/tarefas" end className={aba}>
           Tarefas
         </NavLink>
-        <NavLink to="/templates" className={aba}>
-          Tarefas Pré-moldadas
-          {devidos > 0 && (
-            <span className="ml-1.5 rounded-full bg-tom-atencao px-1.5 text-tom-atencao-fg text-xs font-medium" title={`${devidos} devidas agora`}>
-              {devidos}
-            </span>
-          )}
-        </NavLink>
         <NavLink to="/lembretes" className={aba}>
           Lembretes
           {tocando > 0 && (
@@ -55,12 +50,10 @@ export default function App() {
             </span>
           )}
         </NavLink>
-        <NavLink to="/componentes" className={aba}>
-          Componentes
-        </NavLink>
         <NavLink to="/sessoes" className={aba}>
           Sessões
         </NavLink>
+        <MenuMais devidos={devidos} />
         <EscolherOrganizacao />
       </nav>
       <Routes>
@@ -82,6 +75,45 @@ export default function App() {
         <Route path="/sessoes/:id" element={<Sessao />} />
       </Routes>
     </div>
+  )
+}
+
+// Telas de cadastro, usadas de vez em quando: ficam atrás do "+" para não ocupar a navbar.
+function MenuMais({ devidos }: { devidos: number }) {
+  const [aberto, setAberto] = useState(false)
+  const { pathname } = useLocation()
+  const ativo = ["/templates", "/componentes", "/origens"].some((r) => pathname.startsWith(r))
+  const item = ({ isActive }: { isActive: boolean }) =>
+    cn("flex items-center rounded-md px-3 py-1.5 text-sm", isActive ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground")
+  return (
+    <Popover open={aberto} onOpenChange={setAberto}>
+      <PopoverTrigger
+        aria-label="Mais telas"
+        title="Tarefas Pré-moldadas, Componentes, Origens"
+        className={cn("relative rounded-md px-2 py-1.5", ativo ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
+      >
+        <Plus className="h-4 w-4" />
+        {devidos > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-tom-atencao" title={`${devidos} pré-moldadas devidas agora`} />
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-56 flex-col gap-0.5 p-1">
+        <NavLink to="/templates" className={item} onClick={() => setAberto(false)}>
+          Tarefas Pré-moldadas
+          {devidos > 0 && (
+            <span className="ml-auto rounded-full bg-tom-atencao px-1.5 text-tom-atencao-fg text-xs font-medium" title={`${devidos} devidas agora`}>
+              {devidos}
+            </span>
+          )}
+        </NavLink>
+        <NavLink to="/componentes" className={item} onClick={() => setAberto(false)}>
+          Componentes
+        </NavLink>
+        <NavLink to="/origens" className={item} onClick={() => setAberto(false)}>
+          Origens
+        </NavLink>
+      </PopoverContent>
+    </Popover>
   )
 }
 
