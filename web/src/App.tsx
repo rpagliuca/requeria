@@ -9,7 +9,7 @@ import { Sessao } from "@/paginas/Sessao"
 import { Sessoes } from "@/paginas/Sessoes"
 import { Componente } from "@/paginas/Componente"
 import { Componentes } from "@/paginas/Componentes"
-import { Logotipo } from "@/componentes/Logotipo"
+import { Assinatura } from "@/componentes/Logotipo"
 import { Lembretes } from "@/paginas/Lembretes"
 import { Template } from "@/paginas/Template"
 import { Templates } from "@/paginas/Templates"
@@ -30,9 +30,8 @@ export default function App() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-4">
       <nav className="mb-6 flex flex-wrap items-center gap-1 border-b pb-3">
-        <NavLink to="/" className="mr-3 flex items-center gap-2 font-semibold tracking-tight" aria-label="rex">
-          <Logotipo className="size-5" />
-          rex
+        <NavLink to="/" className="mr-3 flex items-center" aria-label="rex">
+          <Assinatura className="h-7 w-auto" />
         </NavLink>
         <NavLink to="/requisitos" className={aba}>
           Requisitos

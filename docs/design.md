@@ -59,11 +59,16 @@ um tom existente; um tom novo só entra se nenhum dos seis servir, e com matiz d
 
 ## Logotipo
 
-**Derivação:** um requisito no alto derivando dois abaixo, um atendido (nó cheio) e um ainda não
-(nó vazado). É o grafo de requisitos, o centro do produto.
+**Tiranossauro:** um rex em traço, de perfil, segurando com o braço curto uma tarefa feita (um
+quadrado com check). O nome ao lado, em minúsculas e em negrito: **rex**, inclusive no início de frase.
 
-- Desenho em grade de 32×32, traço de 2,6, pontas arredondadas, em uma cor só (`currentColor`).
-- Componente: `web/src/componentes/Logotipo.tsx`. Favicon: `web/public/favicon.svg`, com a mesma
-  geometria e cor que acompanha o tema do sistema.
-- Ao lado do símbolo, o nome sempre em minúsculas e peso semibold: **rex**, inclusive no início de frase.
-- Não colorir o símbolo com um tom semântico, não preencher o nó vazado, não usar abaixo de 16px.
+![Logotipo do rex](logotipo.svg)
+
+- Desenho vetorizado da arte escolhida pelo Rafael (T-0216), em uma cor só: preenchido com
+  `currentColor`, segue a tinta nos dois temas.
+- Componentes em `web/src/componentes/Logotipo.tsx`: `Assinatura` (símbolo e nome, usado no topo)
+  e `Logotipo` (só o símbolo). Favicon: `web/public/favicon.svg`, só o símbolo. Arquivo para fora
+  do app: `docs/logotipo.svg`.
+- O nome faz parte do desenho; não recompor a assinatura com texto em outra fonte.
+- Não colorir com um tom semântico, não preencher o contorno do rex, não usar a assinatura abaixo
+  de 20px de altura.
