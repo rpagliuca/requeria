@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // ListarOrganizacoes: as que aparecem em tarefas, requisitos e templates, mais as que têm zero atribuído.

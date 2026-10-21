@@ -1,15 +1,15 @@
 ---
-name: requerial-coordenacao
-description: "Coordenar o trabalho de agentes de IA pelo Requerial: criar tarefas, pôr um agente para trabalhar numa tarefa, pausar, bloquear, mandar para validação, concluir ou retomar tarefas de outros agentes. Use quando o usuário pedir para criar uma tarefa ou um agente, iniciar, pausar, bloquear, retomar ou concluir uma tarefa que não é a deste chat, ou revisar o que está em andamento. Triggers: criar tarefa, criar agente, novo agente para, subir um agente, pausar a tarefa, bloquear a tarefa, retomar a tarefa, concluir a tarefa, mover para validação, o que está em andamento, matar o agente de, encerrar o agente de."
+name: rex-coordenacao
+description: "Coordenar o trabalho de agentes de IA pelo rex: criar tarefas, pôr um agente para trabalhar numa tarefa, pausar, bloquear, mandar para validação, concluir ou retomar tarefas de outros agentes. Use quando o usuário pedir para criar uma tarefa ou um agente, iniciar, pausar, bloquear, retomar ou concluir uma tarefa que não é a deste chat, ou revisar o que está em andamento. Triggers: criar tarefa, criar agente, novo agente para, subir um agente, pausar a tarefa, bloquear a tarefa, retomar a tarefa, concluir a tarefa, mover para validação, o que está em andamento, matar o agente de, encerrar o agente de."
 user-invocable: true
 ---
 
-# Requerial: coordenar agentes
+# rex: coordenar agentes
 
-O Requerial é a fonte única do status das tarefas. Coordenar é **mudar o status**; o resto é
+O rex é a fonte única do status das tarefas. Coordenar é **mudar o status**; o resto é
 consequência:
 
-| Você muda | O Requerial faz |
+| Você muda | O rex faz |
 |---|---|
 | tarefa nova ou existente → `em_andamento`, sem sessão ativa | o lançador sobe um agente para ela, numa sessão tmux |
 | `em_andamento` → qualquer outro status | o lançador pede ao agente vivo que encerre a sessão com resumo; o agente fecha o próprio tmux |
@@ -17,7 +17,7 @@ consequência:
 
 Você não cria sessões tmux, não escolhe pastas e não fecha agentes à mão.
 
-Se as ferramentas `mcp__requerial__*` não estiverem disponíveis, diga isso ao usuário e pare.
+Se as ferramentas `mcp__rex__*` não estiverem disponíveis, diga isso ao usuário e pare.
 
 ## Status
 

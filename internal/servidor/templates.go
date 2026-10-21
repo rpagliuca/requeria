@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 func idTemplate(n int64) string { return idCom("TP", n) }

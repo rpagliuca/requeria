@@ -1,4 +1,4 @@
-# Requerial
+# rex
 
 Coordenação de humanos e agentes de IA orientada por requisitos vivos, com evidência contínua.
 
@@ -13,8 +13,8 @@ servidor MCP para agentes de IA.
 ## Rodar
 
 ```bash
-go build -o requerial ./cmd/requerial
-./requerial servir -banco requerial.db -endereco 127.0.0.1:8787
+go build -o rex ./cmd/rex
+./rex servir -banco rex.db -endereco 127.0.0.1:8787
 ```
 
 ## Usar com um agente (MCP)
@@ -23,12 +23,12 @@ O servidor MCP fala com a API e guarda, em memória, o token da sessão aberta n
 o vê. No Claude Code:
 
 ```bash
-claude mcp add requerial -- /caminho/para/requerial mcp -api http://127.0.0.1:8787
+claude mcp add rex -- /caminho/para/rex mcp -api http://127.0.0.1:8787
 ```
 
 Para os agentes saberem usar as ferramentas, instale as skills de [`skills/`](skills):
-[`requerial`](skills/requerial/SKILL.md) (o agente trabalhando numa tarefa) e
-[`requerial-coordenacao`](skills/requerial-coordenacao/SKILL.md) (criar tarefas, subir, pausar e
+[`rex`](skills/rex/SKILL.md) (o agente trabalhando numa tarefa) e
+[`rex-coordenacao`](skills/rex-coordenacao/SKILL.md) (criar tarefas, subir, pausar e
 retomar agentes):
 
 ```bash
@@ -42,10 +42,10 @@ Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
 
 ## Lançador de agentes (opcional)
 
-Com `requerial servir -lancador lancador.json`, uma tarefa que entra em `em_andamento` (pelo frontend
+Com `rex servir -lancador lancador.json`, uma tarefa que entra em `em_andamento` (pelo frontend
 ou por quem não é uma sessão) ganha um agente numa sessão tmux; uma tarefa que sai de `em_andamento`
 por mão de outro faz o agente vivo encerrar a sessão com resumo. Depois de encerrar, o próprio
-agente fecha o seu tmux (skill `requerial`).
+agente fecha o seu tmux (skill `rex`).
 
 O nome do tmux (e do remote-control, via `{nome}` no comando) é o `nome` dado ao lançar; sem ele, sai do
 título, sem verbos genéricos. O agente troca o próprio nome com `renomear_sessao`: o lançador renomeia o
@@ -75,13 +75,13 @@ de reabertura (`POST /tarefas/{id}/lancamento`); o primeiro modelo é o padrão.
 `prompt_iniciar` e `prompt_encerrar` são opcionais e aceitam `{tarefa}`, `{titulo}` e `{status}`.
 No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux dos agentes.
 
-O MCP, com `requerial mcp -journals /caminho/dos/journals`, cria a pasta de cada sessão
+O MCP, com `rex mcp -journals /caminho/dos/journals`, cria a pasta de cada sessão
 (`S-0001/journal.md`) ao iniciá-la e registra o localizador.
 
 ## Lembretes e integrações (opcional)
 
-Lembretes (`/lembretes`) têm hora marcada e são disparados pelo próprio `requerial servir` (a cada
-15 s; os que venceram com o servidor parado disparam ao subir, marcados como atrasados). O Requerial
+Lembretes (`/lembretes`) têm hora marcada e são disparados pelo próprio `rex servir` (a cada
+15 s; os que venceram com o servidor parado disparam ao subir, marcados como atrasados). O rex
 não fala com celular, barra de status nem assistente de voz: com `-integracoes integracoes.json`,
 cada instalação liga ganchos (comando ou webhook) aos eventos, consulta
 `GET /integracao/pendencias` por polling e aceita pedidos ditados em `POST /captura`. Desenho,
@@ -101,7 +101,7 @@ cd web
 npm ci
 npm run gerar   # tipos TypeScript a partir do contrato OpenAPI
 npm run build   # compila para web/dist; depois recompile o binário Go
-REQUERIAL_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API encaminhada
+REX_API=http://127.0.0.1:8787 npm run dev   # desenvolvimento, com a API encaminhada
 ```
 
 O frontend fica em `/` e navega pelo hash da URL (`/#/tarefas/T-0001`); os caminhos `/tarefas`,

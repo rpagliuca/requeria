@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 type consultor interface {

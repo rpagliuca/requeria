@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 func idLembrete(n int64) string { return idCom("L", n) }

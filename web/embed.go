@@ -1,4 +1,4 @@
-// Package web embute o frontend compilado (npm run build em web/) no binário do Requerial.
+// Package web embute o frontend compilado (npm run build em web/) no binário do rex.
 package web
 
 import (

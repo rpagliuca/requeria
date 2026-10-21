@@ -1,7 +1,7 @@
 *.db
 *.db-shm
 *.db-wal
-/requerial
+/rex
 web/node_modules/
 web/dist/*
 !web/dist/.gitkeep

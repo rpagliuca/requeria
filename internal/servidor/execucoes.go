@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 func idExecucao(n int64) string { return idCom("E", n) }

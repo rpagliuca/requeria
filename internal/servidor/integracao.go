@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
+	"github.com/rpagliuca/rex/api"
 )
 
 // Integracao são os parâmetros de cada instalação que a API usa (ver docs/integracao.md).

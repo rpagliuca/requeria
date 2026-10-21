@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm"
 export function Texto({ children }: { children: string }) {
   if (!children.trim()) return <p className="text-muted-foreground text-sm">Vazio.</p>
   return (
-    <div className="prose-requerial text-sm leading-relaxed break-words">
+    <div className="prose-rex text-sm leading-relaxed break-words">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
     </div>
   )

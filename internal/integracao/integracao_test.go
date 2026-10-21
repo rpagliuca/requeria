@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpagliuca/requerial/api"
-	"github.com/rpagliuca/requerial/internal/banco"
-	"github.com/rpagliuca/requerial/internal/servidor"
+	"github.com/rpagliuca/rex/api"
+	"github.com/rpagliuca/rex/internal/banco"
+	"github.com/rpagliuca/rex/internal/servidor"
 )
 
 func novoServidor(t *testing.T) (*servidor.Servidor, *httptest.Server) {

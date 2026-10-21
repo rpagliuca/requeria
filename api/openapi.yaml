@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: Requerial
+  title: rex
   version: 0.1.0
   description: |
-    API de Tarefas e Sessões de Trabalho do Requerial.
+    API de Tarefas e Sessões de Trabalho do rex.
     Operações sobre uma sessão exigem o token entregue na criação dela.
     Integrações (lembretes, notificações, agentes, captura): docs/integracao.md.
 paths:
@@ -750,7 +750,7 @@ paths:
     post:
       operationId: importarTarefa
       description: |
-        Importa uma tarefa já existente fora do Requerial, com as datas originais e as sessões que
+        Importa uma tarefa já existente fora do rex, com as datas originais e as sessões que
         trabalharam nela, todas já encerradas. Os eventos registram o momento real da importação.
       requestBody:
         required: true
@@ -999,7 +999,7 @@ paths:
         '201':
           description: Criado
           headers:
-            X-Requerial-Id:
+            X-rex-Id:
               description: Identificador criado (L-0001, T-0001 ou R-0001)
               schema: { type: string }
           content:
@@ -1008,7 +1008,7 @@ paths:
         '200':
           description: 'Repetição de uma `chave` já processada, ou `simular: true`'
           headers:
-            X-Requerial-Id:
+            X-rex-Id:
               description: Identificador já criado (ausente na simulação)
               schema: { type: string }
           content:
