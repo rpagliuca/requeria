@@ -21,6 +21,7 @@ import (
 	"github.com/rpagliuca/rex/internal/ferramentas"
 	"github.com/rpagliuca/rex/internal/integracao"
 	"github.com/rpagliuca/rex/internal/lancador"
+	"github.com/rpagliuca/rex/internal/login"
 	"github.com/rpagliuca/rex/internal/servidor"
 	"github.com/rpagliuca/rex/web"
 )
@@ -49,6 +50,8 @@ func servir(args []string) {
 	endereco := opcoes.String("endereco", enderecoPadrao, "endereços HTTP separados por vírgula (ex.: o local e o IP do Tailscale)")
 	configLancador := opcoes.String("lancador", "", "arquivo JSON do lançador de agentes (opcional)")
 	configIntegracoes := opcoes.String("integracoes", "", "arquivo JSON das integrações: ganchos, captura e fuso (opcional; ver docs/integracao.md)")
+	enderecoComLogin := opcoes.String("endereco-com-login", "", "endereços HTTP separados por vírgula que exigem login pelo Google (o do navegador, atrás de HTTPS); exige -login")
+	configLogin := opcoes.String("login", "", "arquivo JSON do login pelo Google (opcional; ver docs/login.md)")
 	opcoes.Parse(args)
 
 	db, err := banco.Abrir(*caminho)
@@ -77,13 +80,28 @@ func servir(args []string) {
 	}
 	go integracao.Agendar(ctx, s, 15*time.Second)
 
-	handler := comGzip(rotas(s.Handler()))
-	enderecos := strings.Split(*endereco, ",")
-	falhou := make(chan error, len(enderecos))
-	for _, e := range enderecos {
-		e := strings.TrimSpace(e)
+	handler := rotas(s.Handler())
+	ouvir := map[string]http.Handler{}
+	for _, e := range strings.Split(*endereco, ",") {
+		ouvir[strings.TrimSpace(e)] = comGzip(handler)
+	}
+	if (*enderecoComLogin == "") != (*configLogin == "") {
+		log.Fatal("-endereco-com-login e -login andam juntos")
+	}
+	if *configLogin != "" {
+		l, err := login.Carregar(*configLogin)
+		if err != nil {
+			log.Fatalf("login: %v", err)
+		}
+		for _, e := range strings.Split(*enderecoComLogin, ",") {
+			ouvir[strings.TrimSpace(e)] = comGzip(l.Proteger(handler))
+		}
+		log.Printf("login pelo Google ativo (%s)", *configLogin)
+	}
+	falhou := make(chan error, len(ouvir))
+	for e, h := range ouvir {
 		log.Printf("rex ouvindo em http://%s (banco %s)", e, *caminho)
-		go func() { falhou <- http.ListenAndServe(e, handler) }()
+		go func() { falhou <- http.ListenAndServe(e, h) }()
 	}
 	log.Fatal(<-falhou)
 }

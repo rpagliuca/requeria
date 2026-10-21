@@ -38,6 +38,10 @@ async function obter<T>(caminho: string, metodo = "GET", corpo?: unknown): Promi
     headers: corpo === undefined ? undefined : { "Content-Type": "application/json" },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   })
+  // No endereço com login, o cookie venceu: a navegação refaz o login pelo Google.
+  if (resposta.status === 401 && resposta.headers.get("X-Rex-Login") === "necessario") {
+    window.location.assign("/login/google")
+  }
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null)
     throw new Error(corpo?.mensagem ?? `a API respondeu ${resposta.status}`)
