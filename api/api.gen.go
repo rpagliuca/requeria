@@ -35,12 +35,13 @@ const (
 
 // Defines values for MotivoDeAtencao.
 const (
-	MuitosFilhos     MotivoDeAtencao = "muitos_filhos"
-	OutraOrganizacao MotivoDeAtencao = "outra_organizacao"
-	SemDescricao     MotivoDeAtencao = "sem_descricao"
-	SemOrigem        MotivoDeAtencao = "sem_origem"
-	SemTarefa        MotivoDeAtencao = "sem_tarefa"
-	TrabalhoParado   MotivoDeAtencao = "trabalho_parado"
+	MuitosFilhos            MotivoDeAtencao = "muitos_filhos"
+	ObsoletoComTarefaAberta MotivoDeAtencao = "obsoleto_com_tarefa_aberta"
+	OutraOrganizacao        MotivoDeAtencao = "outra_organizacao"
+	SemDescricao            MotivoDeAtencao = "sem_descricao"
+	SemOrigem               MotivoDeAtencao = "sem_origem"
+	SemTarefa               MotivoDeAtencao = "sem_tarefa"
+	TrabalhoParado          MotivoDeAtencao = "trabalho_parado"
 )
 
 // Defines values for MotivoEncerramento.
@@ -460,6 +461,17 @@ type NovoTemplate struct {
 	Titulo            string    `json:"titulo"`
 }
 
+// Obsolescencia defines model for Obsolescencia.
+type Obsolescencia struct {
+	Motivo string `json:"motivo"`
+}
+
+// Obsoleto Presente só no requisito obsoleto: quando e por quê. Ele continua consultável, mas não limita os pais nem pesa entre os irmãos.
+type Obsoleto struct {
+	Em     time.Time `json:"em"`
+	Motivo string    `json:"motivo"`
+}
+
 // OpcoesDeLancamento defines model for OpcoesDeLancamento.
 type OpcoesDeLancamento struct {
 	EsforcoPadrao *string  `json:"esforco_padrao,omitempty"`
@@ -585,8 +597,11 @@ type Requisito struct {
 
 	// LimitadoPor Requisitos logo abaixo que limitam o estado dele a um menos maduro que o próprio
 	LimitadoPor []string `json:"limitado_por"`
-	Organizacao string   `json:"organizacao"`
-	Origem      *string  `json:"origem,omitempty"`
+
+	// Obsoleto Presente só no requisito obsoleto: quando e por quê. Ele continua consultável, mas não limita os pais nem pesa entre os irmãos.
+	Obsoleto    *Obsoleto `json:"obsoleto,omitempty"`
+	Organizacao string    `json:"organizacao"`
+	Origem      *string   `json:"origem,omitempty"`
 
 	// Peso Peso no total, de 0 a 1: o zero vale 1; cada requisito soma, sobre os pais, o peso do pai vezes a fatia sob ele
 	Peso float32 `json:"peso"`
@@ -616,10 +631,13 @@ type ResumoDeRequisito struct {
 	// validacao_expirada (a última execução passou do prazo), validado. O estado próprio vem das
 	// tarefas ligadas e da última execução; o estado é o menos maduro entre o próprio e o de cada
 	// requisito abaixo. Sem tarefa e sem execução, um requisito com derivados é decidido só por eles.
-	Estado      EstadoDoRequisito `json:"estado"`
-	Id          string            `json:"id"`
-	Organizacao string            `json:"organizacao"`
-	Titulo      string            `json:"titulo"`
+	Estado EstadoDoRequisito `json:"estado"`
+	Id     string            `json:"id"`
+
+	// Obsoleto Só presente (true) com incluir_obsoletos
+	Obsoleto    *bool  `json:"obsoleto,omitempty"`
+	Organizacao string `json:"organizacao"`
+	Titulo      string `json:"titulo"`
 }
 
 // ResumoDeTarefa defines model for ResumoDeTarefa.
@@ -708,6 +726,9 @@ type Tarefa struct {
 	// Requisitos Requisitos que a tarefa tenta atender (só na leitura de uma tarefa)
 	Requisitos *[]string `json:"requisitos,omitempty"`
 
+	// RequisitosObsoletos Requisitos obsoletos que a tarefa, ainda não concluída, tenta atender: pede decisão (concluir, religar a outro requisito ou desvincular)
+	RequisitosObsoletos *[]string `json:"requisitos_obsoletos,omitempty"`
+
 	// Resumo Estado para retomar, gravado no encerramento de cada sessão
 	Resumo      string       `json:"resumo"`
 	SessaoAtiva *string      `json:"sessao_ativa,omitempty"`
@@ -778,8 +799,9 @@ type Id = string
 
 // ArvoreDeRequisitosParams defines parameters for ArvoreDeRequisitos.
 type ArvoreDeRequisitosParams struct {
-	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
-	Componente  *string `form:"componente,omitempty" json:"componente,omitempty"`
+	Organizacao      *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+	Componente       *string `form:"componente,omitempty" json:"componente,omitempty"`
+	IncluirObsoletos *bool   `form:"incluir_obsoletos,omitempty" json:"incluir_obsoletos,omitempty"`
 }
 
 // BuscarRequisitosParams defines parameters for BuscarRequisitos.
@@ -788,6 +810,9 @@ type BuscarRequisitosParams struct {
 	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
 	Componente  *string `form:"componente,omitempty" json:"componente,omitempty"`
 	Limite      *int    `form:"limite,omitempty" json:"limite,omitempty"`
+
+	// IncluirObsoletos Padrão: os obsoletos ficam de fora
+	IncluirObsoletos *bool `form:"incluir_obsoletos,omitempty" json:"incluir_obsoletos,omitempty"`
 }
 
 // ConsultarTarefasParams defines parameters for ConsultarTarefas.
@@ -898,6 +923,9 @@ type DefinirPontosJSONRequestBody = Pontos
 
 // RegistrarExecucaoJSONRequestBody defines body for RegistrarExecucao for application/json ContentType.
 type RegistrarExecucaoJSONRequestBody = NovaExecucao
+
+// MarcarObsoletoJSONRequestBody defines body for MarcarObsoleto for application/json ContentType.
+type MarcarObsoletoJSONRequestBody = Obsolescencia
 
 // CriarSessaoJSONRequestBody defines body for CriarSessao for application/json ContentType.
 type CriarSessaoJSONRequestBody = NovaSessao
@@ -1156,6 +1184,14 @@ type ClientInterface interface {
 	RegistrarExecucaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RegistrarExecucao(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReativarRequisito request
+	ReativarRequisito(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MarcarObsoletoWithBody request with any body
+	MarcarObsoletoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	MarcarObsoleto(ctx context.Context, id Id, body MarcarObsoletoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListarSessoes request
 	ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1887,6 +1923,42 @@ func (c *Client) RegistrarExecucao(ctx context.Context, id Id, body RegistrarExe
 	return c.Client.Do(req)
 }
 
+func (c *Client) ReativarRequisito(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReativarRequisitoRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MarcarObsoletoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMarcarObsoletoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MarcarObsoleto(ctx context.Context, id Id, body MarcarObsoletoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMarcarObsoletoRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListarSessoes(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListarSessoesRequest(c.Server, params)
 	if err != nil {
@@ -2421,6 +2493,22 @@ func NewArvoreDeRequisitosRequest(server string, params *ArvoreDeRequisitosParam
 
 		}
 
+		if params.IncluirObsoletos != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "incluir_obsoletos", runtime.ParamLocationQuery, *params.IncluirObsoletos); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -2501,6 +2589,22 @@ func NewBuscarRequisitosRequest(server string, params *BuscarRequisitosParams) (
 		if params.Limite != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limite", runtime.ParamLocationQuery, *params.Limite); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncluirObsoletos != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "incluir_obsoletos", runtime.ParamLocationQuery, *params.IncluirObsoletos); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -4091,6 +4195,87 @@ func NewRegistrarExecucaoRequestWithBody(server string, id Id, contentType strin
 	return req, nil
 }
 
+// NewReativarRequisitoRequest generates requests for ReativarRequisito
+func NewReativarRequisitoRequest(server string, id Id) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/obsolescencia", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewMarcarObsoletoRequest calls the generic MarcarObsoleto builder with application/json body
+func NewMarcarObsoletoRequest(server string, id Id, body MarcarObsoletoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewMarcarObsoletoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewMarcarObsoletoRequestWithBody generates requests for MarcarObsoleto with any type of body
+func NewMarcarObsoletoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/requisitos/%s/obsolescencia", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListarSessoesRequest generates requests for ListarSessoes
 func NewListarSessoesRequest(server string, params *ListarSessoesParams) (*http.Request, error) {
 	var err error
@@ -5351,6 +5536,14 @@ type ClientWithResponsesInterface interface {
 
 	RegistrarExecucaoWithResponse(ctx context.Context, id Id, body RegistrarExecucaoJSONRequestBody, reqEditors ...RequestEditorFn) (*RegistrarExecucaoResponse, error)
 
+	// ReativarRequisitoWithResponse request
+	ReativarRequisitoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ReativarRequisitoResponse, error)
+
+	// MarcarObsoletoWithBodyWithResponse request with any body
+	MarcarObsoletoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MarcarObsoletoResponse, error)
+
+	MarcarObsoletoWithResponse(ctx context.Context, id Id, body MarcarObsoletoJSONRequestBody, reqEditors ...RequestEditorFn) (*MarcarObsoletoResponse, error)
+
 	// ListarSessoesWithResponse request
 	ListarSessoesWithResponse(ctx context.Context, params *ListarSessoesParams, reqEditors ...RequestEditorFn) (*ListarSessoesResponse, error)
 
@@ -6291,6 +6484,55 @@ func (r RegistrarExecucaoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RegistrarExecucaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReativarRequisitoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ReativarRequisitoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReativarRequisitoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type MarcarObsoletoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Requisito
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r MarcarObsoletoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MarcarObsoletoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7343,6 +7585,32 @@ func (c *ClientWithResponses) RegistrarExecucaoWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseRegistrarExecucaoResponse(rsp)
+}
+
+// ReativarRequisitoWithResponse request returning *ReativarRequisitoResponse
+func (c *ClientWithResponses) ReativarRequisitoWithResponse(ctx context.Context, id Id, reqEditors ...RequestEditorFn) (*ReativarRequisitoResponse, error) {
+	rsp, err := c.ReativarRequisito(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReativarRequisitoResponse(rsp)
+}
+
+// MarcarObsoletoWithBodyWithResponse request with arbitrary body returning *MarcarObsoletoResponse
+func (c *ClientWithResponses) MarcarObsoletoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MarcarObsoletoResponse, error) {
+	rsp, err := c.MarcarObsoletoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMarcarObsoletoResponse(rsp)
+}
+
+func (c *ClientWithResponses) MarcarObsoletoWithResponse(ctx context.Context, id Id, body MarcarObsoletoJSONRequestBody, reqEditors ...RequestEditorFn) (*MarcarObsoletoResponse, error) {
+	rsp, err := c.MarcarObsoleto(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMarcarObsoletoResponse(rsp)
 }
 
 // ListarSessoesWithResponse request returning *ListarSessoesResponse
@@ -8959,6 +9227,93 @@ func ParseRegistrarExecucaoResponse(rsp *http.Response) (*RegistrarExecucaoRespo
 	return response, nil
 }
 
+// ParseReativarRequisitoResponse parses an HTTP response from a ReativarRequisitoWithResponse call
+func ParseReativarRequisitoResponse(rsp *http.Response) (*ReativarRequisitoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReativarRequisitoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseMarcarObsoletoResponse parses an HTTP response from a MarcarObsoletoWithResponse call
+func ParseMarcarObsoletoResponse(rsp *http.Response) (*MarcarObsoletoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MarcarObsoletoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Requisito
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListarSessoesResponse parses an HTTP response from a ListarSessoesWithResponse call
 func ParseListarSessoesResponse(rsp *http.Response) (*ListarSessoesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -10042,6 +10397,12 @@ type ServerInterface interface {
 	// (POST /requisitos/{id}/execucoes)
 	RegistrarExecucao(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (DELETE /requisitos/{id}/obsolescencia)
+	ReativarRequisito(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PUT /requisitos/{id}/obsolescencia)
+	MarcarObsoleto(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (GET /sessoes)
 	ListarSessoes(w http.ResponseWriter, r *http.Request, params ListarSessoesParams)
 
@@ -10151,6 +10512,14 @@ func (siw *ServerInterfaceWrapper) ArvoreDeRequisitos(w http.ResponseWriter, r *
 		return
 	}
 
+	// ------------- Optional query parameter "incluir_obsoletos" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "incluir_obsoletos", r.URL.Query(), &params.IncluirObsoletos)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "incluir_obsoletos", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ArvoreDeRequisitos(w, r, params)
 	}))
@@ -10206,6 +10575,14 @@ func (siw *ServerInterfaceWrapper) BuscarRequisitos(w http.ResponseWriter, r *ht
 	err = runtime.BindQueryParameter("form", true, false, "limite", r.URL.Query(), &params.Limite)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limite", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "incluir_obsoletos" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "incluir_obsoletos", r.URL.Query(), &params.IncluirObsoletos)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "incluir_obsoletos", Err: err})
 		return
 	}
 
@@ -11091,6 +11468,56 @@ func (siw *ServerInterfaceWrapper) RegistrarExecucao(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// ReativarRequisito operation middleware
+func (siw *ServerInterfaceWrapper) ReativarRequisito(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReativarRequisito(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarcarObsoleto operation middleware
+func (siw *ServerInterfaceWrapper) MarcarObsoleto(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarcarObsoleto(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListarSessoes operation middleware
 func (siw *ServerInterfaceWrapper) ListarSessoes(w http.ResponseWriter, r *http.Request) {
 
@@ -11894,6 +12321,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PUT "+options.BaseURL+"/requisitos/{id}/derivacoes/{pai}", wrapper.DefinirPontos)
 	m.HandleFunc("GET "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.ListarExecucoes)
 	m.HandleFunc("POST "+options.BaseURL+"/requisitos/{id}/execucoes", wrapper.RegistrarExecucao)
+	m.HandleFunc("DELETE "+options.BaseURL+"/requisitos/{id}/obsolescencia", wrapper.ReativarRequisito)
+	m.HandleFunc("PUT "+options.BaseURL+"/requisitos/{id}/obsolescencia", wrapper.MarcarObsoleto)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes", wrapper.ListarSessoes)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes", wrapper.CriarSessao)
 	m.HandleFunc("GET "+options.BaseURL+"/sessoes/{id}", wrapper.ObterSessao)

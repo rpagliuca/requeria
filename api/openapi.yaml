@@ -259,6 +259,40 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Requisito' }
         '404': { $ref: '#/components/responses/Erro' }
+  /requisitos/{id}/obsolescencia:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: marcarObsoleto
+      description: |
+        Marca o requisito como obsoleto, com o motivo: nada é apagado. Ele deixa de limitar o estado
+        dos pais e de pesar entre os irmãos, sai da busca e da árvore padrão, e as tarefas abertas
+        dele ficam sinalizadas para decisão. Recusa o zero.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Obsolescencia' }
+      responses:
+        '200':
+          description: Requisito obsoleto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+    delete:
+      operationId: reativarRequisito
+      description: Desfaz a obsolescência (marcado por engano); o histórico fica nos eventos.
+      responses:
+        '200':
+          description: Requisito reativado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requisito' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
   /requisitos/{id}/execucoes:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -528,6 +562,7 @@ paths:
         - { name: organizacao, in: query, schema: { type: string } }
         - { name: componente, in: query, schema: { type: string } }
         - { name: limite, in: query, schema: { type: integer, default: 10 } }
+        - { name: incluir_obsoletos, in: query, description: 'Padrão: os obsoletos ficam de fora', schema: { type: boolean } }
       responses:
         '200':
           description: Requisitos encontrados, do mais ao menos relevante
@@ -565,9 +600,11 @@ paths:
       description: |
         A cadeia em texto, um requisito por linha ("R-0001 título"), indentada pela derivação. Começa no
         zero da organização (ou no geral); com componente, só os requisitos dele e os ancestrais.
+        Os obsoletos (e o que só se chega por eles) ficam de fora, salvo com incluir_obsoletos.
       parameters:
         - { name: organizacao, in: query, schema: { type: string } }
         - { name: componente, in: query, schema: { type: string } }
+        - { name: incluir_obsoletos, in: query, schema: { type: boolean } }
       responses:
         '200':
           description: Árvore
@@ -1140,6 +1177,10 @@ components:
         peso:
           type: number
           description: 'Soma do peso no total dos requisitos que a tarefa tenta atender, de 0 a 1; a fila ordena por ele'
+        requisitos_obsoletos:
+          type: array
+          description: 'Requisitos obsoletos que a tarefa, ainda não concluída, tenta atender: pede decisão (concluir, religar a outro requisito ou desvincular)'
+          items: { type: string }
         criada_em: { type: string, format: date-time }
         atualizada_em: { type: string, format: date-time }
     Template:
@@ -1257,6 +1298,7 @@ components:
         titulo: { type: string }
         organizacao: { type: string }
         estado: { $ref: '#/components/schemas/EstadoDoRequisito' }
+        obsoleto: { type: boolean, description: 'Só presente (true) com incluir_obsoletos' }
         componentes:
           type: array
           items: { type: string }
@@ -1392,8 +1434,21 @@ components:
           description: Tarefas ligadas a este requisito que não estão concluídas
           items: { type: string }
         ultima_execucao: { $ref: '#/components/schemas/Execucao' }
+        obsoleto: { $ref: '#/components/schemas/Obsoleto' }
         criado_em: { type: string, format: date-time }
         atualizado_em: { type: string, format: date-time }
+    Obsoleto:
+      type: object
+      description: 'Presente só no requisito obsoleto: quando e por quê. Ele continua consultável, mas não limita os pais nem pesa entre os irmãos.'
+      required: [em, motivo]
+      properties:
+        em: { type: string, format: date-time }
+        motivo: { type: string }
+    Obsolescencia:
+      type: object
+      required: [motivo]
+      properties:
+        motivo: { type: string }
     Importancia:
       type: object
       required: [pai, fatia]
@@ -1445,7 +1500,7 @@ components:
         detalhe: { type: string }
     MotivoDeAtencao:
       type: string
-      enum: [muitos_filhos, sem_origem, sem_descricao, sem_tarefa, trabalho_parado, outra_organizacao]
+      enum: [muitos_filhos, sem_origem, sem_descricao, sem_tarefa, trabalho_parado, outra_organizacao, obsoleto_com_tarefa_aberta]
     NovoRequisito:
       type: object
       required: [titulo]

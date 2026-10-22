@@ -123,6 +123,11 @@ export function Tarefas() {
                     <span>{t.organizacao}</span>
                     {t.peso !== undefined && <span className="tabular-nums" title="Peso no total dos requisitos da tarefa">{percentual(t.peso)} do total</span>}
                     {t.sessao_ativa && <span className="text-tom-andamento-fg">● {t.sessao_ativa}</span>}
+                    {t.requisitos_obsoletos && (
+                      <span className="text-tom-atencao-fg" title="Tenta atender requisitos obsoletos: conclua, ligue a outro requisito ou desvincule">
+                        ⚠ requisito obsoleto
+                      </span>
+                    )}
                     <span>
                       atualizada <Data valor={t.atualizada_em} />
                     </span>

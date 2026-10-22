@@ -171,6 +171,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/requisitos/{id}/obsolescencia": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Marca o requisito como obsoleto, com o motivo: nada é apagado. Ele deixa de limitar o estado
+         *     dos pais e de pesar entre os irmãos, sai da busca e da árvore padrão, e as tarefas abertas
+         *     dele ficam sinalizadas para decisão. Recusa o zero.
+         *      */
+        put: operations["marcarObsoleto"];
+        post?: never;
+        /** @description Desfaz a obsolescência (marcado por engano); o histórico fica nos eventos. */
+        delete: operations["reativarRequisito"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/requisitos/{id}/execucoes": {
         parameters: {
             query?: never;
@@ -408,6 +431,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/busca/tarefas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Consulta compacta para agentes: só id, título, status, organização, sessão ativa e a espera dela,
+         *     sem descrição nem resumo. Exige ao menos um filtro (nunca a lista inteira); da atualizada mais
+         *     recente para a mais antiga, até o limite; `total` diz quantas casaram e `fora`, quantas ficaram de fora.
+         *      */
+        get: operations["consultarTarefas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/arvore/requisitos": {
         parameters: {
             query?: never;
@@ -417,6 +460,7 @@ export interface paths {
         };
         /** @description A cadeia em texto, um requisito por linha ("R-0001 título"), indentada pela derivação. Começa no
          *     zero da organização (ou no geral); com componente, só os requisitos dele e os ancestrais.
+         *     Os obsoletos (e o que só se chega por eles) ficam de fora, salvo com incluir_obsoletos.
          *      */
         get: operations["arvoreDeRequisitos"];
         put?: never;
@@ -855,6 +899,8 @@ export interface components {
             requisitos?: string[];
             /** @description Soma do peso no total dos requisitos que a tarefa tenta atender, de 0 a 1; a fila ordena por ele */
             peso?: number;
+            /** @description Requisitos obsoletos que a tarefa, ainda não concluída, tenta atender: pede decisão (concluir, religar a outro requisito ou desvincular) */
+            requisitos_obsoletos?: string[];
             /** Format: date-time */
             criada_em: string;
             /** Format: date-time */
@@ -958,7 +1004,25 @@ export interface components {
             titulo: string;
             organizacao: string;
             estado: components["schemas"]["EstadoDoRequisito"];
+            /** @description Só presente (true) com incluir_obsoletos */
+            obsoleto?: boolean;
             componentes: string[];
+        };
+        ResumoDeTarefa: {
+            id: string;
+            titulo: string;
+            status: components["schemas"]["StatusTarefa"];
+            organizacao: string;
+            sessao_ativa?: string;
+            /** @description O que a sessão ativa espera do Rafael, se está aguardando */
+            aguardando?: string;
+        };
+        ConsultaDeTarefas: {
+            tarefas: components["schemas"]["ResumoDeTarefa"][];
+            /** @description Quantas casaram com o filtro, incluindo as que ficaram fora */
+            total: number;
+            /** @description Quantas casaram com o filtro e ficaram fora pelo limite */
+            fora: number;
         };
         ArvoreDeRequisitos: {
             texto: string;
@@ -1035,10 +1099,20 @@ export interface components {
             /** @description Tarefas ligadas a este requisito que não estão concluídas */
             tarefas_abertas: string[];
             ultima_execucao?: components["schemas"]["Execucao"];
+            obsoleto?: components["schemas"]["Obsoleto"];
             /** Format: date-time */
             criado_em: string;
             /** Format: date-time */
             atualizado_em: string;
+        };
+        /** @description Presente só no requisito obsoleto: quando e por quê. Ele continua consultável, mas não limita os pais nem pesa entre os irmãos. */
+        Obsoleto: {
+            /** Format: date-time */
+            em: string;
+            motivo: string;
+        };
+        Obsolescencia: {
+            motivo: string;
         };
         Importancia: {
             /** @example R-0001 */
@@ -1101,7 +1175,7 @@ export interface components {
             detalhe: string;
         };
         /** @enum {string} */
-        MotivoDeAtencao: "muitos_filhos" | "sem_origem" | "sem_descricao" | "sem_tarefa" | "trabalho_parado" | "outra_organizacao";
+        MotivoDeAtencao: "muitos_filhos" | "sem_origem" | "sem_descricao" | "sem_tarefa" | "trabalho_parado" | "outra_organizacao" | "obsoleto_com_tarefa_aberta";
         NovoRequisito: {
             titulo: string;
             descricao?: string;
@@ -1798,6 +1872,59 @@ export interface operations {
             404: components["responses"]["Erro"];
         };
     };
+    marcarObsoleto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Obsolescencia"];
+            };
+        };
+        responses: {
+            /** @description Requisito obsoleto */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    reativarRequisito: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requisito reativado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Requisito"];
+                };
+            };
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
     listarExecucoes: {
         parameters: {
             query?: never;
@@ -2229,6 +2356,8 @@ export interface operations {
                 organizacao?: string;
                 componente?: string;
                 limite?: number;
+                /** @description Padrão: os obsoletos ficam de fora */
+                incluir_obsoletos?: boolean;
             };
             header?: never;
             path?: never;
@@ -2247,11 +2376,42 @@ export interface operations {
             };
         };
     };
+    consultarTarefas: {
+        parameters: {
+            query?: {
+                /** @description Um ou mais status, separados por vírgula (ex.: em_validacao,bloqueada) */
+                status?: string;
+                organizacao?: string;
+                /** @description Componente, como C-0001 */
+                componente?: string;
+                /** @description Requisito que a tarefa tenta atender, como R-0001 */
+                requisito?: string;
+                limite?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tarefas que casaram */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultaDeTarefas"];
+                };
+            };
+            400: components["responses"]["Erro"];
+        };
+    };
     arvoreDeRequisitos: {
         parameters: {
             query?: {
                 organizacao?: string;
                 componente?: string;
+                incluir_obsoletos?: boolean;
             };
             header?: never;
             path?: never;

@@ -827,3 +827,107 @@ func TestConsultaDeTarefas(t *testing.T) {
 		t.Fatalf("a consulta deve ser compacta: %s", texto)
 	}
 }
+
+func TestRequisitoObsoleto(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var zero, copia, antigo, novo api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &zero)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Cópia fora de casa"}, 201, &copia)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Backup do serviço antigo", DerivaDe: &[]string{copia.Id}}, 201, &antigo)
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Backup do serviço novo", DerivaDe: &[]string{copia.Id}}, 201, &novo)
+	dias := 30
+	a.chamar("POST", "/requisitos/"+novo.Id+"/execucoes", "", api.NovaExecucao{Evidencia: "restaurado", ValidadeDias: &dias}, 201, nil)
+	tarefa := a.tarefa("Testar o backup antigo")
+	a.chamar("POST", "/tarefas/"+tarefa.Id+"/requisitos", "", api.VinculoRequisito{Requisito: antigo.Id}, 200, nil)
+	obter := func(id string) api.Requisito {
+		var r api.Requisito
+		a.chamar("GET", "/requisitos/"+id, "", nil, 200, &r)
+		return r
+	}
+	if c := obter(copia.Id); c.Estado != api.NaoAtendido || !slices.Equal(c.LimitadoPor, []string{antigo.Id}) {
+		t.Fatalf("antes, o antigo limita o pai: %+v", c)
+	}
+
+	// Motivo obrigatório; o zero não fica obsoleto.
+	a.chamar("PUT", "/requisitos/"+antigo.Id+"/obsolescencia", "", api.Obsolescencia{Motivo: " "}, 400, nil)
+	a.chamar("PUT", "/requisitos/"+zero.Id+"/obsolescencia", "", api.Obsolescencia{Motivo: "x"}, 409, nil)
+	var marcado api.Requisito
+	a.chamar("PUT", "/requisitos/"+antigo.Id+"/obsolescencia", "", api.Obsolescencia{Motivo: "o serviço não existe mais"}, 200, &marcado)
+	if marcado.Obsoleto == nil || marcado.Obsoleto.Motivo != "o serviço não existe mais" || marcado.Peso != 0 {
+		t.Fatalf("obsoleto com data e motivo, sem peso: %+v", marcado)
+	}
+	if len(marcado.Atencao) != 1 || marcado.Atencao[0].Motivo != api.ObsoletoComTarefaAberta {
+		t.Fatalf("a tarefa aberta pede decisão: %+v", marcado.Atencao)
+	}
+	a.chamar("PUT", "/requisitos/"+antigo.Id+"/obsolescencia", "", api.Obsolescencia{Motivo: "de novo"}, 409, nil)
+
+	// O pai passa a vir só do que sobra; o irmão vivo fica com a fatia inteira.
+	if c := obter(copia.Id); c.Estado != api.Validado || len(c.LimitadoPor) != 0 {
+		t.Fatalf("o pai não é mais limitado pelo obsoleto: %+v", c)
+	}
+	if z := obter(zero.Id); z.Estado != api.Validado {
+		t.Fatalf("a cadeia até o zero: %+v", z)
+	}
+	if n := obter(novo.Id); !perto(n.Importancia[0].Fatia, 1) {
+		t.Fatalf("o irmão vivo fica com a fatia inteira: %+v", n.Importancia)
+	}
+
+	// A tarefa aberta fica sinalizada; concluída, deixa de ficar.
+	var lida api.Tarefa
+	a.chamar("GET", "/tarefas/"+tarefa.Id, "", nil, 200, &lida)
+	if lida.RequisitosObsoletos == nil || !slices.Equal(*lida.RequisitosObsoletos, []string{antigo.Id}) {
+		t.Fatalf("tarefa sinalizada: %+v", lida.RequisitosObsoletos)
+	}
+	var lista []api.Tarefa
+	a.chamar("GET", "/tarefas", "", nil, 200, &lista)
+	if lista[0].RequisitosObsoletos == nil {
+		t.Fatalf("sinalizada também na lista: %+v", lista[0])
+	}
+
+	// Fora da busca e da árvore padrão; com incluir_obsoletos, volta marcado.
+	var achados []api.ResumoDeRequisito
+	a.chamar("GET", "/busca/requisitos?q=backup", "", nil, 200, &achados)
+	if len(achados) != 1 || achados[0].Id != novo.Id {
+		t.Fatalf("busca sem obsoletos: %+v", achados)
+	}
+	a.chamar("GET", "/busca/requisitos?q=backup&incluir_obsoletos=true", "", nil, 200, &achados)
+	if len(achados) != 2 {
+		t.Fatalf("busca com obsoletos: %+v", achados)
+	}
+	var arvore api.ArvoreDeRequisitos
+	a.chamar("GET", "/arvore/requisitos", "", nil, 200, &arvore)
+	if strings.Contains(arvore.Texto, antigo.Id) || arvore.Requisitos != 3 {
+		t.Fatalf("árvore sem obsoletos: %q", arvore.Texto)
+	}
+	a.chamar("GET", "/arvore/requisitos?incluir_obsoletos=true", "", nil, 200, &arvore)
+	if !strings.Contains(arvore.Texto, antigo.Id+" [? pts · 0,0% · 0,0% do total] [obsoleto] ") {
+		t.Fatalf("árvore com obsoletos: %q", arvore.Texto)
+	}
+
+	// Nada novo se liga a ele.
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Filho", DerivaDe: &[]string{antigo.Id}}, 409, nil)
+	outra := a.tarefa("Outra")
+	a.chamar("POST", "/tarefas/"+outra.Id+"/requisitos", "", api.VinculoRequisito{Requisito: antigo.Id}, 409, nil)
+	a.chamar("DELETE", "/tarefas/"+tarefa.Id+"/requisitos/"+antigo.Id, "", nil, 200, nil)
+	if r := obter(antigo.Id); len(r.Atencao) != 0 {
+		t.Fatalf("sem tarefa aberta, nada a decidir: %+v", r.Atencao)
+	}
+
+	// Reativar desfaz; o histórico fica nos eventos.
+	var reativado api.Requisito
+	a.chamar("DELETE", "/requisitos/"+antigo.Id+"/obsolescencia", "", nil, 200, &reativado)
+	if reativado.Obsoleto != nil || reativado.Peso == 0 {
+		t.Fatalf("reativado: %+v", reativado)
+	}
+	a.chamar("DELETE", "/requisitos/"+antigo.Id+"/obsolescencia", "", nil, 409, nil)
+	var eventos []api.Evento
+	a.chamar("GET", "/eventos?entidade="+antigo.Id, "", nil, 200, &eventos)
+	tipos := []string{}
+	for _, e := range eventos {
+		tipos = append(tipos, e.Tipo)
+	}
+	if !slices.Contains(tipos, "requisito_obsoleto") || !slices.Contains(tipos, "requisito_reativado") {
+		t.Fatalf("eventos: %v", tipos)
+	}
+}

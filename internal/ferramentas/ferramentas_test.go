@@ -300,6 +300,21 @@ func TestRequisitosPeloMCP(t *testing.T) {
 	if arvore.Requisitos != 2 {
 		t.Fatalf("árvore pelo MCP: %+v", arvore)
 	}
+	var obsoleto api.Requisito
+	c.chamar("marcar_obsoleto", map[string]any{"id": filho.Id, "motivo": "o ambiente não existe mais"}, &obsoleto)
+	c.chamar("buscar_requisitos", map[string]any{"texto": "backup"}, &busca)
+	if obsoleto.Obsoleto == nil || len(busca.Requisitos) != 0 {
+		t.Fatalf("obsoleto pelo MCP: %+v %+v", obsoleto, busca)
+	}
+	c.chamar("buscar_requisitos", map[string]any{"texto": "backup", "incluir_obsoletos": true}, &busca)
+	if len(busca.Requisitos) != 1 {
+		t.Fatalf("busca com obsoletos pelo MCP: %+v", busca)
+	}
+	var reativado api.Requisito
+	c.chamar("marcar_obsoleto", map[string]any{"id": filho.Id, "reativar": true}, &reativado)
+	if reativado.Obsoleto != nil {
+		t.Fatalf("reativado pelo MCP: %+v", reativado)
+	}
 	var tp api.Template
 	corpo, _ := json.Marshal(api.NovoTemplate{Titulo: "Revisar", Organizacao: "Exemplo"})
 	resp, err := http.Post(endereco+"/templates", "application/json", bytes.NewReader(corpo))

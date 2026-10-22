@@ -157,6 +157,13 @@ export const useDefinirPontos = (id: string) =>
     obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "PUT", pontos === null ? {} : { pontos }),
   )
 
+// Obsoleto: fica no histórico, com o motivo, mas sai do cálculo dos pais; reativar desfaz o engano.
+export const useMarcarObsoleto = (id: string) =>
+  useEscrita((motivo: string) => obter<Requisito>(`/requisitos/${id}/obsolescencia`, "PUT", { motivo }))
+
+export const useReativarRequisito = (id: string) =>
+  useEscrita<void, Requisito>(() => obter<Requisito>(`/requisitos/${id}/obsolescencia`, "DELETE"))
+
 export const useDesfazerDerivacao = (id: string) =>
   useEscrita((pai: string) => obter<Requisito>(`/requisitos/${id}/derivacoes/${pai}`, "DELETE"))
 

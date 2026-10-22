@@ -9,7 +9,9 @@ import {
   useAlterarRequisito,
   useDerivar,
   useDesfazerDerivacao,
+  useMarcarObsoleto,
   useOrigens,
+  useReativarRequisito,
   useRequisitos,
   useTarefas,
 } from "@/api/cliente"
@@ -67,8 +69,11 @@ export function Requisito() {
             atualizado <Data valor={r.atualizado_em} />
           </span>
           <EditarRequisito requisito={r} />
+          {!r.obsoleto && r.deriva_de.length > 0 && <MarcarObsoleto requisito={r} />}
         </div>
       </header>
+
+      {r.obsoleto && <AvisoDeObsoleto requisito={r} />}
 
       {r.atencao.length > 0 && (
         <div className="space-y-1 rounded-md border border-tom-atencao-borda bg-tom-atencao/50 p-3 text-sm">
@@ -141,7 +146,7 @@ function Pais({ requisito, porId }: { requisito: TipoRequisito; porId: Map<strin
   const derivar = useDerivar(requisito.id)
   const desfazer = useDesfazerDerivacao(requisito.id)
   const [pai, setPai] = useState("")
-  const candidatos = [...porId.values()].filter((x) => x.id !== requisito.id && !requisito.deriva_de.includes(x.id))
+  const candidatos = [...porId.values()].filter((x) => x.id !== requisito.id && !requisito.deriva_de.includes(x.id) && !x.obsoleto)
   const erro = derivar.error ?? desfazer.error
   return (
     <div className="space-y-2">
@@ -185,6 +190,70 @@ function Pais({ requisito, porId }: { requisito: TipoRequisito; porId: Map<strin
       </div>
       {erro && <p className="text-destructive text-sm">{erro.message}</p>}
     </div>
+  )
+}
+
+// Obsoleto: continua consultável, com quando e por quê; reativar desfaz um engano.
+function AvisoDeObsoleto({ requisito: r }: { requisito: TipoRequisito }) {
+  const reativar = useReativarRequisito(r.id)
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/50 p-3 text-sm">
+      <p>
+        <span className="font-medium">Obsoleto</span> desde <Data valor={r.obsoleto!.em} />: {r.obsoleto!.motivo}
+      </p>
+      <p className="text-muted-foreground">
+        Não limita o estado dos pais nem pesa entre os irmãos, e fica fora da árvore padrão e da busca.
+      </p>
+      <Button size="sm" variant="outline" disabled={reativar.isPending} onClick={() => reativar.mutate()}>
+        Reativar
+      </Button>
+      {reativar.error && <p className="text-destructive">{reativar.error.message}</p>}
+    </div>
+  )
+}
+
+function MarcarObsoleto({ requisito }: { requisito: TipoRequisito }) {
+  const marcar = useMarcarObsoleto(requisito.id)
+  const [aberto, setAberto] = useState(false)
+  const [motivo, setMotivo] = useState("")
+  return (
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7">
+          Marcar obsoleto
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            marcar.mutate(motivo, { onSuccess: () => setAberto(false) })
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Marcar {requisito.id} como obsoleto</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            Nada é apagado. Ele deixa de limitar o estado dos pais, sai da árvore padrão e da busca, e as tarefas abertas dele
+            ({requisito.tarefas_abertas.length}) ficam sinalizadas para decisão.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="motivo-obsoleto">Motivo: por que deixou de valer</Label>
+            <Textarea id="motivo-obsoleto" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} required />
+          </div>
+          {marcar.error && <p className="text-destructive text-sm">{marcar.error.message}</p>}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={marcar.isPending || !motivo.trim()}>
+              Marcar obsoleto
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -13,7 +13,7 @@ export function RequisitosDaTarefa({ tarefa }: { tarefa: Tarefa }) {
   const [escolhido, setEscolhido] = useState("")
   const ligados = tarefa.requisitos ?? []
   const porId = new Map((requisitos.data ?? []).map((r) => [r.id, r]))
-  const candidatos = (requisitos.data ?? []).filter((r) => !ligados.includes(r.id))
+  const candidatos = (requisitos.data ?? []).filter((r) => !ligados.includes(r.id) && !r.obsoleto)
   const erro = vincular.error ?? desvincular.error
 
   return (
@@ -27,6 +27,7 @@ export function RequisitosDaTarefa({ tarefa }: { tarefa: Tarefa }) {
               {porId.has(rid) || !requisitos.data ? (
                 <Link to={`/requisitos/${rid}`} className="hover:underline">
                   <span className="font-mono text-muted-foreground text-xs">{rid}</span> {porId.get(rid)?.titulo}
+                  {porId.get(rid)?.obsoleto && <span className="ml-2 text-tom-atencao-fg text-xs">obsoleto</span>}
                 </Link>
               ) : (
                 <span className="text-muted-foreground text-sm">um requisito de outra organização</span>

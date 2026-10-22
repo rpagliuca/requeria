@@ -85,6 +85,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_requisito", Description: "Altera título, descrição, organização ou origem de um requisito. A importância não fica aqui: é dada em pontos na ligação com cada pai (definir_pontos)."}, f.alterarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "derivar_requisito", Description: "Registra que um requisito deriva de outro (um requisito pode derivar de vários). Recusa ciclos. Pontos opcionais; ao derivar de mais um pai, o padrão é 1."}, f.derivarRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "definir_pontos", Description: "Triagem: dá ao requisito os pontos de importância sob um pai. Os pontos só se comparam entre irmãos: a fatia é pontos / soma dos irmãos, e o peso no total soma, sobre os pais, peso do pai × fatia. Sem pontos, volta a não triado (conta como 1)."}, f.definirPontos)
+	mcp.AddTool(s, &mcp.Tool{Name: "marcar_obsoleto", Description: "Marca um requisito como obsoleto, com o motivo (nada é apagado): ele deixa de limitar o estado dos pais e de pesar entre os irmãos, sai da busca e da árvore padrão, e as tarefas abertas dele ficam sinalizadas para decisão. Com reativar, desfaz (marcado por engano)."}, f.marcarObsoleto)
 	mcp.AddTool(s, &mcp.Tool{Name: "vincular_requisito", Description: "Registra que uma tarefa tenta atender um requisito."}, f.vincularRequisito)
 	mcp.AddTool(s, &mcp.Tool{Name: "registrar_execucao", Description: "Registra uma execução de conformidade: o requisito foi verificado e está atendido, com a evidência e a validade em dias (depois dela, a validação expira). Só registre o que você verificou de fato."}, f.registrarExecucao)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_componentes", Description: "Lista os componentes (repositórios, módulos, lugares, funcionalidades…) com os requisitos e tarefas de cada um, para reaproveitar em vez de duplicar."}, f.listarComponentes)
@@ -488,6 +489,7 @@ type BuscaDeRequisitos struct {
 	Texto       string `json:"texto" jsonschema:"palavras a buscar"`
 	Organizacao string `json:"organizacao,omitempty" jsonschema:"só desta organização"`
 	Componente  string `json:"componente,omitempty" jsonschema:"só deste componente, como C-0001"`
+	Obsoletos   bool   `json:"incluir_obsoletos,omitempty" jsonschema:"incluir os requisitos obsoletos (por padrão ficam de fora)"`
 }
 
 type Requisitos struct {
@@ -497,6 +499,20 @@ type Requisitos struct {
 type FiltroDaArvore struct {
 	Organizacao string `json:"organizacao,omitempty" jsonschema:"organização (o zero dela); vazio é a visão geral"`
 	Componente  string `json:"componente,omitempty" jsonschema:"só os requisitos deste componente e os ancestrais"`
+	Obsoletos   bool   `json:"incluir_obsoletos,omitempty" jsonschema:"incluir os requisitos obsoletos, marcados [obsoleto] (por padrão ficam de fora)"`
+}
+
+type Obsolescencia struct {
+	Id       string `json:"id" jsonschema:"requisito, como R-0001"`
+	Motivo   string `json:"motivo,omitempty" jsonschema:"por que deixou de valer (obrigatório ao marcar)"`
+	Reativar bool   `json:"reativar,omitempty" jsonschema:"desfaz a obsolescência, em vez de marcar"`
+}
+
+func seMarcado(b bool) *bool {
+	if !b {
+		return nil
+	}
+	return &b
 }
 
 func opcional(s string) *string {
@@ -559,13 +575,15 @@ type Origens struct {
 
 func (f *Ferramentas) buscarRequisitos(ctx context.Context, _ *mcp.CallToolRequest, in BuscaDeRequisitos) (*mcp.CallToolResult, Requisitos, error) {
 	var out Requisitos
-	resp, err := f.cliente.BuscarRequisitos(ctx, &api.BuscarRequisitosParams{Q: in.Texto, Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente)})
+	resp, err := f.cliente.BuscarRequisitos(ctx, &api.BuscarRequisitosParams{Q: in.Texto, Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente),
+		IncluirObsoletos: seMarcado(in.Obsoletos)})
 	return nil, out, decodificar(resp, err, &out.Requisitos)
 }
 
 func (f *Ferramentas) arvoreDeRequisitos(ctx context.Context, _ *mcp.CallToolRequest, in FiltroDaArvore) (*mcp.CallToolResult, api.ArvoreDeRequisitos, error) {
 	var out api.ArvoreDeRequisitos
-	resp, err := f.cliente.ArvoreDeRequisitos(ctx, &api.ArvoreDeRequisitosParams{Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente)})
+	resp, err := f.cliente.ArvoreDeRequisitos(ctx, &api.ArvoreDeRequisitosParams{Organizacao: opcional(in.Organizacao), Componente: opcional(in.Componente),
+		IncluirObsoletos: seMarcado(in.Obsoletos)})
 	return nil, out, decodificar(resp, err, &out)
 }
 
@@ -596,6 +614,18 @@ func (f *Ferramentas) derivarRequisito(ctx context.Context, _ *mcp.CallToolReque
 func (f *Ferramentas) definirPontos(ctx context.Context, _ *mcp.CallToolRequest, in PontosDoRequisito) (*mcp.CallToolResult, api.Requisito, error) {
 	var out api.Requisito
 	resp, err := f.cliente.DefinirPontos(ctx, in.Id, in.Pai, api.Pontos{Pontos: in.Pontos}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) marcarObsoleto(ctx context.Context, _ *mcp.CallToolRequest, in Obsolescencia) (*mcp.CallToolResult, api.Requisito, error) {
+	var out api.Requisito
+	var resp *http.Response
+	var err error
+	if in.Reativar {
+		resp, err = f.cliente.ReativarRequisito(ctx, in.Id, f.autorizar)
+	} else {
+		resp, err = f.cliente.MarcarObsoleto(ctx, in.Id, api.Obsolescencia{Motivo: in.Motivo}, f.autorizar)
+	}
 	return nil, out, decodificar(resp, err, &out)
 }
 
