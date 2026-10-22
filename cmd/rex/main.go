@@ -93,6 +93,10 @@ func servir(args []string) {
 		if err != nil {
 			log.Fatalf("login: %v", err)
 		}
+		// Conector personalizado do Claude: /mcp atrás de OAuth, só nos endereços com login.
+		conector := ferramentas.NovoEmProcesso(handler).ServidorDoConector()
+		l.ComConector(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return conector },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}))
 		for _, e := range strings.Split(*enderecoComLogin, ",") {
 			ouvir[strings.TrimSpace(e)] = comGzip(l.Proteger(handler))
 		}

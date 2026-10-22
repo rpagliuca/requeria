@@ -67,11 +67,14 @@ type Config struct {
 // Login é a configuração carregada e validada.
 type Login struct {
 	oauth   *oauth2.Config
+	base    string
 	chave   []byte
 	emails  []string
 	duracao time.Duration
 	seguro  bool
 	agora   func() time.Time
+	// conector, quando ligado, serve o MCP remoto em /mcp (ver conector.go).
+	conector *conector
 	// trocar troca o código pelo id_token; é substituída nos testes.
 	trocar func(ctx context.Context, codigo, verificador string) (string, error)
 }
@@ -112,6 +115,7 @@ func Novo(cfg Config, ambiente func(string) string) (*Login, error) {
 			RedirectURL:  base + CaminhoRetorno,
 			Scopes:       []string{"openid", "email"},
 		},
+		base:    base,
 		chave:   []byte(ambiente(cfg.ChaveAmbiente)),
 		duracao: duracaoPadrao,
 		seguro:  strings.HasPrefix(base, "https://"),
@@ -134,6 +138,9 @@ func (l *Login) Proteger(proximo http.Handler) http.Handler {
 	mux.HandleFunc(CaminhoEntrar, l.entrar)
 	mux.HandleFunc(CaminhoRetorno, l.retorno)
 	mux.HandleFunc(CaminhoSair, l.sair)
+	if l.conector != nil {
+		l.rotasDoConector(mux)
+	}
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := l.emailDoCookie(r); ok {
 			proximo.ServeHTTP(w, r)
@@ -161,12 +168,13 @@ func responderErro(w http.ResponseWriter, status int, mensagem string) {
 	json.NewEncoder(w).Encode(map[string]string{"mensagem": mensagem})
 }
 
-// O fluxo guarda state e verificador do PKCE num cookie curto, assinado: nada fica no servidor.
+// O fluxo guarda state, verificador do PKCE e o caminho para onde voltar (?voltar=, só deste
+// servidor) num cookie curto, assinado: nada fica no servidor.
 
 func (l *Login) entrar(w http.ResponseWriter, r *http.Request) {
 	state := aleatorio()
 	verificador := oauth2.GenerateVerifier()
-	l.gravarCookie(w, cookieFluxo, state+"|"+verificador, CaminhoRetorno, duracaoFluxo)
+	l.gravarCookie(w, cookieFluxo, state+"|"+verificador+"|"+voltarLocal(r.URL.Query().Get("voltar")), CaminhoRetorno, duracaoFluxo)
 	url := l.oauth.AuthCodeURL(state, oauth2.S256ChallengeOption(verificador), oauth2.SetAuthURLParam("prompt", "select_account"))
 	http.Redirect(w, r, url, http.StatusFound)
 }
@@ -174,7 +182,8 @@ func (l *Login) entrar(w http.ResponseWriter, r *http.Request) {
 func (l *Login) retorno(w http.ResponseWriter, r *http.Request) {
 	fluxo, ok := l.lerCookie(r, cookieFluxo)
 	l.apagarCookie(w, cookieFluxo, CaminhoRetorno)
-	state, verificador, _ := strings.Cut(fluxo, "|")
+	partes := append(strings.SplitN(fluxo, "|", 3), "", "")
+	state, verificador, voltar := partes[0], partes[1], partes[2]
 	q := r.URL.Query()
 	switch {
 	case q.Get("error") != "":
@@ -198,7 +207,10 @@ func (l *Login) retorno(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("login: %s entrou", email)
 	l.gravarCookie(w, cookieSessao, email, "/", l.duracao)
-	http.Redirect(w, r, "/", http.StatusFound)
+	if voltar == "" {
+		voltar = "/"
+	}
+	http.Redirect(w, r, voltar, http.StatusFound)
 }
 
 func (l *Login) sair(w http.ResponseWriter, r *http.Request) {

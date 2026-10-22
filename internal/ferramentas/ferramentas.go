@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,21 @@ func Novo(endereco string) (*Ferramentas, error) {
 		return nil, err
 	}
 	return &Ferramentas{cliente: cliente, ambiente: os.Getenv}, nil
+}
+
+// NovoEmProcesso cria as ferramentas chamando a API direto no handler, sem rede: é o caso do
+// conector remoto, servido pelo próprio rex.
+func NovoEmProcesso(h http.Handler) *Ferramentas {
+	cliente, _ := api.NewClient("http://rex", api.WithHTTPClient(emProcesso{h}))
+	return &Ferramentas{cliente: cliente, ambiente: func(string) string { return "" }}
+}
+
+type emProcesso struct{ h http.Handler }
+
+func (e emProcesso) Do(r *http.Request) (*http.Response, error) {
+	w := httptest.NewRecorder()
+	e.h.ServeHTTP(w, r)
+	return w.Result(), nil
 }
 
 // ComJournals faz cada sessão iniciada sem journal ganhar a pasta <dir>/<S-0001>/journal.md.
@@ -111,6 +127,21 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_tecla", Description: "Só para o intermediário do rex voz. Aperta, no agente da sessão, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente."}, f.vozTecla)
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_responder", Description: "Só para o intermediário do rex voz. Responde à frase da Siri que está esperando (as que chegam como \"[rex voz · siri · …]\"): fala é o que a Siri diz; fim encerra a conversa do atalho. Uma vez por frase."}, f.vozResponder)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
+	return s
+}
+
+// ServidorDoConector monta o servidor MCP do conector personalizado do Claude (/mcp, atrás de
+// OAuth): só leitura, por ora só o panorama da voz, para o modo de voz do app do Claude.
+func (f *Ferramentas) ServidorDoConector() *mcp.Server {
+	s := mcp.NewServer(&mcp.Implementation{Name: "rex", Version: "0.1.0"}, &mcp.ServerOptions{
+		Instructions: "Sessões de trabalho dos agentes de IA do Rafael no rex. Para \"quais sessões esperam meu input?\" " +
+			"ou \"o que os agentes estão fazendo?\", chame voz_panorama e responda curto, para ser falado.",
+	})
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "voz_panorama",
+		Description: "As sessões de trabalho ativas no rex, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada. Só leitura.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, Title: "Panorama das sessões"},
+	}, f.vozPanorama)
 	return s
 }
 

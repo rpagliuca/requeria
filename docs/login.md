@@ -57,3 +57,25 @@ OAuth 2.0 com código e PKCE. State e verificador vão num cookie curto e assina
 e por isso as afirmações valem sem conferir a assinatura (OpenID Connect Core, 3.1.3.7); o rex
 confere emissor, audiência, validade, `email_verified` e a lista. O login é um cookie `HttpOnly`,
 `Secure` (com `url_base` em https) e `SameSite=Lax`, com e-mail e validade assinados por HMAC-SHA256.
+
+## Conector personalizado do Claude (`/mcp`)
+
+Nos endereços com login, o rex serve também um servidor MCP remoto em `<url_base>/mcp` (Streamable
+HTTP, sem estado), para usar como conector personalizado no app do Claude (Customize > Connectors >
+Add custom connector, URL `https://rex.eleprograma.com.br/mcp`) e, com ele, no modo de voz. Por ora só
+tem `voz_panorama`, de leitura.
+
+O próprio rex é o servidor de autorização (OAuth 2.1, como o Claude exige): `/mcp` sem token responde
+`401` com `WWW-Authenticate: Bearer resource_metadata=…`; os metadados estão em
+`/.well-known/oauth-protected-resource/mcp` e `/.well-known/oauth-authorization-server`; o cliente se
+registra em `/oauth/registrar` (RFC 7591), autoriza em `/oauth/autorizar` (código com PKCE S256) e
+troca em `/oauth/token` (`authorization_code` e `refresh_token`, com rotação). A autorização usa o
+login pelo Google de sempre: sem o cookie, vai ao Google e volta para ela.
+
+Nada fica no banco e não há segredo novo: cliente, código (1 minuto), access token (1 hora) e refresh
+token (`duracao_horas`) são valores assinados pela mesma chave dos cookies, cada tipo com o seu nome
+na assinatura. Trocar a chave desfaz todos; tirar o e-mail da lista desfaz os dele. Código e refresh
+valem uma vez, com a memória dos já usados no processo (num reinício, um refresh já usado volta a
+valer até expirar). Não há tela de consentimento: o código só vai a `redirect_uri` do Claude
+(`https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`) ou de loopback
+(`http://localhost`, `http://127.0.0.1`, para o Claude Code).
