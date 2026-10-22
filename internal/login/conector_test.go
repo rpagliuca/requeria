@@ -247,3 +247,21 @@ func TestVoltarSoParaCaminhoLocal(t *testing.T) {
 		}
 	}
 }
+
+func TestConectorAceitaClientIDNoBasic(t *testing.T) {
+	_, srv, cookie := servidorDoConector(t)
+	clientID, codigo := pedirCodigo(t, srv, cookie, "v")
+	req, _ := http.NewRequest("POST", srv.URL+caminhoToken, strings.NewReader(url.Values{
+		"grant_type": {"authorization_code"}, "code": {codigo}, "redirect_uri": {redirectDeTeste}, "code_verifier": {"v"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(clientID, "")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("troca com client_id no Basic: %d", resp.StatusCode)
+	}
+}
