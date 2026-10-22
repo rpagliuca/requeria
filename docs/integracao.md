@@ -159,3 +159,25 @@ Regras para não chutar:
   com a regra anterior, faz "às 3" dito às 14:00 virar 422;
 - texto sem nenhuma hora reconhecida é 422;
 - a frase de resposta sempre repete dia da semana, data e hora ("terça 21/10 às 09:00").
+
+## rex voz
+
+O atalho "rex" da Siri conversa com um **intermediário** (um agente leve na ponte da Siri, sempre
+disponível) que fica associado a uma sessão de trabalho e fala com o agente dela pelo tmux, como o
+Rafael faria no laptop. Rotas (contrato em `api/openapi.yaml`; ferramentas MCP `voz_*`):
+
+- `PUT /voz/sessao` associa uma sessão ativa (`S-…`, ou a sessão ativa de `T-…`). Vale até a próxima
+  associação, entre conversas e dias.
+- `POST /voz/mensagens` digita a frase no agente como `[rex voz · pedido N] …`. Com o agente
+  trabalhando, o Claude Code a põe na fila dele, em ordem. Recusada (409) numa tela de permissão.
+- `GET /voz` diz o estado do agente, lido da tela: `trabalhando` ("esc to interrupt" na barra),
+  `pedindo_permissao` (opções numeradas; vem a `tela`), `ocioso`, `sem_agente` (tmux não achado),
+  `encerrada` ou `sem_sessao`. Traz também as novidades do transcript do agente
+  (`~/.claude/projects/*/<chat>.jsonl`) depois do ponteiro. `esperar` (até 20 s) segura a resposta
+  enquanto o agente trabalha calado.
+- Ponteiro: cada sessão guarda o uuid da última linha do transcript que o Rafael ouviu
+  (`voz_lido_ate`). `GET /voz?entregar=true` só **propõe** o avanço. `POST /voz/confirmacao` o
+  efetiva, e a ponte o chama quando chega a frase seguinte da mesma conversa, que prova que o atalho
+  recebeu a fala anterior. Fala perdida (timeout, atalho fechado) continua como novidade.
+- `POST /voz/teclas` aperta 1–4 ou Enter numa tela de permissão (a escolha que o Rafael falou) ou
+  Escape para interromper.

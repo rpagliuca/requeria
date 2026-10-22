@@ -24,6 +24,16 @@ const (
 	TokenDeCapturaScopes = "tokenDeCaptura.Scopes"
 )
 
+// Defines values for EstadoDaVoz.
+const (
+	VozEncerrada        EstadoDaVoz = "encerrada"
+	VozOcioso           EstadoDaVoz = "ocioso"
+	VozPedindoPermissao EstadoDaVoz = "pedindo_permissao"
+	VozSemAgente        EstadoDaVoz = "sem_agente"
+	VozSemSessao        EstadoDaVoz = "sem_sessao"
+	VozTrabalhando      EstadoDaVoz = "trabalhando"
+)
+
 // Defines values for EstadoDoRequisito.
 const (
 	EmTrabalho        EstadoDoRequisito = "em_trabalho"
@@ -47,6 +57,12 @@ const (
 const (
 	FimDoTrabalho MotivoEncerramento = "fim_do_trabalho"
 	TrocaDeAgente MotivoEncerramento = "troca_de_agente"
+)
+
+// Defines values for NovidadeDeVozDe.
+const (
+	DoAgente NovidadeDeVozDe = "agente"
+	DoRafael NovidadeDeVozDe = "rafael"
 )
 
 // Defines values for Prioridade.
@@ -80,6 +96,16 @@ const (
 	EmAndamento StatusTarefa = "em_andamento"
 	EmValidacao StatusTarefa = "em_validacao"
 	Pausada     StatusTarefa = "pausada"
+)
+
+// Defines values for TeclaDeVozTecla.
+const (
+	Tecla1      TeclaDeVozTecla = "1"
+	Tecla2      TeclaDeVozTecla = "2"
+	Tecla3      TeclaDeVozTecla = "3"
+	Tecla4      TeclaDeVozTecla = "4"
+	TeclaEnter  TeclaDeVozTecla = "Enter"
+	TeclaEscape TeclaDeVozTecla = "Escape"
 )
 
 // Defines values for TipoAgente.
@@ -186,6 +212,12 @@ type ArvoreDeRequisitos struct {
 	Texto      string `json:"texto"`
 }
 
+// AssociacaoDeVoz defines model for AssociacaoDeVoz.
+type AssociacaoDeVoz struct {
+	// Id Sessão (S-0001) ou tarefa com sessão ativa (T-0001)
+	Id string `json:"id"`
+}
+
 // Atencao defines model for Atencao.
 type Atencao struct {
 	Detalhe string          `json:"detalhe"`
@@ -263,6 +295,10 @@ type EsperaDeSessao struct {
 	Desde    time.Time `json:"desde"`
 	Mensagem string    `json:"mensagem"`
 }
+
+// EstadoDaVoz sem_sessao: nada associado; encerrada: a sessão associada terminou; sem_agente: a sessão está
+// ativa mas o tmux do agente não foi achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+type EstadoDaVoz string
 
 // EstadoDoRequisito Calculado, nunca escrito à mão. Do menos ao mais maduro: nao_atendido (tarefa aberta fora de
 // andamento, ou nem tarefa nem execução), em_trabalho (tarefa em andamento), nao_validado
@@ -354,6 +390,11 @@ type Lembrete struct {
 	Texto  string         `json:"texto"`
 }
 
+// MensagemDeVoz defines model for MensagemDeVoz.
+type MensagemDeVoz struct {
+	Texto string `json:"texto"`
+}
+
 // MotivoDeAtencao defines model for MotivoDeAtencao.
 type MotivoDeAtencao string
 
@@ -410,6 +451,19 @@ type NovaTarefa struct {
 	Status     *StatusTarefa `json:"status,omitempty"`
 	Titulo     string        `json:"titulo"`
 }
+
+// NovidadeDeVoz defines model for NovidadeDeVoz.
+type NovidadeDeVoz struct {
+	De NovidadeDeVozDe `json:"de"`
+	Em time.Time       `json:"em"`
+
+	// Pedido Pedido do rex voz a que se refere, quando há
+	Pedido *int   `json:"pedido,omitempty"`
+	Texto  string `json:"texto"`
+}
+
+// NovidadeDeVozDe defines model for NovidadeDeVoz.De.
+type NovidadeDeVozDe string
 
 // NovoComponente defines model for NovoComponente.
 type NovoComponente struct {
@@ -499,6 +553,17 @@ type PedidoDeLancamento struct {
 
 	// Nome Nome curto da sessão do agente (tmux e remote-control), dizendo o assunto do trabalho; padrão: derivado do título
 	Nome *string `json:"nome,omitempty"`
+}
+
+// PedidoDeVoz defines model for PedidoDeVoz.
+type PedidoDeVoz struct {
+	// Estado sem_sessao: nada associado; encerrada: a sessão associada terminou; sem_agente: a sessão está
+	// ativa mas o tmux do agente não foi achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+	Estado EstadoDaVoz `json:"estado"`
+
+	// Pedido Número do pedido na sessão
+	Pedido int    `json:"pedido"`
+	Sessao string `json:"sessao"`
 }
 
 // Pendencias defines model for Pendencias.
@@ -697,6 +762,14 @@ type Tarefa struct {
 	Titulo   string  `json:"titulo"`
 }
 
+// TeclaDeVoz defines model for TeclaDeVoz.
+type TeclaDeVoz struct {
+	Tecla TeclaDeVozTecla `json:"tecla"`
+}
+
+// TeclaDeVozTecla defines model for TeclaDeVoz.Tecla.
+type TeclaDeVozTecla string
+
 // Template Tarefa que sempre precisa ser executada, sob demanda (sem periodicidade) ou periódica. Nada é
 // instanciado automaticamente: periódico com a última instância mais antiga que a periodicidade
 // (ou nunca instanciado), e sem instância aberta, está devido.
@@ -750,6 +823,29 @@ type VinculoComponente struct {
 // VinculoRequisito defines model for VinculoRequisito.
 type VinculoRequisito struct {
 	Requisito string `json:"requisito"`
+}
+
+// Voz defines model for Voz.
+type Voz struct {
+	// Estado sem_sessao: nada associado; encerrada: a sessão associada terminou; sem_agente: a sessão está
+	// ativa mas o tmux do agente não foi achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+	Estado EstadoDaVoz `json:"estado"`
+
+	// Nome Nome curto da sessão
+	Nome *string `json:"nome,omitempty"`
+
+	// Novidades O que aconteceu na conversa do agente depois do ponteiro, em ordem (as mais recentes, se muitas)
+	Novidades []NovidadeDeVoz `json:"novidades"`
+
+	// Omitidas Novidades mais antigas que ficaram de fora do limite
+	Omitidas int `json:"omitidas"`
+
+	// Sessao Sessão associada (S-0001); ausente sem associação
+	Sessao  *string   `json:"sessao,omitempty"`
+	Tarefas *[]string `json:"tarefas,omitempty"`
+
+	// Tela Fim da tela do agente, só em pedindo_permissao: a pergunta e as opções numeradas
+	Tela *string `json:"tela,omitempty"`
 }
 
 // Id defines model for Id.
@@ -814,6 +910,14 @@ type ListarSessoesParams struct {
 type ListarTarefasParams struct {
 	Status      *StatusTarefa `form:"status,omitempty" json:"status,omitempty"`
 	Organizacao *string       `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+}
+
+// ObterVozParams defines parameters for ObterVoz.
+type ObterVozParams struct {
+	Entregar *bool `form:"entregar,omitempty" json:"entregar,omitempty"`
+
+	// Esperar Segundos (até 20) para esperar novidade enquanto o agente trabalha
+	Esperar *int `form:"esperar,omitempty" json:"esperar,omitempty"`
 }
 
 // CapturarJSONRequestBody defines body for Capturar for application/json ContentType.
@@ -908,6 +1012,15 @@ type AlterarTemplateJSONRequestBody = AlteracaoTemplate
 
 // InstanciarTemplateJSONRequestBody defines body for InstanciarTemplate for application/json ContentType.
 type InstanciarTemplateJSONRequestBody = PedidoDeInstancia
+
+// EnviarVozJSONRequestBody defines body for EnviarVoz for application/json ContentType.
+type EnviarVozJSONRequestBody = MensagemDeVoz
+
+// AssociarVozJSONRequestBody defines body for AssociarVoz for application/json ContentType.
+type AssociarVozJSONRequestBody = AssociacaoDeVoz
+
+// TeclarVozJSONRequestBody defines body for TeclarVoz for application/json ContentType.
+type TeclarVozJSONRequestBody = TeclaDeVoz
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -1223,6 +1336,27 @@ type ClientInterface interface {
 	InstanciarTemplateWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ObterVoz request
+	ObterVoz(ctx context.Context, params *ObterVozParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ConfirmarVoz request
+	ConfirmarVoz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnviarVozWithBody request with any body
+	EnviarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EnviarVoz(ctx context.Context, body EnviarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssociarVozWithBody request with any body
+	AssociarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AssociarVoz(ctx context.Context, body AssociarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TeclarVozWithBody request with any body
+	TeclarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TeclarVoz(ctx context.Context, body TeclarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ArvoreDeRequisitos(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -2307,6 +2441,102 @@ func (c *Client) InstanciarTemplateWithBody(ctx context.Context, id Id, contentT
 
 func (c *Client) InstanciarTemplate(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewInstanciarTemplateRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ObterVoz(ctx context.Context, params *ObterVozParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewObterVozRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ConfirmarVoz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewConfirmarVozRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EnviarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnviarVozRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EnviarVoz(ctx context.Context, body EnviarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnviarVozRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AssociarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssociarVozRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AssociarVoz(ctx context.Context, body AssociarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssociarVozRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TeclarVozWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTeclarVozRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TeclarVoz(ctx context.Context, body TeclarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTeclarVozRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5005,6 +5235,218 @@ func NewInstanciarTemplateRequestWithBody(server string, id Id, contentType stri
 	return req, nil
 }
 
+// NewObterVozRequest generates requests for ObterVoz
+func NewObterVozRequest(server string, params *ObterVozParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/voz")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Entregar != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "entregar", runtime.ParamLocationQuery, *params.Entregar); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Esperar != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "esperar", runtime.ParamLocationQuery, *params.Esperar); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewConfirmarVozRequest generates requests for ConfirmarVoz
+func NewConfirmarVozRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/voz/confirmacao")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEnviarVozRequest calls the generic EnviarVoz builder with application/json body
+func NewEnviarVozRequest(server string, body EnviarVozJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEnviarVozRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewEnviarVozRequestWithBody generates requests for EnviarVoz with any type of body
+func NewEnviarVozRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/voz/mensagens")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewAssociarVozRequest calls the generic AssociarVoz builder with application/json body
+func NewAssociarVozRequest(server string, body AssociarVozJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAssociarVozRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAssociarVozRequestWithBody generates requests for AssociarVoz with any type of body
+func NewAssociarVozRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/voz/sessao")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTeclarVozRequest calls the generic TeclarVoz builder with application/json body
+func NewTeclarVozRequest(server string, body TeclarVozJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTeclarVozRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewTeclarVozRequestWithBody generates requests for TeclarVoz with any type of body
+func NewTeclarVozRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/voz/teclas")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -5289,6 +5731,27 @@ type ClientWithResponsesInterface interface {
 	InstanciarTemplateWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
 
 	InstanciarTemplateWithResponse(ctx context.Context, id Id, body InstanciarTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*InstanciarTemplateResponse, error)
+
+	// ObterVozWithResponse request
+	ObterVozWithResponse(ctx context.Context, params *ObterVozParams, reqEditors ...RequestEditorFn) (*ObterVozResponse, error)
+
+	// ConfirmarVozWithResponse request
+	ConfirmarVozWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ConfirmarVozResponse, error)
+
+	// EnviarVozWithBodyWithResponse request with any body
+	EnviarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnviarVozResponse, error)
+
+	EnviarVozWithResponse(ctx context.Context, body EnviarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*EnviarVozResponse, error)
+
+	// AssociarVozWithBodyWithResponse request with any body
+	AssociarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssociarVozResponse, error)
+
+	AssociarVozWithResponse(ctx context.Context, body AssociarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*AssociarVozResponse, error)
+
+	// TeclarVozWithBodyWithResponse request with any body
+	TeclarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TeclarVozResponse, error)
+
+	TeclarVozWithResponse(ctx context.Context, body TeclarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*TeclarVozResponse, error)
 }
 
 type ArvoreDeRequisitosResponse struct {
@@ -6704,6 +7167,123 @@ func (r InstanciarTemplateResponse) StatusCode() int {
 	return 0
 }
 
+type ObterVozResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Voz
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ObterVozResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ObterVozResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ConfirmarVozResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r ConfirmarVozResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ConfirmarVozResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EnviarVozResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *PedidoDeVoz
+	JSON400      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r EnviarVozResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EnviarVozResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AssociarVozResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Voz
+	JSON400      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r AssociarVozResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AssociarVozResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TeclarVozResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Voz
+	JSON400      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r TeclarVozResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TeclarVozResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // ArvoreDeRequisitosWithResponse request returning *ArvoreDeRequisitosResponse
 func (c *ClientWithResponses) ArvoreDeRequisitosWithResponse(ctx context.Context, params *ArvoreDeRequisitosParams, reqEditors ...RequestEditorFn) (*ArvoreDeRequisitosResponse, error) {
 	rsp, err := c.ArvoreDeRequisitos(ctx, params, reqEditors...)
@@ -7490,6 +8070,75 @@ func (c *ClientWithResponses) InstanciarTemplateWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseInstanciarTemplateResponse(rsp)
+}
+
+// ObterVozWithResponse request returning *ObterVozResponse
+func (c *ClientWithResponses) ObterVozWithResponse(ctx context.Context, params *ObterVozParams, reqEditors ...RequestEditorFn) (*ObterVozResponse, error) {
+	rsp, err := c.ObterVoz(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseObterVozResponse(rsp)
+}
+
+// ConfirmarVozWithResponse request returning *ConfirmarVozResponse
+func (c *ClientWithResponses) ConfirmarVozWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ConfirmarVozResponse, error) {
+	rsp, err := c.ConfirmarVoz(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseConfirmarVozResponse(rsp)
+}
+
+// EnviarVozWithBodyWithResponse request with arbitrary body returning *EnviarVozResponse
+func (c *ClientWithResponses) EnviarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnviarVozResponse, error) {
+	rsp, err := c.EnviarVozWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnviarVozResponse(rsp)
+}
+
+func (c *ClientWithResponses) EnviarVozWithResponse(ctx context.Context, body EnviarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*EnviarVozResponse, error) {
+	rsp, err := c.EnviarVoz(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnviarVozResponse(rsp)
+}
+
+// AssociarVozWithBodyWithResponse request with arbitrary body returning *AssociarVozResponse
+func (c *ClientWithResponses) AssociarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssociarVozResponse, error) {
+	rsp, err := c.AssociarVozWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssociarVozResponse(rsp)
+}
+
+func (c *ClientWithResponses) AssociarVozWithResponse(ctx context.Context, body AssociarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*AssociarVozResponse, error) {
+	rsp, err := c.AssociarVoz(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssociarVozResponse(rsp)
+}
+
+// TeclarVozWithBodyWithResponse request with arbitrary body returning *TeclarVozResponse
+func (c *ClientWithResponses) TeclarVozWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TeclarVozResponse, error) {
+	rsp, err := c.TeclarVozWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTeclarVozResponse(rsp)
+}
+
+func (c *ClientWithResponses) TeclarVozWithResponse(ctx context.Context, body TeclarVozJSONRequestBody, reqEditors ...RequestEditorFn) (*TeclarVozResponse, error) {
+	rsp, err := c.TeclarVoz(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTeclarVozResponse(rsp)
 }
 
 // ParseArvoreDeRequisitosResponse parses an HTTP response from a ArvoreDeRequisitosWithResponse call
@@ -9700,6 +10349,182 @@ func ParseInstanciarTemplateResponse(rsp *http.Response) (*InstanciarTemplateRes
 	return response, nil
 }
 
+// ParseObterVozResponse parses an HTTP response from a ObterVozWithResponse call
+func ParseObterVozResponse(rsp *http.Response) (*ObterVozResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ObterVozResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Voz
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseConfirmarVozResponse parses an HTTP response from a ConfirmarVozWithResponse call
+func ParseConfirmarVozResponse(rsp *http.Response) (*ConfirmarVozResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ConfirmarVozResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseEnviarVozResponse parses an HTTP response from a EnviarVozWithResponse call
+func ParseEnviarVozResponse(rsp *http.Response) (*EnviarVozResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EnviarVozResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PedidoDeVoz
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAssociarVozResponse parses an HTTP response from a AssociarVozWithResponse call
+func ParseAssociarVozResponse(rsp *http.Response) (*AssociarVozResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AssociarVozResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Voz
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTeclarVozResponse parses an HTTP response from a TeclarVozWithResponse call
+func ParseTeclarVozResponse(rsp *http.Response) (*TeclarVozResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TeclarVozResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Voz
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -9882,6 +10707,21 @@ type ServerInterface interface {
 
 	// (POST /templates/{id}/instancias)
 	InstanciarTemplate(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /voz)
+	ObterVoz(w http.ResponseWriter, r *http.Request, params ObterVozParams)
+
+	// (POST /voz/confirmacao)
+	ConfirmarVoz(w http.ResponseWriter, r *http.Request)
+
+	// (POST /voz/mensagens)
+	EnviarVoz(w http.ResponseWriter, r *http.Request)
+
+	// (PUT /voz/sessao)
+	AssociarVoz(w http.ResponseWriter, r *http.Request)
+
+	// (POST /voz/teclas)
+	TeclarVoz(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -11445,6 +12285,97 @@ func (siw *ServerInterfaceWrapper) InstanciarTemplate(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// ObterVoz operation middleware
+func (siw *ServerInterfaceWrapper) ObterVoz(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ObterVozParams
+
+	// ------------- Optional query parameter "entregar" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "entregar", r.URL.Query(), &params.Entregar)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entregar", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "esperar" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "esperar", r.URL.Query(), &params.Esperar)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "esperar", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ObterVoz(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmarVoz operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmarVoz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmarVoz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EnviarVoz operation middleware
+func (siw *ServerInterfaceWrapper) EnviarVoz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnviarVoz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AssociarVoz operation middleware
+func (siw *ServerInterfaceWrapper) AssociarVoz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AssociarVoz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TeclarVoz operation middleware
+func (siw *ServerInterfaceWrapper) TeclarVoz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TeclarVoz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -11625,6 +12556,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/templates/{id}", wrapper.ObterTemplate)
 	m.HandleFunc("PATCH "+options.BaseURL+"/templates/{id}", wrapper.AlterarTemplate)
 	m.HandleFunc("POST "+options.BaseURL+"/templates/{id}/instancias", wrapper.InstanciarTemplate)
+	m.HandleFunc("GET "+options.BaseURL+"/voz", wrapper.ObterVoz)
+	m.HandleFunc("POST "+options.BaseURL+"/voz/confirmacao", wrapper.ConfirmarVoz)
+	m.HandleFunc("POST "+options.BaseURL+"/voz/mensagens", wrapper.EnviarVoz)
+	m.HandleFunc("PUT "+options.BaseURL+"/voz/sessao", wrapper.AssociarVoz)
+	m.HandleFunc("POST "+options.BaseURL+"/voz/teclas", wrapper.TeclarVoz)
 
 	return m
 }

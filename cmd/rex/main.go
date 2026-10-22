@@ -110,7 +110,7 @@ func servir(args []string) {
 // resto é o frontend, que navega pelo hash da URL.
 func rotas(apiHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
-	for _, recurso := range []string{"/tarefas", "/sessoes", "/eventos", "/importacao", "/lancador", "/origens", "/requisitos", "/templates", "/organizacoes", "/componentes", "/busca", "/arvore", "/lembretes", "/integracao", "/captura"} {
+	for _, recurso := range []string{"/tarefas", "/sessoes", "/eventos", "/importacao", "/lancador", "/origens", "/requisitos", "/templates", "/organizacoes", "/componentes", "/busca", "/arvore", "/lembretes", "/integracao", "/captura", "/voz"} {
 		mux.Handle(recurso, apiHandler)
 		mux.Handle(recurso+"/", apiHandler)
 	}

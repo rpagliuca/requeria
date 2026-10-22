@@ -103,6 +103,10 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
 	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_situacao", Description: "Só para o agente do rex voz (atalho \"rex\" da Siri). A sessão associada, o que o agente dela faz agora (trabalhando, ocioso, pedindo_permissao com a tela das opções, sem_agente, encerrada, sem_sessao) e as novidades da conversa dele que o Rafael ainda não ouviu. Resuma as novidades na fala: ficam como ouvidas quando o Rafael responder. esperar_segundos segura até o agente responder ou parar."}, f.vozSituacao)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_associar", Description: "Só para o agente do rex voz. Associa o rex voz a uma sessão de trabalho ativa (S-0001) ou à sessão ativa de uma tarefa (T-0001); vale para as próximas conversas. Para uma sessão nova: criar_tarefa, lancar_agente e depois voz_associar com a tarefa."}, f.vozAssociar)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_enviar", Description: "Só para o agente do rex voz. Escreve a frase do Rafael no agente da sessão associada, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla)."}, f.vozEnviar)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_tecla", Description: "Só para o agente do rex voz. Aperta, no agente da sessão associada, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente."}, f.vozTecla)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
 }
@@ -811,5 +815,46 @@ func (f *Ferramentas) retomarTrabalho(ctx context.Context, _ *mcp.CallToolReques
 	}
 	var out api.Sessao
 	resp, err := f.cliente.RetomarSessao(ctx, id, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+type SituacaoDaVoz struct {
+	EsperarSegundos int `json:"esperar_segundos,omitempty" jsonschema:"até 20: com o agente trabalhando, espera ele responder algo novo ou parar"`
+}
+
+type AssociacaoDeVoz struct {
+	Id string `json:"id" jsonschema:"sessão (S-0001) ou tarefa com sessão ativa (T-0001)"`
+}
+
+type MensagemDeVoz struct {
+	Texto string `json:"texto" jsonschema:"o que o Rafael pediu, como ele disse"`
+}
+
+type TeclaDeVoz struct {
+	Tecla string `json:"tecla" jsonschema:"1, 2, 3, 4, Enter ou Escape"`
+}
+
+func (f *Ferramentas) vozSituacao(ctx context.Context, _ *mcp.CallToolRequest, in SituacaoDaVoz) (*mcp.CallToolResult, api.Voz, error) {
+	var out api.Voz
+	entregar := true
+	resp, err := f.cliente.ObterVoz(ctx, &api.ObterVozParams{Entregar: &entregar, Esperar: &in.EsperarSegundos}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) vozAssociar(ctx context.Context, _ *mcp.CallToolRequest, in AssociacaoDeVoz) (*mcp.CallToolResult, api.Voz, error) {
+	var out api.Voz
+	resp, err := f.cliente.AssociarVoz(ctx, api.AssociacaoDeVoz{Id: in.Id}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) vozEnviar(ctx context.Context, _ *mcp.CallToolRequest, in MensagemDeVoz) (*mcp.CallToolResult, api.PedidoDeVoz, error) {
+	var out api.PedidoDeVoz
+	resp, err := f.cliente.EnviarVoz(ctx, api.MensagemDeVoz{Texto: in.Texto}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) vozTecla(ctx context.Context, _ *mcp.CallToolRequest, in TeclaDeVoz) (*mcp.CallToolResult, api.Voz, error) {
+	var out api.Voz
+	resp, err := f.cliente.TeclarVoz(ctx, api.TeclaDeVoz{Tecla: api.TeclaDeVozTecla(in.Tecla)}, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }

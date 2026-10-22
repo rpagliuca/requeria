@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,6 +62,9 @@ type Config struct {
 	// Ambiente define variáveis para o agente; os valores aceitam {modelo} e {esforco}. Uma
 	// variável cujo valor fica vazio (ex.: sem esforço escolhido) não é definida.
 	Ambiente map[string]string `json:"ambiente"`
+	// Projetos é onde o Claude Code guarda as conversas (<projetos>/<diretório>/<chat>.jsonl), que o
+	// rex voz lê. Padrão: ~/.claude/projects.
+	Projetos string `json:"projetos"`
 }
 
 // Modelo é uma opção de modelo do agente.
@@ -131,6 +135,11 @@ func Novo(cfg Config) (*Lancador, error) {
 	if cfg.PromptEncerrar == "" {
 		cfg.PromptEncerrar = promptEncerrarPadrao
 	}
+	if cfg.Projetos == "" {
+		if casa, err := os.UserHomeDir(); err == nil {
+			cfg.Projetos = filepath.Join(casa, ".claude", "projects")
+		}
+	}
 	maquina, _ := os.Hostname()
 	l := &Lancador{cfg: cfg, maquina: maquina, processoDoChat: processoDoChat, paiDe: paiDe}
 	l.executar = func(args ...string) (string, error) {
@@ -145,6 +154,7 @@ func (l *Lancador) Conectar(s *servidor.Servidor) {
 	s.AoMudarStatus(l.MudouStatus)
 	s.AoRenomearSessao(l.Renomeou)
 	s.ComLancador(l)
+	s.ComVoz(l)
 	l.sessoes = s
 }
 
@@ -436,7 +446,12 @@ func (l *Lancador) encontrarPeloChat(sessao string) string {
 	if err != nil || x.Chat == nil || *x.Chat == "" {
 		return ""
 	}
-	pid := l.processoDoChat(*x.Chat)
+	return l.painelDoChat(*x.Chat)
+}
+
+// painelDoChat acha a sessão tmux do processo do agente com o chat dado.
+func (l *Lancador) painelDoChat(chat string) string {
+	pid := l.processoDoChat(chat)
 	if pid == 0 {
 		return ""
 	}
