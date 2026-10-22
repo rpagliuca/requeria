@@ -536,6 +536,29 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/ResumoDeRequisito' }
+  /busca/tarefas:
+    get:
+      operationId: consultarTarefas
+      description: |
+        Consulta compacta para agentes: só id, título, status, organização, sessão ativa e a espera dela,
+        sem descrição nem resumo. Exige ao menos um filtro (nunca a lista inteira); da atualizada mais
+        recente para a mais antiga, até o limite; `total` diz quantas casaram e `fora`, quantas ficaram de fora.
+      parameters:
+        - name: status
+          in: query
+          description: 'Um ou mais status, separados por vírgula (ex.: em_validacao,bloqueada)'
+          schema: { type: string }
+        - { name: organizacao, in: query, schema: { type: string } }
+        - { name: componente, in: query, description: 'Componente, como C-0001', schema: { type: string } }
+        - { name: requisito, in: query, description: 'Requisito que a tarefa tenta atender, como R-0001', schema: { type: string } }
+        - { name: limite, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: Tarefas que casaram
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultaDeTarefas' }
+        '400': { $ref: '#/components/responses/Erro' }
   /arvore/requisitos:
     get:
       operationId: arvoreDeRequisitos
@@ -1237,6 +1260,31 @@ components:
         componentes:
           type: array
           items: { type: string }
+    ResumoDeTarefa:
+      type: object
+      required: [id, titulo, status, organizacao]
+      properties:
+        id: { type: string }
+        titulo: { type: string }
+        status: { $ref: '#/components/schemas/StatusTarefa' }
+        organizacao: { type: string }
+        sessao_ativa: { type: string }
+        aguardando:
+          type: string
+          description: O que a sessão ativa espera do Rafael, se está aguardando
+    ConsultaDeTarefas:
+      type: object
+      required: [tarefas, total, fora]
+      properties:
+        tarefas:
+          type: array
+          items: { $ref: '#/components/schemas/ResumoDeTarefa' }
+        total:
+          type: integer
+          description: Quantas casaram com o filtro, incluindo as que ficaram fora
+        fora:
+          type: integer
+          description: Quantas casaram com o filtro e ficaram fora pelo limite
     ArvoreDeRequisitos:
       type: object
       required: [texto, requisitos]

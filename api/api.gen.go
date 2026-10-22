@@ -224,6 +224,16 @@ type Componente struct {
 	Tarefas      []string `json:"tarefas"`
 }
 
+// ConsultaDeTarefas defines model for ConsultaDeTarefas.
+type ConsultaDeTarefas struct {
+	// Fora Quantas casaram com o filtro e ficaram fora pelo limite
+	Fora    int              `json:"fora"`
+	Tarefas []ResumoDeTarefa `json:"tarefas"`
+
+	// Total Quantas casaram com o filtro, incluindo as que ficaram fora
+	Total int `json:"total"`
+}
+
 // DefinicaoDeOrganizacao defines model for DefinicaoDeOrganizacao.
 type DefinicaoDeOrganizacao struct {
 	Zero string `json:"zero"`
@@ -612,6 +622,17 @@ type ResumoDeRequisito struct {
 	Titulo      string            `json:"titulo"`
 }
 
+// ResumoDeTarefa defines model for ResumoDeTarefa.
+type ResumoDeTarefa struct {
+	// Aguardando O que a sessão ativa espera do Rafael, se está aguardando
+	Aguardando  *string      `json:"aguardando,omitempty"`
+	Id          string       `json:"id"`
+	Organizacao string       `json:"organizacao"`
+	SessaoAtiva *string      `json:"sessao_ativa,omitempty"`
+	Status      StatusTarefa `json:"status"`
+	Titulo      string       `json:"titulo"`
+}
+
 // Sessao defines model for Sessao.
 type Sessao struct {
 	// Agente Provider, modelo e esforço, ou o nome de um humano. Imutável.
@@ -767,6 +788,20 @@ type BuscarRequisitosParams struct {
 	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
 	Componente  *string `form:"componente,omitempty" json:"componente,omitempty"`
 	Limite      *int    `form:"limite,omitempty" json:"limite,omitempty"`
+}
+
+// ConsultarTarefasParams defines parameters for ConsultarTarefas.
+type ConsultarTarefasParams struct {
+	// Status Um ou mais status, separados por vírgula (ex.: em_validacao,bloqueada)
+	Status      *string `form:"status,omitempty" json:"status,omitempty"`
+	Organizacao *string `form:"organizacao,omitempty" json:"organizacao,omitempty"`
+
+	// Componente Componente, como C-0001
+	Componente *string `form:"componente,omitempty" json:"componente,omitempty"`
+
+	// Requisito Requisito que a tarefa tenta atender, como R-0001
+	Requisito *string `form:"requisito,omitempty" json:"requisito,omitempty"`
+	Limite    *int    `form:"limite,omitempty" json:"limite,omitempty"`
 }
 
 // ListarEventosParams defines parameters for ListarEventos.
@@ -987,6 +1022,9 @@ type ClientInterface interface {
 
 	// BuscarRequisitos request
 	BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ConsultarTarefas request
+	ConsultarTarefas(ctx context.Context, params *ConsultarTarefasParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CapturarWithBody request with any body
 	CapturarWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1239,6 +1277,18 @@ func (c *Client) ArvoreDeRequisitos(ctx context.Context, params *ArvoreDeRequisi
 
 func (c *Client) BuscarRequisitos(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBuscarRequisitosRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ConsultarTarefas(ctx context.Context, params *ConsultarTarefasParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewConsultarTarefasRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2435,6 +2485,119 @@ func NewBuscarRequisitosRequest(server string, params *BuscarRequisitosParams) (
 		if params.Componente != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "componente", runtime.ParamLocationQuery, *params.Componente); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limite != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limite", runtime.ParamLocationQuery, *params.Limite); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewConsultarTarefasRequest generates requests for ConsultarTarefas
+func NewConsultarTarefasRequest(server string, params *ConsultarTarefasParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/busca/tarefas")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Organizacao != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "organizacao", runtime.ParamLocationQuery, *params.Organizacao); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Componente != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "componente", runtime.ParamLocationQuery, *params.Componente); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Requisito != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "requisito", runtime.ParamLocationQuery, *params.Requisito); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -5054,6 +5217,9 @@ type ClientWithResponsesInterface interface {
 	// BuscarRequisitosWithResponse request
 	BuscarRequisitosWithResponse(ctx context.Context, params *BuscarRequisitosParams, reqEditors ...RequestEditorFn) (*BuscarRequisitosResponse, error)
 
+	// ConsultarTarefasWithResponse request
+	ConsultarTarefasWithResponse(ctx context.Context, params *ConsultarTarefasParams, reqEditors ...RequestEditorFn) (*ConsultarTarefasResponse, error)
+
 	// CapturarWithBodyWithResponse request with any body
 	CapturarWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CapturarResponse, error)
 
@@ -5330,6 +5496,29 @@ func (r BuscarRequisitosResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r BuscarRequisitosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ConsultarTarefasResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ConsultaDeTarefas
+	JSON400      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r ConsultarTarefasResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ConsultarTarefasResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6722,6 +6911,15 @@ func (c *ClientWithResponses) BuscarRequisitosWithResponse(ctx context.Context, 
 	return ParseBuscarRequisitosResponse(rsp)
 }
 
+// ConsultarTarefasWithResponse request returning *ConsultarTarefasResponse
+func (c *ClientWithResponses) ConsultarTarefasWithResponse(ctx context.Context, params *ConsultarTarefasParams, reqEditors ...RequestEditorFn) (*ConsultarTarefasResponse, error) {
+	rsp, err := c.ConsultarTarefas(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseConsultarTarefasResponse(rsp)
+}
+
 // CapturarWithBodyWithResponse request with arbitrary body returning *CapturarResponse
 func (c *ClientWithResponses) CapturarWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CapturarResponse, error) {
 	rsp, err := c.CapturarWithBody(ctx, contentType, body, reqEditors...)
@@ -7545,6 +7743,39 @@ func ParseBuscarRequisitosResponse(rsp *http.Response) (*BuscarRequisitosRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseConsultarTarefasResponse parses an HTTP response from a ConsultarTarefasWithResponse call
+func ParseConsultarTarefasResponse(rsp *http.Response) (*ConsultarTarefasResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ConsultarTarefasResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConsultaDeTarefas
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -9709,6 +9940,9 @@ type ServerInterface interface {
 	// (GET /busca/requisitos)
 	BuscarRequisitos(w http.ResponseWriter, r *http.Request, params BuscarRequisitosParams)
 
+	// (GET /busca/tarefas)
+	ConsultarTarefas(w http.ResponseWriter, r *http.Request, params ConsultarTarefasParams)
+
 	// (POST /captura)
 	Capturar(w http.ResponseWriter, r *http.Request)
 
@@ -9977,6 +10211,65 @@ func (siw *ServerInterfaceWrapper) BuscarRequisitos(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.BuscarRequisitos(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConsultarTarefas operation middleware
+func (siw *ServerInterfaceWrapper) ConsultarTarefas(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConsultarTarefasParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "organizacao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "organizacao", r.URL.Query(), &params.Organizacao)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizacao", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "componente" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "componente", r.URL.Query(), &params.Componente)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "componente", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "requisito" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "requisito", r.URL.Query(), &params.Requisito)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "requisito", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limite" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limite", r.URL.Query(), &params.Limite)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limite", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConsultarTarefas(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11567,6 +11860,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/arvore/requisitos", wrapper.ArvoreDeRequisitos)
 	m.HandleFunc("GET "+options.BaseURL+"/busca/requisitos", wrapper.BuscarRequisitos)
+	m.HandleFunc("GET "+options.BaseURL+"/busca/tarefas", wrapper.ConsultarTarefas)
 	m.HandleFunc("POST "+options.BaseURL+"/captura", wrapper.Capturar)
 	m.HandleFunc("GET "+options.BaseURL+"/componentes", wrapper.ListarComponentes)
 	m.HandleFunc("POST "+options.BaseURL+"/componentes", wrapper.CriarComponente)
