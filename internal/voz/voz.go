@@ -1,0 +1,202 @@
+// Package voz lê, para o rex voz (atalho "rex" da Siri), a conversa de um agente do Claude Code e
+// a tela do tmux dele.
+//
+// A conversa é o transcript em ~/.claude/projects/<diretório>/<chat>.jsonl: uma linha por evento,
+// cada uma com um uuid. O ponteiro do que o Rafael já ouviu é o uuid da última linha entregue; as
+// novidades são as falas do Rafael e os textos do agente depois dele.
+package voz
+
+import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Prefixo marca no agente as frases que vieram do rex voz: "[rex voz · pedido 3] …".
+const Prefixo = "[rex voz · pedido "
+
+// Novidade é uma fala do Rafael ou um texto do agente.
+type Novidade struct {
+	DeRafael bool
+	Texto    string
+	Pedido   int // 0 quando não veio do rex voz nem responde a um pedido dele
+	Em       time.Time
+}
+
+// Leitura é o que aconteceu depois do ponteiro.
+type Leitura struct {
+	Novidades []Novidade
+	Omitidas  int    // novidades mais antigas que o limite deixou de fora
+	Ate       string // uuid da última linha lida: o ponteiro novo, se o Rafael ouvir tudo
+}
+
+// Limites da leitura: o rex voz resume para a voz, não precisa de tudo.
+const (
+	MaximoDeNovidades = 6
+	TamanhoDoTexto    = 1500
+	// semPonteiro é quantas novidades entram quando a sessão nunca foi acompanhada.
+	semPonteiro = 3
+)
+
+// Arquivo acha o transcript do chat sob a raiz dos projetos do Claude Code, ou "".
+func Arquivo(projetos, chat string) string {
+	if chat == "" || strings.ContainsAny(chat, "/\\*?[") {
+		return ""
+	}
+	achados, _ := filepath.Glob(filepath.Join(projetos, "*", chat+".jsonl"))
+	if len(achados) == 0 {
+		return ""
+	}
+	return achados[0]
+}
+
+type linha struct {
+	Type        string    `json:"type"`
+	UUID        string    `json:"uuid"`
+	IsSidechain bool      `json:"isSidechain"`
+	IsMeta      bool      `json:"isMeta"`
+	Timestamp   time.Time `json:"timestamp"`
+	Message     struct {
+		Content json.RawMessage `json:"content"`
+	} `json:"message"`
+	// Attachment traz a frase mandada com o agente no meio de um turno: queued_command.
+	Attachment struct {
+		Type   string `json:"type"`
+		Prompt string `json:"prompt"`
+	} `json:"attachment"`
+}
+
+var pedidoNoTexto = regexp.MustCompile(`^\[rex voz · pedido (\d+)\]\s*`)
+
+// Ler devolve as novidades do transcript depois da linha `depois` (uuid). Ponteiro vazio ou que
+// não está mais no arquivo: só as últimas, como se fosse a primeira vez.
+func Ler(caminho, depois string) (Leitura, error) {
+	f, err := os.Open(caminho)
+	if err != nil {
+		return Leitura{}, err
+	}
+	defer f.Close()
+	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 1<<20), 64<<20)
+	var todas []Novidade
+	var ate string
+	achou := false
+	pedido := 0
+	for s.Scan() {
+		var l linha
+		if json.Unmarshal(s.Bytes(), &l) != nil || l.UUID == "" || l.IsSidechain {
+			continue
+		}
+		ate = l.UUID
+		if l.UUID == depois {
+			achou, todas = true, nil
+			continue
+		}
+		switch l.Type {
+		case "user", "attachment":
+			var texto string
+			if l.Type == "attachment" {
+				if l.Attachment.Type != "queued_command" {
+					continue
+				}
+				texto = l.Attachment.Prompt
+			} else if l.IsMeta || json.Unmarshal(l.Message.Content, &texto) != nil {
+				continue // resultado de ferramenta
+			}
+			texto = strings.TrimSpace(texto)
+			if texto == "" || strings.HasPrefix(texto, "<") {
+				continue // comando local, lembrete do sistema
+			}
+			pedido = 0
+			if m := pedidoNoTexto.FindStringSubmatch(texto); m != nil {
+				pedido, _ = strconv.Atoi(m[1])
+				texto = texto[len(m[0]):]
+			}
+			todas = append(todas, Novidade{DeRafael: true, Texto: encurtar(texto), Pedido: pedido, Em: l.Timestamp})
+		case "assistant":
+			var blocos []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			}
+			if json.Unmarshal(l.Message.Content, &blocos) != nil {
+				continue
+			}
+			for _, b := range blocos {
+				if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
+					todas = append(todas, Novidade{Texto: encurtar(strings.TrimSpace(b.Text)), Pedido: pedido, Em: l.Timestamp})
+				}
+			}
+		}
+	}
+	if err := s.Err(); err != nil {
+		return Leitura{}, err
+	}
+	limite := semPonteiro
+	if achou {
+		limite = MaximoDeNovidades
+	}
+	r := Leitura{Novidades: todas, Ate: ate}
+	if len(todas) > limite {
+		r.Omitidas = len(todas) - limite
+		r.Novidades = todas[r.Omitidas:]
+	}
+	if r.Novidades == nil {
+		r.Novidades = []Novidade{}
+	}
+	return r, nil
+}
+
+// encurtar corta textos longos no começo e no fim: a conclusão do agente costuma estar no fim.
+func encurtar(texto string) string {
+	r := []rune(texto)
+	if len(r) <= TamanhoDoTexto {
+		return texto
+	}
+	metade := TamanhoDoTexto / 2
+	return string(r[:metade]) + " […] " + string(r[len(r)-metade:])
+}
+
+// Estado do agente, lido da tela do tmux.
+type Estado string
+
+const (
+	Trabalhando      Estado = "trabalhando"
+	Ocioso           Estado = "ocioso"
+	PedindoPermissao Estado = "pedindo_permissao"
+)
+
+// LinhasDaTela é quanto do fim da tela vai junto quando o agente pede permissão.
+const LinhasDaTela = 25
+
+// LerTela classifica a tela do Claude Code: uma pergunta com opções (permissão, escolha) espera o
+// Rafael; "esc to interrupt" na barra de baixo é um turno em andamento; o resto é o agente parado.
+// Devolve o fim da tela só quando ela pede uma escolha.
+func LerTela(tela string) (Estado, string) {
+	var linhas []string
+	for _, l := range strings.Split(tela, "\n") {
+		if strings.TrimSpace(l) != "" {
+			linhas = append(linhas, strings.TrimRight(l, " "))
+		}
+	}
+	baixo := strings.ToLower(strings.Join(ultimas(linhas, 12), "\n"))
+	switch {
+	case strings.Contains(baixo, "esc to cancel") || strings.Contains(baixo, "do you want to") ||
+		strings.Contains(baixo, "❯ 1."):
+		return PedindoPermissao, strings.Join(ultimas(linhas, LinhasDaTela), "\n")
+	case strings.Contains(baixo, "esc to interrupt"):
+		return Trabalhando, ""
+	}
+	return Ocioso, ""
+}
+
+func ultimas(l []string, n int) []string {
+	if len(l) > n {
+		return l[len(l)-n:]
+	}
+	return l
+}

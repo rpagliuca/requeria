@@ -26,6 +26,7 @@ type Servidor struct {
 	agora func() time.Time
 
 	lancador         Lancador
+	voz              Voz
 	integracao       Integracao
 	aoMudarStatus    []func(MudancaDeStatus)
 	aoEncerrarSessao []func(api.Sessao)
