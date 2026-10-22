@@ -37,7 +37,7 @@ func servidorDoConector(t *testing.T) (*Login, *httptest.Server, *http.Cookie) {
 	mcp.AddTool(m, &mcp.Tool{Name: "voz_panorama"}, func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, map[string]string, error) {
 		return nil, map[string]string{"sessoes": "nenhuma"}, nil
 	})
-	l.ComConector(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return m }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}))
+	l.ComConector(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return m }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true}))
 	h = l.Proteger(protegido)
 	w := httptest.NewRecorder()
 	l.gravarCookie(w, cookieSessao, "dono@exemplo.com", "/", time.Hour)
@@ -263,5 +263,30 @@ func TestConectorAceitaClientIDNoBasic(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("troca com client_id no Basic: %d", resp.StatusCode)
+	}
+}
+
+// O túnel entrega em loopback com o Host público: o /mcp tem de aceitar.
+func TestConectorAceitaHostPublicoEmLoopback(t *testing.T) {
+	_, srv, cookie := servidorDoConector(t)
+	clientID, codigo := pedirCodigo(t, srv, cookie, "v")
+	_, corpo := trocar(t, srv, url.Values{"grant_type": {"authorization_code"}, "code": {codigo}, "client_id": {clientID}, "code_verifier": {"v"}})
+	req, _ := http.NewRequest("POST", srv.URL+CaminhoMCP, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	req.Host = "rex.exemplo.com.br"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Protocol-Version", "2025-06-18")
+	req.Header.Set("Authorization", "Bearer "+corpo["access_token"].(string))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var lista struct {
+		Result struct{ Tools []struct{ Name string } } `json:"result"`
+	}
+	json.NewDecoder(resp.Body).Decode(&lista)
+	if resp.StatusCode != http.StatusOK || len(lista.Result.Tools) != 1 {
+		t.Fatalf("tools/list com Host público: %d %+v", resp.StatusCode, lista)
 	}
 }

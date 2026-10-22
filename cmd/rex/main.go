@@ -93,10 +93,12 @@ func servir(args []string) {
 		if err != nil {
 			log.Fatalf("login: %v", err)
 		}
-		// Conector personalizado do Claude: /mcp atrás de OAuth, só nos endereços com login.
+		// Conector personalizado do Claude: /mcp atrás de OAuth, só nos endereços com login. O túnel
+		// entrega em loopback com o Host público, que a proteção contra DNS rebinding do SDK recusaria;
+		// ela é dispensável aqui porque /mcp só aceita Bearer token, nunca cookie.
 		conector := ferramentas.NovoEmProcesso(handler).ServidorDoConector()
 		l.ComConector(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return conector },
-			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}))
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true}))
 		for _, e := range strings.Split(*enderecoComLogin, ",") {
 			ouvir[strings.TrimSpace(e)] = comGzip(l.Proteger(handler))
 		}
