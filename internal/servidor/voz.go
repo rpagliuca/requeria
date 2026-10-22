@@ -1,16 +1,12 @@
 package servidor
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rpagliuca/rex/api"
@@ -18,14 +14,12 @@ import (
 )
 
 // Voz é o que o servidor precisa para o rex voz falar com o agente de uma sessão: a tela, o
-// teclado e o transcript dele (o lançador, que conhece o tmux), e como lançar o intermediário.
+// teclado e o transcript dele (o lançador, que conhece o tmux).
 type Voz interface {
 	Tela(x api.Sessao) (string, error)
 	Escrever(x api.Sessao, texto string) error
 	Teclar(x api.Sessao, tecla string) error
 	Conversa(x api.Sessao) string
-	// Intermediario diz a tarefa fixa do intermediário e como lançá-lo; ok falso sem configuração.
-	Intermediario() (tarefa string, pedido api.PedidoDeLancamento, ok bool)
 }
 
 // ComVoz liga o rex voz aos agentes.
@@ -35,7 +29,18 @@ func (s *Servidor) ComVoz(v Voz) {
 
 // sufixoDaVoz vai depois da frase do Rafael, numa linha só (uma quebra de linha mandaria a frase
 // antes da hora): diz ao agente de onde ela veio.
-const sufixoDaVoz = " — (ditado à Siri pelo rex voz: responda curto e em texto corrido; a resposta será resumida em voz)"
+const sufixoDaVoz = " — (ditado pelo rex voz: responda curto e em texto corrido; a resposta será resumida em voz)"
+
+// sufixosDaVoz são os sufixos tirados das frases lidas, o atual e o de quando o rex voz era o atalho
+// da Siri (transcripts já gravados).
+var sufixosDaVoz = []string{sufixoDaVoz, " — (ditado à Siri pelo rex voz: responda curto e em texto corrido; a resposta será resumida em voz)"}
+
+func semSufixo(texto string) string {
+	for _, sufixo := range sufixosDaVoz {
+		texto = strings.TrimSuffix(texto, sufixo)
+	}
+	return texto
+}
 
 // intervaloDaEspera é de quanto em quanto tempo as esperas olham de novo o agente.
 var intervaloDaEspera = time.Second
@@ -119,7 +124,7 @@ func (s *Servidor) lerVoz(x api.Sessao, n int64) (estadoDaVoz, error) {
 	}
 	v.ate, v.Omitidas = l.Ate, l.Omitidas
 	for _, n := range l.Novidades {
-		nova := api.NovidadeDeVoz{De: api.DoAgente, Texto: strings.TrimSuffix(n.Texto, sufixoDaVoz), Em: n.Em}
+		nova := api.NovidadeDeVoz{De: api.DoAgente, Texto: semSufixo(n.Texto), Em: n.Em}
 		if n.DeRafael {
 			nova.De = api.DoRafael
 		}
@@ -171,15 +176,8 @@ func (s *Servidor) ObterVoz(w http.ResponseWriter, r *http.Request, id api.Id, p
 		responderErro(w, err)
 		return
 	}
-	switch {
-	case v.ate == "":
-	case params.Ouvir != nil && *params.Ouvir:
-		if _, err := s.db.Exec(`UPDATE sessoes SET voz_lido_ate = ?, voz_proposto = NULL WHERE id = ?`, v.ate, n); err != nil {
-			responderErro(w, err)
-			return
-		}
-	case params.Entregar != nil && *params.Entregar:
-		if _, err := s.db.Exec(`UPDATE sessoes SET voz_proposto = ? WHERE id = ?`, v.ate, n); err != nil {
+	if v.ate != "" && params.Ouvir != nil && *params.Ouvir {
+		if _, err := s.db.Exec(`UPDATE sessoes SET voz_lido_ate = ? WHERE id = ?`, v.ate, n); err != nil {
 			responderErro(w, err)
 			return
 		}
@@ -193,16 +191,9 @@ func (s *Servidor) PanoramaDaVoz(w http.ResponseWriter, r *http.Request) {
 		responderErro(w, err)
 		return
 	}
-	intermediario := ""
-	if x, ok, err := s.intermediario(); err == nil && ok {
-		intermediario = x.Id
-	}
 	titulos := map[string]string{}
 	out := []api.PanoramaDeVoz{}
 	for _, x := range sessoes {
-		if x.Id == intermediario {
-			continue
-		}
 		n, err := numero(x.Id, "S")
 		if err != nil {
 			responderErro(w, err)
@@ -230,7 +221,7 @@ func (s *Servidor) PanoramaDaVoz(w http.ResponseWriter, r *http.Request) {
 		}
 		p.NaoOuvidas = l.Respostas
 		if l.Ultima != nil {
-			texto := strings.TrimSuffix(l.Ultima.Texto, sufixoDaVoz)
+			texto := semSufixo(l.Ultima.Texto)
 			p.Ultima, p.UltimaEm = &texto, &l.Ultima.Em
 		}
 		out = append(out, p)
@@ -366,277 +357,4 @@ func (s *Servidor) TeclarVoz(w http.ResponseWriter, r *http.Request, id api.Id) 
 		return
 	}
 	responder(w, http.StatusOK, v.Voz)
-}
-
-// confirmarOuvido: o atalho recebeu a última fala, então as novidades propostas de cada sessão
-// viram ouvidas.
-func (s *Servidor) confirmarOuvido() error {
-	_, err := s.db.Exec(`UPDATE sessoes SET voz_lido_ate = voz_proposto, voz_proposto = NULL WHERE voz_proposto IS NOT NULL`)
-	return err
-}
-
-// O intermediário: uma sessão permanente do Claude Code (a sessão ativa da tarefa configurada) a
-// quem o rex leva as frases da Siri. Ele responde com POST /voz/resposta.
-
-// falasDaVoz guarda a frase da Siri esperando resposta do intermediário. Uma de cada vez.
-type falasDaVoz struct {
-	vez       sync.Mutex // segura a vez da frase inteira, até a resposta
-	mu        sync.Mutex
-	esperando chan api.RespostaDeVoz
-	conversa  string // a última conversa do atalho, enquanto não acabou
-}
-
-// limiteDaFala é quanto a frase espera a resposta do intermediário (a ponte espera um pouco mais).
-var limiteDaFala = 4*time.Minute + 30*time.Second
-
-// fusoDaVoz é o fuso da hora que vai com a frase.
-var fusoDaVoz = func() *time.Location {
-	if l, err := time.LoadLocation("America/Sao_Paulo"); err == nil {
-		return l
-	}
-	return time.FixedZone("-03", -3*60*60)
-}()
-
-var diasDaSemana = [...]string{"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"}
-
-// PrefixoDoIntermediario marca no intermediário as frases que vieram da Siri.
-const PrefixoDoIntermediario = "[rex voz · siri · "
-
-func frasePara(agora time.Time, nova bool, texto string) string {
-	l := agora.In(fusoDaVoz)
-	cab := PrefixoDoIntermediario + diasDaSemana[l.Weekday()] + ", " + l.Format("02/01/2006 15:04")
-	if nova {
-		cab += " · conversa nova"
-	}
-	return cab + "] " + texto
-}
-
-// intermediario acha a sessão ativa da tarefa do intermediário.
-func (s *Servidor) intermediario() (api.Sessao, bool, error) {
-	if s.voz == nil {
-		return api.Sessao{}, false, nil
-	}
-	tarefa, _, ok := s.voz.Intermediario()
-	if !ok {
-		return api.Sessao{}, false, nil
-	}
-	nt, err := numero(tarefa, "T")
-	if err != nil {
-		return api.Sessao{}, false, err
-	}
-	t, err := carregarTarefa(s.db, nt)
-	if err != nil {
-		return api.Sessao{}, false, err
-	}
-	if t.SessaoAtiva == nil {
-		return api.Sessao{}, false, nil
-	}
-	n, err := numero(*t.SessaoAtiva, "S")
-	if err != nil {
-		return api.Sessao{}, false, err
-	}
-	x, err := carregarSessao(s.db, n)
-	return x, err == nil, err
-}
-
-// lancarIntermediario encerra a sessão órfã do intermediário, se houver, e lança outro com a frase
-// como primeira mensagem.
-func (s *Servidor) lancarIntermediario(orfa *api.Sessao, frase string) error {
-	tarefa, pedido, _ := s.voz.Intermediario()
-	nt, err := numero(tarefa, "T")
-	if err != nil {
-		return err
-	}
-	if orfa != nil {
-		n, err := numero(orfa.Id, "S")
-		if err != nil {
-			return err
-		}
-		var x api.Sessao
-		err = s.emTransacao(func(tx *sql.Tx) error {
-			resumo := "Intermediário do rex voz sem agente (o tmux dele sumiu): encerrado pelo rex, que lançou outro na frase seguinte da Siri."
-			if err := s.encerrarComResumo(tx, n, api.Encerramento{Resumo: resumo}, autorLancador); err != nil {
-				return err
-			}
-			x, err = carregarSessao(tx, n)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		s.avisarEncerramento(x)
-	}
-	if s.lancador == nil {
-		return falha(http.StatusConflict, "o lançador de agentes não está configurado")
-	}
-	if err := s.lancador.Validar(&pedido); err != nil {
-		return fmt.Errorf("pedido do intermediário: %w", err)
-	}
-	instrucao := frase
-	if pedido.Instrucao != nil {
-		instrucao = strings.TrimSpace(*pedido.Instrucao) + "\n\nPrimeira frase da Siri:\n" + frase
-	}
-	pedido.Instrucao = &instrucao
-	_, err = s.pedirAgente(nt, pedido, func(*sql.Tx) (string, error) { return "voz", nil })
-	return err
-}
-
-const avisoDeIntermediarioNovo = "Abri um intermediário novo. "
-
-func (s *Servidor) FalarAoIntermediario(w http.ResponseWriter, r *http.Request) {
-	var corpo api.FraseDeVoz
-	if err := ler(r, &corpo); err != nil {
-		responderErro(w, err)
-		return
-	}
-	texto := strings.Join(strings.Fields(corpo.Texto), " ")
-	if texto == "" {
-		responderErro(w, falha(http.StatusBadRequest, "o texto é obrigatório"))
-		return
-	}
-	if s.voz == nil {
-		responderErro(w, falha(http.StatusNotFound, "este rex não fala com agentes (sem lançador)"))
-		return
-	}
-	if _, _, ok := s.voz.Intermediario(); !ok {
-		responderErro(w, falha(http.StatusNotFound, "o intermediário do rex voz não está configurado (voz no lançador)"))
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), limiteDaFala)
-	defer cancel()
-	f := &s.falas
-	f.vez.Lock()
-	defer f.vez.Unlock()
-
-	// A frase seguinte da mesma conversa prova que a fala anterior chegou.
-	nova := corpo.Conversa == "" || corpo.Conversa != f.conversa
-	if !nova {
-		if err := s.confirmarOuvido(); err != nil {
-			log.Printf("rex voz: confirmar o ouvido: %v", err)
-		}
-	}
-	f.conversa = "" // volta a valer só com a resposta entregue
-	frase := frasePara(s.agora(), nova, texto)
-
-	ch := make(chan api.RespostaDeVoz, 1)
-	f.mu.Lock()
-	f.esperando = ch
-	f.mu.Unlock()
-	defer func() {
-		f.mu.Lock()
-		f.esperando = nil
-		f.mu.Unlock()
-	}()
-
-	x, ok, err := s.intermediario()
-	if err != nil {
-		responderErro(w, err)
-		return
-	}
-	lancado := false
-	if ok {
-		estado, _ := s.estadoDoAgente(x)
-		switch estado {
-		case api.VozSemAgente:
-			if err := s.lancarIntermediario(&x, frase); err != nil {
-				responderErro(w, err)
-				return
-			}
-			lancado = true
-		case api.VozPedindoPermissao:
-			s.responderFala(w, api.RespostaDeVoz{Fala: "O intermediário está parado numa tela de permissão no laptop. Resolva lá e tente de novo.", Fim: true})
-			return
-		default:
-			if err := s.voz.Escrever(x, frase); err != nil {
-				responderErro(w, err)
-				return
-			}
-		}
-	} else {
-		if err := s.lancarIntermediario(nil, frase); err != nil {
-			responderErro(w, err)
-			return
-		}
-		lancado = true
-	}
-	enviada := s.agora()
-
-	resposta, err := s.esperarResposta(ctx, ch, enviada)
-	if err != nil {
-		responderErro(w, err)
-		return
-	}
-	if lancado {
-		resposta.Fala = avisoDeIntermediarioNovo + resposta.Fala
-	}
-	f.conversa = corpo.Conversa
-	s.responderFala(w, resposta)
-}
-
-func (s *Servidor) responderFala(w http.ResponseWriter, r api.RespostaDeVoz) {
-	if r.Fim {
-		s.falas.conversa = ""
-	}
-	responder(w, http.StatusOK, r)
-}
-
-// esperarResposta espera o POST /voz/resposta do intermediário. Se ele terminar o turno sem chamar
-// a ferramenta, vale o último texto dele depois da frase.
-func (s *Servidor) esperarResposta(ctx context.Context, ch chan api.RespostaDeVoz, enviada time.Time) (api.RespostaDeVoz, error) {
-	for {
-		select {
-		case r := <-ch:
-			return r, nil
-		case <-ctx.Done():
-			return api.RespostaDeVoz{}, falha(http.StatusGatewayTimeout, "o intermediário não respondeu a tempo")
-		case <-time.After(intervaloDaEspera):
-		}
-		x, ok, err := s.intermediario()
-		if err != nil || !ok {
-			continue // o lançador ainda está subindo o agente
-		}
-		if estado, _ := s.estadoDoAgente(x); estado != api.VozOcioso {
-			continue
-		}
-		n, err := numero(x.Id, "S")
-		if err != nil {
-			return api.RespostaDeVoz{}, err
-		}
-		l, err := s.lerConversa(x, n)
-		if err != nil {
-			return api.RespostaDeVoz{}, err
-		}
-		if l.Ultima != nil && l.Ultima.Em.After(enviada) {
-			select {
-			case r := <-ch: // a ferramenta chegou junto
-				return r, nil
-			default:
-			}
-			return api.RespostaDeVoz{Fala: l.Ultima.Texto}, nil
-		}
-	}
-}
-
-func (s *Servidor) ResponderVoz(w http.ResponseWriter, r *http.Request) {
-	var corpo api.RespostaDeVoz
-	if err := ler(r, &corpo); err != nil {
-		responderErro(w, err)
-		return
-	}
-	corpo.Fala = strings.TrimSpace(corpo.Fala)
-	if corpo.Fala == "" {
-		responderErro(w, falha(http.StatusBadRequest, "a fala é obrigatória"))
-		return
-	}
-	f := &s.falas
-	f.mu.Lock()
-	ch := f.esperando
-	f.esperando = nil
-	f.mu.Unlock()
-	if ch == nil {
-		responderErro(w, falha(http.StatusConflict, "nenhuma frase da Siri está esperando resposta: responda no chat"))
-		return
-	}
-	ch <- corpo
-	w.WriteHeader(http.StatusNoContent)
 }

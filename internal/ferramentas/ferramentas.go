@@ -33,8 +33,8 @@ type Ferramentas struct {
 	ambiente func(string) string
 	// journals é a raiz onde cada sessão ganha a pasta do seu journal; vazio desliga.
 	journals string
-	// ouvir marca as novidades de voz_situacao como ouvidas na hora, em vez de só propô-las: o
-	// conector do app do Claude fala o que recebe e não tem a frase seguinte da Siri como prova.
+	// ouvir marca as novidades de voz_situacao como ouvidas: só o conector do app do Claude, que fala
+	// o que recebe ao Rafael. Nas ferramentas de um agente, ler não muda nada.
 	ouvir bool
 
 	mu     sync.Mutex
@@ -124,17 +124,16 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
 	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_panorama", Description: "Só para o intermediário do rex voz. As sessões ativas, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada; não marca nada como ouvido."}, f.vozPanorama)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_situacao", Description: "Só para o intermediário do rex voz. Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente faz agora e as novidades da conversa dele que o Rafael ainda não ouviu. Resuma as novidades na fala: ficam como ouvidas quando o Rafael mandar a frase seguinte. esperar_segundos segura até o agente responder ou parar."}, f.vozSituacao)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_enviar", Description: "Só para o intermediário do rex voz. Escreve a frase do Rafael no agente da sessão, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla)."}, f.vozEnviar)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_tecla", Description: "Só para o intermediário do rex voz. Aperta, no agente da sessão, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente."}, f.vozTecla)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_responder", Description: "Só para o intermediário do rex voz. Responde à frase da Siri que está esperando (as que chegam como \"[rex voz · siri · …]\"): fala é o que a Siri diz; fim encerra a conversa do atalho. Uma vez por frase."}, f.vozResponder)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_panorama", Description: "rex voz. As sessões ativas, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada; não marca nada como ouvido."}, f.vozPanorama)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_situacao", Description: "rex voz. Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente faz agora e as novidades da conversa dele que o Rafael ainda não ouviu. Só leitura: nada fica como ouvido (isso é do conector do app do Claude). esperar_segundos segura até o agente responder ou parar."}, f.vozSituacao)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_enviar", Description: "rex voz. Escreve a frase do Rafael no agente da sessão, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla)."}, f.vozEnviar)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_tecla", Description: "rex voz. Aperta, no agente da sessão, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente."}, f.vozTecla)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
 }
 
 // ServidorDoConector monta o servidor MCP do conector personalizado do Claude (/mcp, atrás de
-// OAuth), para o app do Claude, no modo de voz, fazer o papel do intermediário do rex voz: ver as
+// OAuth), para o app do Claude, no modo de voz, ser o rex voz: ver as
 // sessões, ouvir o que disseram, mandar pedidos e responder às telas de permissão.
 func (f *Ferramentas) ServidorDoConector() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "rex", Version: "0.1.0"}, &mcp.ServerOptions{
@@ -943,11 +942,6 @@ type TeclaDeVoz struct {
 	Tecla  string `json:"tecla" jsonschema:"1, 2, 3, 4, Enter ou Escape"`
 }
 
-type RespostaDeVoz struct {
-	Fala string `json:"fala" jsonschema:"o que a Siri fala: português, curto, sem markdown, sem algarismos"`
-	Fim  bool   `json:"fim,omitempty" jsonschema:"a conversa acabou (ele se despediu); nunca numa pergunta"`
-}
-
 func (f *Ferramentas) vozPanorama(ctx context.Context, _ *mcp.CallToolRequest, _ Vazio) (*mcp.CallToolResult, PanoramaDaVoz, error) {
 	out := PanoramaDaVoz{Sessoes: []api.PanoramaDeVoz{}}
 	resp, err := f.cliente.PanoramaDaVoz(ctx, f.autorizar)
@@ -959,9 +953,6 @@ func (f *Ferramentas) vozSituacao(ctx context.Context, _ *mcp.CallToolRequest, i
 	params := &api.ObterVozParams{Esperar: &in.EsperarSegundos}
 	if f.ouvir {
 		params.Ouvir = &f.ouvir
-	} else {
-		entregar := true
-		params.Entregar = &entregar
 	}
 	resp, err := f.cliente.ObterVoz(ctx, in.Sessao, params, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
@@ -977,13 +968,4 @@ func (f *Ferramentas) vozTecla(ctx context.Context, _ *mcp.CallToolRequest, in T
 	var out api.Voz
 	resp, err := f.cliente.TeclarVoz(ctx, in.Sessao, api.TeclaDeVoz{Tecla: api.TeclaDeVozTecla(in.Tecla)}, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
-}
-
-func (f *Ferramentas) vozResponder(ctx context.Context, _ *mcp.CallToolRequest, in RespostaDeVoz) (*mcp.CallToolResult, Vazio, error) {
-	resp, err := f.cliente.ResponderVoz(ctx, api.RespostaDeVoz{Fala: in.Fala, Fim: in.Fim}, f.autorizar)
-	if err == nil && resp.StatusCode == http.StatusNoContent {
-		resp.Body.Close()
-		return nil, Vazio{}, nil
-	}
-	return nil, Vazio{}, decodificar(resp, err, &struct{}{})
 }

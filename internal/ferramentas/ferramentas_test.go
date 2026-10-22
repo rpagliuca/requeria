@@ -429,7 +429,7 @@ func TestConsultaDeTarefasPeloMCP(t *testing.T) {
 	}
 }
 
-// O conector remoto chama a API em processo e expõe só as ferramentas da voz, sem voz_responder.
+// O conector remoto chama a API em processo e expõe só as ferramentas da voz.
 func TestServidorDoConectorSoVozEmProcesso(t *testing.T) {
 	db, err := banco.Abrir(":memory:")
 	if err != nil {

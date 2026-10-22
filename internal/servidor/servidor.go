@@ -27,7 +27,6 @@ type Servidor struct {
 
 	lancador         Lancador
 	voz              Voz
-	falas            falasDaVoz
 	integracao       Integracao
 	aoMudarStatus    []func(MudancaDeStatus)
 	aoEncerrarSessao []func(api.Sessao)

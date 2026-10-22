@@ -70,18 +70,3 @@ func (l *Lancador) Conversa(x api.Sessao) string {
 	}
 	return voz.Arquivo(l.cfg.Projetos, *x.Chat)
 }
-
-// Intermediario diz a tarefa do intermediário do rex voz e o pedido para lançá-lo.
-func (l *Lancador) Intermediario() (string, api.PedidoDeLancamento, bool) {
-	v := l.cfg.Voz
-	if v == nil || v.Tarefa == "" {
-		return "", api.PedidoDeLancamento{}, false
-	}
-	var p api.PedidoDeLancamento
-	for campo, valor := range map[**string]string{&p.Modelo: v.Modelo, &p.Esforco: v.Esforco, &p.Nome: v.Nome, &p.Instrucao: v.Instrucao} {
-		if valor != "" {
-			*campo = &valor
-		}
-	}
-	return v.Tarefa, p, true
-}
