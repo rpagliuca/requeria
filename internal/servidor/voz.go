@@ -221,7 +221,7 @@ func (s *Servidor) PanoramaDaVoz(w http.ResponseWriter, r *http.Request) {
 			responderErro(w, err)
 			return
 		}
-		p.NaoOuvidas = len(l.Novidades) + l.Omitidas
+		p.NaoOuvidas = l.Respostas
 		if l.Ultima != nil {
 			texto := strings.TrimSuffix(l.Ultima.Texto, sufixoDaVoz)
 			p.Ultima, p.UltimaEm = &texto, &l.Ultima.Em

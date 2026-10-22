@@ -1545,7 +1545,7 @@ export interface components {
             aguardando?: string;
             /** @description Fim da tela, só em pedindo_permissao */
             tela?: string;
-            /** @description Novidades depois do ponteiro do que o Rafael ouviu */
+            /** @description Textos do agente depois do ponteiro do que o Rafael ouviu e da última fala dele na sessão */
             nao_ouvidas: number;
             /** @description Último texto do agente, encurtado */
             ultima?: string;
