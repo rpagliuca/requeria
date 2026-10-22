@@ -1,4 +1,4 @@
-// Package voz lê, para o rex voz (atalho "rex" da Siri), a conversa de um agente do Claude Code e
+// Package voz lê, para o rex voz, a conversa de um agente do Claude Code e
 // a tela do tmux dele.
 //
 // A conversa é o transcript em ~/.claude/projects/<diretório>/<chat>.jsonl: uma linha por evento,

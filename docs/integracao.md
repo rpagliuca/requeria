@@ -162,19 +162,12 @@ Regras para não chutar:
 
 ## rex voz
 
-O atalho "rex" da Siri conversa com um **intermediário**: uma sessão permanente do Claude Code
-(Haiku, esforço baixo), lançada pelo lançador na tarefa fixa configurada em `voz` no JSON dele, com
-tmux e remote-control como qualquer agente. O Rafael a vê no Claude Code web e pode digitar nela.
-O intermediário fala com as outras sessões pelo tmux delas, como o Rafael faria no laptop. Rotas
-(contrato em `api/openapi.yaml`; ferramentas MCP `voz_*`):
+O Rafael fala com as sessões de trabalho pelo modo de voz do app do Claude, com o rex como conector
+personalizado (`/mcp`, ver [`login.md`](login.md)): o app chama as ferramentas `voz_*`, e o rex fala
+com cada agente pelo tmux dele, como o Rafael faria no laptop. Rotas (contrato em
+`api/openapi.yaml`):
 
-- `POST /voz/intermediario` (a ponte da Siri): digita a frase no intermediário como
-  `[rex voz · siri · quinta, 22/10/2026 09:32 · conversa nova] …` e segura a requisição até ele
-  responder com `POST /voz/resposta` (`voz_responder`: `fala` e `fim`). Se ele terminar o turno sem a
-  ferramenta, vale o último texto dele. Uma frase de cada vez. Sem intermediário vivo (tarefa sem
-  sessão ativa, ou tmux sumido), o rex encerra a sessão órfã e pede ao lançador outro, com a frase
-  na instrução; a fala começa com "Abri um intermediário novo.".
-- `GET /voz/sessoes` (`voz_panorama`): as sessões ativas menos o intermediário, com estado, o que
+- `GET /voz/sessoes` (`voz_panorama`): as sessões ativas, com estado, o que
   pediram ao Rafael, quantas novidades ele não ouviu e o último texto do agente.
 - `POST /voz/sessoes/{id}/mensagens` digita a frase no agente como `[rex voz · pedido N] …`. Com o
   agente trabalhando, o Claude Code a põe na fila dele, em ordem. Recusada (409) numa tela de
@@ -185,9 +178,7 @@ O intermediário fala com as outras sessões pelo tmux delas, como o Rafael fari
   (`~/.claude/projects/*/<chat>.jsonl`) depois do ponteiro. `esperar` (até 20 s) segura a resposta
   enquanto o agente trabalha calado.
 - Ponteiro: cada sessão guarda o uuid da última linha do transcript que o Rafael ouviu
-  (`voz_lido_ate`). `GET /voz/sessoes/{id}?entregar=true` só **propõe** o avanço (`voz_proposto`).
-  A frase seguinte da mesma conversa em `POST /voz/intermediario` o efetiva em todas as sessões, porque
-  prova que o atalho recebeu a fala anterior. Fala perdida (timeout, atalho fechado) continua como
-  novidade.
+  (`voz_lido_ate`). Só `GET /voz/sessoes/{id}?ouvir=true` o avança: é o que o conector usa, porque o
+  app fala ao Rafael o que recebe. As `voz_*` do MCP local (de um agente) só leem.
 - `POST /voz/sessoes/{id}/teclas` aperta 1–4 ou Enter numa tela de permissão (a escolha que o Rafael
   falou) ou Escape para interromper.

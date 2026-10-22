@@ -29,7 +29,7 @@ claude mcp add rex -- /caminho/para/rex mcp -api http://127.0.0.1:8787
 Para os agentes saberem usar as ferramentas, instale as skills de [`skills/`](skills):
 [`rex`](skills/rex/SKILL.md) (o agente trabalhando numa tarefa) e
 [`rex-coordenacao`](skills/rex-coordenacao/SKILL.md) (criar tarefas, subir, pausar e
-retomar agentes) e [`rex-voz`](skills/rex-voz/SKILL.md) (o intermediário do atalho da Siri):
+retomar agentes):
 
 ```bash
 for skill in skills/*/; do ln -sfn "$PWD/$skill" ~/.claude/skills/"$(basename "$skill")"; done
@@ -39,7 +39,7 @@ Ferramentas: `obter_tarefa`, `consultar_tarefas`, `criar_tarefa`, `alterar_taref
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`, `renomear_sessao`,
 `encerrar_sessao`, `repassar_sessao`, `listar_eventos`, `buscar_requisitos`, `arvore_de_requisitos`, `obter_requisito`, `criar_requisito`,
 `alterar_requisito`, `derivar_requisito`, `marcar_obsoleto`, `vincular_requisito`, `registrar_execucao`, `listar_componentes`, `criar_componente`, `vincular_componente`, `opcoes_do_lancador`, `lancar_agente`, `agentes_ativos`, `listar_templates`, `instanciar_template`, `listar_origens`, `criar_origem`, `criar_lembrete`, `proximos_lembretes`, `adiar_lembrete`, `confirmar_lembrete`, `cancelar_lembrete`, `aguardar_resposta`, `retomar_trabalho`,
-`voz_panorama`, `voz_situacao`, `voz_enviar`, `voz_tecla`, `voz_responder`.
+`voz_panorama`, `voz_situacao`, `voz_enviar`, `voz_tecla`.
 
 ## Lançador de agentes (opcional)
 
@@ -72,20 +72,6 @@ dentro de outro agente, o novo herdaria o esforço e o chat dele.
 
 No frontend, pôr uma tarefa em andamento abre a escolha de modelo, esforço e uma instrução adicional
 de reabertura (`POST /tarefas/{id}/lancamento`); o primeiro modelo é o padrão.
-
-Com o bloco `voz`, o lançador também sobe o intermediário do rex voz (ver
-[`docs/integracao.md`](docs/integracao.md)): uma sessão permanente na tarefa fixa dada, lançada pelo
-próprio rex quando uma frase da Siri chega e não há intermediário vivo.
-
-```json
-"voz": {
-  "tarefa": "T-0267",
-  "modelo": "Modelo B",
-  "esforco": "low",
-  "nome": "rex-voz-intermediario",
-  "instrucao": "Você é o intermediário do rex voz: carregue a skill rex-voz e siga-a."
-}
-```
 
 `prompt_iniciar` e `prompt_encerrar` são opcionais e aceitam `{tarefa}`, `{titulo}` e `{status}`.
 No systemd, use `KillMode=process` para reiniciar o servidor sem derrubar o tmux dos agentes.

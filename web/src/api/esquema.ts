@@ -862,48 +862,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/voz/intermediario": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description rex voz (atalho "rex" da Siri): leva a frase ditada ao intermediário, uma sessão permanente do
-         *     Claude Code (a sessão ativa da tarefa configurada em `voz` no lançador), e espera a resposta
-         *     dele (POST /voz/resposta). Sem intermediário vivo, encerra a sessão órfã e lança outro, com a
-         *     frase como primeira mensagem; a fala então começa avisando isso. Uma frase de cada vez: as
-         *     outras esperam a vez. A frase seguinte da mesma conversa confirma o que foi entregue antes
-         *     (as novidades propostas viram ouvidas).
-         *      */
-        post: operations["falarAoIntermediario"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/voz/resposta": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description O intermediário responde à frase da Siri que está esperando: `fala` é o que a Siri diz; `fim`
-         *     encerra a conversa do atalho (o intermediário continua). 409 sem frase esperando.
-         *      */
-        post: operations["responderVoz"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/voz/sessoes": {
         parameters: {
             query?: never;
@@ -911,7 +869,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description As sessões ativas (menos o intermediário), cada uma com o que o agente faz agora (lido da tela
+        /** @description As sessões ativas, cada uma com o que o agente faz agora (lido da tela
          *     do tmux), se pediu resposta ao Rafael, quantas novidades ele ainda não ouviu e o último texto do
          *     agente. Responde "quais sessões esperam meu input?" numa chamada. Não mexe nos ponteiros.
          *      */
@@ -932,10 +890,10 @@ export interface paths {
             cookie?: never;
         };
         /** @description Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente está fazendo agora e as
-         *     novidades da conversa dele depois do ponteiro do que o Rafael já ouviu. Não avança o ponteiro:
-         *     com `entregar`, as novidades ficam propostas e só viram ouvidas quando o atalho prova que
-         *     recebeu a fala (a frase seguinte da conversa). Com `esperar`, segura a resposta até o agente
-         *     responder algo novo ou parar de trabalhar.
+         *     novidades da conversa dele depois do ponteiro do que o Rafael já ouviu. Sem `ouvir`, não avança
+         *     o ponteiro. Com `ouvir`, as novidades viram ouvidas na hora: é o caso do conector do app do
+         *     Claude, que fala o que recebe. Com `esperar`, segura a resposta até o agente responder algo novo
+         *     ou parar de trabalhar.
          *      */
         get: operations["obterVoz"];
         put?: never;
@@ -1560,17 +1518,6 @@ export interface components {
             pedido?: number;
             /** Format: date-time */
             em: string;
-        };
-        FraseDeVoz: {
-            /** @description Código da conversa do atalho (a mesma em todas as frases dela) */
-            conversa: string;
-            texto: string;
-        };
-        RespostaDeVoz: {
-            /** @description O que a Siri fala: português, curto, sem markdown */
-            fala: string;
-            /** @description A conversa do atalho acabou */
-            fim: boolean;
         };
         MensagemDeVoz: {
             texto: string;
@@ -3327,58 +3274,6 @@ export interface operations {
             };
         };
     };
-    falarAoIntermediario: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FraseDeVoz"];
-            };
-        };
-        responses: {
-            /** @description A resposta do intermediário */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RespostaDeVoz"];
-                };
-            };
-            400: components["responses"]["Erro"];
-            404: components["responses"]["Erro"];
-            409: components["responses"]["Erro"];
-            504: components["responses"]["Erro"];
-        };
-    };
-    responderVoz: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RespostaDeVoz"];
-            };
-        };
-        responses: {
-            /** @description Entregue à Siri */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["Erro"];
-            409: components["responses"]["Erro"];
-        };
-    };
     panoramaDaVoz: {
         parameters: {
             query?: never;
@@ -3402,7 +3297,7 @@ export interface operations {
     obterVoz: {
         parameters: {
             query?: {
-                entregar?: boolean;
+                ouvir?: boolean;
                 /** @description Segundos (até 20) para esperar novidade enquanto o agente trabalha */
                 esperar?: number;
             };
