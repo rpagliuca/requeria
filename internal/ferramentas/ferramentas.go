@@ -67,6 +67,7 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{Name: "obter_tarefa", Description: "Obtém uma tarefa, incluindo o resumo para retomar e a sessão ativa."}, f.obterTarefa)
+	mcp.AddTool(s, &mcp.Tool{Name: "consultar_tarefas", Description: "Tarefas por status (um ou mais), organização, componente ou requisito; exige ao menos um filtro. Só id, título, status, organização, sessão ativa e o que ela espera do Rafael, da atualizada mais recente à mais antiga, até o limite (padrão 20, máximo 50); total diz quantas casaram e fora, quantas não vieram. Ex.: \"o que está em validação?\" é status [em_validacao]; \"o que tenho da Yes a fazer?\" é status [a_fazer] e organização Yes."}, f.consultarTarefas)
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_tarefa", Description: "Cria uma tarefa, já ligada aos requisitos e componentes informados."}, f.criarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "alterar_tarefa", Description: "Altera campos de uma tarefa."}, f.alterarTarefa)
 	mcp.AddTool(s, &mcp.Tool{Name: "historico_da_tarefa", Description: "Lista as sessões que trabalharam na tarefa, da mais recente para a mais antiga."}, f.historicoDaTarefa)
@@ -197,6 +198,14 @@ type Id struct {
 	Id string `json:"id" jsonschema:"identificador, como T-0001"`
 }
 
+type ConsultaDeTarefas struct {
+	Status      []string `json:"status,omitempty" jsonschema:"um ou mais de a_fazer, em_andamento, pausada, bloqueada, em_validacao, concluida"`
+	Organizacao string   `json:"organizacao,omitempty" jsonschema:"Cartório, Yes ou Pessoal (ou a da instalação)"`
+	Componente  string   `json:"componente,omitempty" jsonschema:"só deste componente, como C-0001"`
+	Requisito   string   `json:"requisito,omitempty" jsonschema:"só as que tentam atender este requisito, como R-0001"`
+	Limite      int      `json:"limite,omitempty" jsonschema:"quantas no máximo; padrão 20, máximo 50"`
+}
+
 type Sessoes struct {
 	Sessoes []api.Sessao `json:"sessoes"`
 }
@@ -264,6 +273,17 @@ type Eventos struct {
 func (f *Ferramentas) obterTarefa(ctx context.Context, _ *mcp.CallToolRequest, in Id) (*mcp.CallToolResult, api.Tarefa, error) {
 	var out api.Tarefa
 	resp, err := f.cliente.ObterTarefa(ctx, in.Id)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) consultarTarefas(ctx context.Context, _ *mcp.CallToolRequest, in ConsultaDeTarefas) (*mcp.CallToolResult, api.ConsultaDeTarefas, error) {
+	var out api.ConsultaDeTarefas
+	params := api.ConsultarTarefasParams{Status: opcional(strings.Join(in.Status, ",")), Organizacao: opcional(in.Organizacao),
+		Componente: opcional(in.Componente), Requisito: opcional(in.Requisito)}
+	if in.Limite > 0 {
+		params.Limite = &in.Limite
+	}
+	resp, err := f.cliente.ConsultarTarefas(ctx, &params)
 	return nil, out, decodificar(resp, err, &out)
 }
 

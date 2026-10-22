@@ -77,7 +77,10 @@ diga qual, para quê e com qual modelo e esforço.
 ## Achar uma tarefa
 
 O MCP não lista todas as tarefas, de propósito: custa muitos tokens e quase nunca é preciso. Use o id
-que o usuário citar; se ele não souber, peça para procurar no frontend. Com o id, `obter_tarefa` e
+que o usuário citar. Para "o que está em validação?" ou "o que tenho da Yes a fazer?",
+`consultar_tarefas` com ao menos um filtro (status, organização, componente ou requisito): só id,
+título, status, organização e sessão ativa, até 20 (`total` e `fora` dizem quantas casaram e quantas
+não vieram); com muitas fora, refine o filtro em vez de subir o limite. Com o id, `obter_tarefa` e
 `historico_da_tarefa` dão o estado e as sessões.
 
 ## Requisitos e a cadeia

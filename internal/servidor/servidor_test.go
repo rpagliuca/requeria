@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -756,5 +757,73 @@ func TestSessaoRenomeada(t *testing.T) {
 	a.chamar("PATCH", caminho, lancada.Token, api.AlteracaoSessao{Journal: ptr("maquina:/j.md")}, 200, nil)
 	if len(avisadas) != 1 {
 		t.Fatalf("avisou renomeação sem nome novo: %d", len(avisadas))
+	}
+}
+
+func TestConsultaDeTarefas(t *testing.T) {
+	a := novoAmbiente(t)
+	org := "Exemplo"
+	var r api.Requisito
+	a.chamar("POST", "/requisitos", "", api.NovoRequisito{Titulo: "Zero", Organizacao: &org}, 201, &r)
+	var c api.Componente
+	a.chamar("POST", "/componentes", "", api.NovoComponente{Nome: "Módulo X", Organizacoes: []string{org}}, 201, &c)
+	descricao := strings.Repeat("longa ", 50)
+	validar := a.tarefa("Revisar o contrato")
+	a.chamar("PATCH", "/tarefas/"+validar.Id, "", api.AlteracaoTarefa{Descricao: &descricao}, 200, nil)
+	bloquear := a.tarefa("Esperar o fornecedor")
+	a.tarefa("Pagar contas")
+	var outra api.Tarefa
+	a.chamar("POST", "/tarefas", "", api.NovaTarefa{Titulo: "Outra frente", Organizacao: "Outra",
+		Requisitos: &[]string{r.Id}, Componentes: &[]string{c.Id}}, 201, &outra)
+	for id, status := range map[string]api.StatusTarefa{validar.Id: api.EmValidacao, bloquear.Id: api.Bloqueada, outra.Id: api.EmValidacao} {
+		a.chamar("PATCH", "/tarefas/"+id, "", api.AlteracaoTarefa{Status: &status}, 200, nil)
+	}
+	s := a.sessao("Agente", validar.Id)
+	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: "aprovar o PR"}, 200, nil)
+
+	a.chamar("GET", "/busca/tarefas", "", nil, 400, nil)
+	a.chamar("GET", "/busca/tarefas?status=terminada", "", nil, 400, nil)
+
+	consultar := func(filtro string) api.ConsultaDeTarefas {
+		t.Helper()
+		var out api.ConsultaDeTarefas
+		a.chamar("GET", "/busca/tarefas?"+filtro, "", nil, 200, &out)
+		return out
+	}
+	ids := func(c api.ConsultaDeTarefas) []string {
+		var ids []string
+		for _, x := range c.Tarefas {
+			ids = append(ids, x.Id)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	emValidacao := consultar("status=em_validacao&organizacao=Exemplo")
+	if len(emValidacao.Tarefas) != 1 || emValidacao.Total != 1 || emValidacao.Fora != 0 {
+		t.Fatalf("em validação no Exemplo: %+v", emValidacao)
+	}
+	x := emValidacao.Tarefas[0]
+	if x.Id != validar.Id || x.Titulo != "Revisar o contrato" || x.Status != api.EmValidacao || x.Organizacao != org ||
+		x.SessaoAtiva == nil || *x.SessaoAtiva != s.Sessao.Id || x.Aguardando == nil || *x.Aguardando != "aprovar o PR" {
+		t.Fatalf("resumo: %+v", x)
+	}
+	if got := ids(consultar("status=em_validacao,bloqueada")); !slices.Equal(got, []string{validar.Id, bloquear.Id, outra.Id}) {
+		t.Fatalf("vários status: %v", got)
+	}
+	if got := ids(consultar("requisito=" + r.Id)); !slices.Equal(got, []string{outra.Id}) {
+		t.Fatalf("por requisito: %v", got)
+	}
+	if got := ids(consultar("componente=" + c.Id)); !slices.Equal(got, []string{outra.Id}) {
+		t.Fatalf("por componente: %v", got)
+	}
+	limitada := consultar("organizacao=Exemplo&limite=2")
+	if len(limitada.Tarefas) != 2 || limitada.Total != 3 || limitada.Fora != 1 {
+		t.Fatalf("limite: %+v", limitada)
+	}
+	var bruto map[string]any
+	a.chamar("GET", "/busca/tarefas?organizacao=Exemplo", "", nil, 200, &bruto)
+	texto, _ := json.Marshal(bruto)
+	if strings.Contains(string(texto), "longa") || strings.Contains(string(texto), "resumo") {
+		t.Fatalf("a consulta deve ser compacta: %s", texto)
 	}
 }

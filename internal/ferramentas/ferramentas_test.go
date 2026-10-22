@@ -394,3 +394,22 @@ func TestVariavelAceitaONomeLegado(t *testing.T) {
 		t.Fatalf("REQUERIAL_TOKEN não lido na falta de REX_TOKEN: %q", v)
 	}
 }
+
+func TestConsultaDeTarefasPeloMCP(t *testing.T) {
+	c := novoChat(t, novaAPI(t))
+	var a, b api.Tarefa
+	c.chamar("criar_tarefa", map[string]any{"titulo": "Revisar o contrato", "organizacao": "Exemplo", "status": "em_validacao"}, &a)
+	c.chamar("criar_tarefa", map[string]any{"titulo": "Pagar contas", "organizacao": "Exemplo"}, &b)
+	if msg := c.chamar("consultar_tarefas", map[string]any{}, nil); !strings.Contains(msg, "filtro") {
+		t.Fatalf("sem filtro deveria orientar: %q", msg)
+	}
+	var out api.ConsultaDeTarefas
+	c.chamar("consultar_tarefas", map[string]any{"status": []string{"em_validacao"}}, &out)
+	if len(out.Tarefas) != 1 || out.Tarefas[0].Id != a.Id || out.Fora != 0 {
+		t.Fatalf("em validação: %+v", out)
+	}
+	c.chamar("consultar_tarefas", map[string]any{"organizacao": "Exemplo", "limite": 1}, &out)
+	if len(out.Tarefas) != 1 || out.Total != 2 || out.Fora != 1 {
+		t.Fatalf("limite: %+v", out)
+	}
+}

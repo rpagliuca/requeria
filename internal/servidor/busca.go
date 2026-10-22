@@ -2,6 +2,7 @@ package servidor
 
 import (
 	"cmp"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"slices"
@@ -256,4 +257,104 @@ func trilhas(x api.Requisito, porId map[string]api.Requisito) []string {
 		subir(p, nil)
 	}
 	return todas
+}
+
+const limiteDaConsulta, limiteMaximoDaConsulta = 20, 50
+
+// ConsultarTarefas: a consulta de tarefas para agentes, filtrada e compacta (nunca a lista inteira).
+func (s *Servidor) ConsultarTarefas(w http.ResponseWriter, r *http.Request, params api.ConsultarTarefasParams) {
+	var filtros []string
+	var args []any
+	if params.Status != nil {
+		var status []string
+		for _, x := range strings.Split(*params.Status, ",") {
+			x = strings.TrimSpace(x)
+			if x == "" {
+				continue
+			}
+			if !statusDeTarefaValido(api.StatusTarefa(x)) {
+				responderErro(w, falha(http.StatusBadRequest, "status de tarefa inválido: %q", x))
+				return
+			}
+			status = append(status, "?")
+			args = append(args, x)
+		}
+		if len(status) > 0 {
+			filtros = append(filtros, `t.status IN (`+strings.Join(status, ", ")+`)`)
+		}
+	}
+	if params.Organizacao != nil && !vazio(*params.Organizacao) {
+		filtros = append(filtros, `t.organizacao = ?`)
+		args = append(args, strings.TrimSpace(*params.Organizacao))
+	}
+	ligado := func(id *string, prefixo, consulta string) error {
+		if id == nil || vazio(*id) {
+			return nil
+		}
+		n, err := numero(strings.TrimSpace(*id), prefixo)
+		if err != nil {
+			return err
+		}
+		filtros = append(filtros, consulta)
+		args = append(args, n)
+		return nil
+	}
+	if err := ligado(params.Componente, "C", `t.id IN (SELECT tarefa_id FROM tarefa_componente WHERE componente_id = ?)`); err != nil {
+		responderErro(w, err)
+		return
+	}
+	if err := ligado(params.Requisito, "R", `t.id IN (SELECT tarefa_id FROM tarefa_requisito WHERE requisito_id = ?)`); err != nil {
+		responderErro(w, err)
+		return
+	}
+	if len(filtros) == 0 {
+		responderErro(w, falha(http.StatusBadRequest, "informe ao menos um filtro: status, organizacao, componente ou requisito"))
+		return
+	}
+	limite := limiteDaConsulta
+	if params.Limite != nil {
+		limite = min(max(*params.Limite, 1), limiteMaximoDaConsulta)
+	}
+	linhas, err := s.db.Query(`SELECT t.id, t.titulo, t.status, t.organizacao, st.sessao_id, se.aguardando
+		FROM tarefas t
+		LEFT JOIN sessao_tarefa st ON st.tarefa_id = t.id AND st.ativa = 1
+		LEFT JOIN sessoes se ON se.id = st.sessao_id
+		WHERE `+strings.Join(filtros, " AND ")+`
+		ORDER BY t.atualizada_em DESC, t.id DESC`, args...)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	defer linhas.Close()
+	out := api.ConsultaDeTarefas{Tarefas: []api.ResumoDeTarefa{}}
+	for linhas.Next() {
+		out.Total++
+		if len(out.Tarefas) == limite {
+			out.Fora++
+			continue
+		}
+		var t api.ResumoDeTarefa
+		var n int64
+		var status string
+		var sessao sql.NullInt64
+		var aguardando sql.NullString
+		if err := linhas.Scan(&n, &t.Titulo, &status, &t.Organizacao, &sessao, &aguardando); err != nil {
+			responderErro(w, err)
+			return
+		}
+		t.Id, t.Status = idTarefa(n), api.StatusTarefa(status)
+		if sessao.Valid {
+			id := idSessao(sessao.Int64)
+			t.SessaoAtiva = &id
+		}
+		if aguardando.Valid {
+			t.Aguardando = &aguardando.String
+		}
+		out.Tarefas = append(out.Tarefas, t)
+	}
+	if err := linhas.Err(); err != nil {
+		responderErro(w, err)
+		return
+	}
+	responder(w, http.StatusOK, out)
 }
