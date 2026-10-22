@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -71,7 +72,7 @@ func (l *Login) rotasDoConector(mux *http.ServeMux) {
 	recurso := l.base + CaminhoMCP
 	metadados := l.base + caminhoRecursoProtegido + CaminhoMCP
 	protegido := auth.RequireBearerToken(l.verificarAcesso, &auth.RequireBearerTokenOptions{ResourceMetadataURL: metadados})
-	mux.Handle(CaminhoMCP, protegido(l.conector.mcp))
+	mux.Handle(CaminhoMCP, registrar(protegido(l.conector.mcp)))
 	recursoProtegido := func(w http.ResponseWriter, _ *http.Request) {
 		responderJSON(w, http.StatusOK, map[string]any{
 			"resource":                 recurso,
@@ -80,9 +81,9 @@ func (l *Login) rotasDoConector(mux *http.ServeMux) {
 			"resource_name":            "rex",
 		})
 	}
-	mux.HandleFunc("GET "+caminhoRecursoProtegido, recursoProtegido)
-	mux.HandleFunc("GET "+caminhoRecursoProtegido+CaminhoMCP, recursoProtegido)
-	mux.HandleFunc("GET "+caminhoServidorAutorizado, func(w http.ResponseWriter, _ *http.Request) {
+	mux.Handle("GET "+caminhoRecursoProtegido, registrar(http.HandlerFunc(recursoProtegido)))
+	mux.Handle("GET "+caminhoRecursoProtegido+CaminhoMCP, registrar(http.HandlerFunc(recursoProtegido)))
+	mux.Handle("GET "+caminhoServidorAutorizado, registrar(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		responderJSON(w, http.StatusOK, map[string]any{
 			"issuer":                                         l.base,
 			"authorization_endpoint":                         l.base + caminhoAutorizar,
@@ -94,10 +95,46 @@ func (l *Login) rotasDoConector(mux *http.ServeMux) {
 			"token_endpoint_auth_methods_supported":          []string{"none"},
 			"authorization_response_iss_parameter_supported": true,
 		})
+	})))
+	mux.Handle("POST "+caminhoRegistrar, registrar(http.HandlerFunc(l.registrar)))
+	mux.Handle("GET "+caminhoAutorizar, registrar(http.HandlerFunc(l.autorizar)))
+	mux.Handle("POST "+caminhoToken, registrar(http.HandlerFunc(l.emitirToken)))
+}
+
+// registrar loga cada chamada do conector (método, caminho, status, duração e, nos erros, o motivo),
+// para diagnosticar o que o Claude recebeu. Nunca loga tokens nem códigos.
+func registrar(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		inicio := time.Now()
+		e := &escritorRegistrado{ResponseWriter: w, status: http.StatusOK}
+		h.ServeHTTP(e, r)
+		log.Printf("conector: %s %s → %d em %s (%s)%s", r.Method, r.URL.Path, e.status,
+			time.Since(inicio).Round(time.Millisecond), r.UserAgent(), e.motivo)
 	})
-	mux.HandleFunc("POST "+caminhoRegistrar, l.registrar)
-	mux.HandleFunc("GET "+caminhoAutorizar, l.autorizar)
-	mux.HandleFunc("POST "+caminhoToken, l.emitirToken)
+}
+
+type escritorRegistrado struct {
+	http.ResponseWriter
+	status int
+	motivo string
+}
+
+func (e *escritorRegistrado) WriteHeader(status int) {
+	e.status = status
+	e.ResponseWriter.WriteHeader(status)
+}
+
+func (e *escritorRegistrado) Write(b []byte) (int, error) {
+	if e.status >= 400 && e.motivo == "" {
+		e.motivo = ": " + strings.TrimSpace(string(b))
+	}
+	return e.ResponseWriter.Write(b)
+}
+
+func (e *escritorRegistrado) Flush() {
+	if f, ok := e.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // redirectLiberado aceita os callbacks do Claude e loopback em http (RFC 8252, 7.3).
@@ -218,6 +255,10 @@ func (l *Login) emitirToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := r.PostForm
+	// Cliente público pode mandar o client_id no Basic em vez do formulário (RFC 6749, 2.3.1).
+	if id, _, ok := r.BasicAuth(); ok && f.Get("client_id") == "" {
+		f.Set("client_id", id)
+	}
 	agora := l.agora().Unix()
 	var email string
 	switch f.Get("grant_type") {
