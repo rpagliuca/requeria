@@ -1113,16 +1113,73 @@ paths:
           content:
             text/plain:
               schema: { type: string, example: 'Não entendi a hora do lembrete. Diga de novo com o dia e a hora.' }
-  /voz:
+  /voz/intermediario:
+    post:
+      operationId: falarAoIntermediario
+      description: |
+        rex voz (atalho "rex" da Siri): leva a frase ditada ao intermediário, uma sessão permanente do
+        Claude Code (a sessão ativa da tarefa configurada em `voz` no lançador), e espera a resposta
+        dele (POST /voz/resposta). Sem intermediário vivo, encerra a sessão órfã e lança outro, com a
+        frase como primeira mensagem; a fala então começa avisando isso. Uma frase de cada vez: as
+        outras esperam a vez. A frase seguinte da mesma conversa confirma o que foi entregue antes
+        (as novidades propostas viram ouvidas).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FraseDeVoz' }
+      responses:
+        '200':
+          description: A resposta do intermediário
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespostaDeVoz' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+        '504': { $ref: '#/components/responses/Erro' }
+  /voz/resposta:
+    post:
+      operationId: responderVoz
+      description: |
+        O intermediário responde à frase da Siri que está esperando: `fala` é o que a Siri diz; `fim`
+        encerra a conversa do atalho (o intermediário continua). 409 sem frase esperando.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RespostaDeVoz' }
+      responses:
+        '204':
+          description: Entregue à Siri
+        '400': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
+  /voz/sessoes:
+    get:
+      operationId: panoramaDaVoz
+      description: |
+        As sessões ativas (menos o intermediário), cada uma com o que o agente faz agora (lido da tela
+        do tmux), se pediu resposta ao Rafael, quantas novidades ele ainda não ouviu e o último texto do
+        agente. Responde "quais sessões esperam meu input?" numa chamada. Não mexe nos ponteiros.
+      responses:
+        '200':
+          description: Panorama
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PanoramaDeVoz' }
+  /voz/sessoes/{id}:
     get:
       operationId: obterVoz
       description: |
-        rex voz (atalho "rex" da Siri): a sessão de trabalho associada, o que o agente dela está fazendo
-        agora (lido da tela do tmux) e as novidades da conversa dele depois do ponteiro do que o Rafael
-        já ouviu. Não avança o ponteiro: com `entregar`, as novidades ficam propostas e só viram lidas em
-        POST /voz/confirmacao, quando o atalho prova que recebeu a fala (mandou a frase seguinte).
-        Com `esperar`, segura a resposta até o agente responder algo novo ou parar de trabalhar.
+        Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente está fazendo agora e as
+        novidades da conversa dele depois do ponteiro do que o Rafael já ouviu. Não avança o ponteiro:
+        com `entregar`, as novidades ficam propostas e só viram ouvidas quando o atalho prova que
+        recebeu a fala (a frase seguinte da conversa). Com `esperar`, segura a resposta até o agente
+        responder algo novo ou parar de trabalhar.
       parameters:
+        - $ref: '#/components/parameters/Id'
         - name: entregar
           in: query
           schema: { type: boolean }
@@ -1132,39 +1189,21 @@ paths:
           schema: { type: integer, minimum: 0, maximum: 20 }
       responses:
         '200':
-          description: Estado do rex voz
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Voz' }
-        '400': { $ref: '#/components/responses/Erro' }
-  /voz/sessao:
-    put:
-      operationId: associarVoz
-      description: |
-        Associa o rex voz a uma sessão de trabalho ativa (pelo id dela ou pelo de uma tarefa com sessão
-        ativa). Vale para as próximas chamadas, até outra associação. O ponteiro é da sessão: voltar a
-        uma sessão já acompanhada continua de onde o Rafael parou.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/AssociacaoDeVoz' }
-      responses:
-        '200':
-          description: Associada
+          description: Estado da sessão
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Voz' }
         '400': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
-        '409': { $ref: '#/components/responses/Erro' }
-  /voz/mensagens:
+  /voz/sessoes/{id}/mensagens:
     post:
       operationId: enviarVoz
       description: |
-        Escreve a frase do Rafael no agente da sessão associada, numerada como pedido N. Com o agente
-        trabalhando, o Claude Code a põe na fila dele, em ordem. Recusada (409) quando o agente está
-        numa tela de permissão: a frase cairia na escolha; responda antes com POST /voz/teclas.
+        Escreve a frase do Rafael no agente da sessão, numerada como pedido N. Com o agente trabalhando,
+        o Claude Code a põe na fila dele, em ordem. Recusada (409) quando o agente está numa tela de
+        permissão: a frase cairia na escolha; responda antes com as teclas.
+      parameters:
+        - $ref: '#/components/parameters/Id'
       requestBody:
         required: true
         content:
@@ -1177,13 +1216,16 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PedidoDeVoz' }
         '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
-  /voz/teclas:
+  /voz/sessoes/{id}/teclas:
     post:
       operationId: teclarVoz
       description: |
-        Aperta uma tecla no agente da sessão associada: um número ou Enter só numa tela de permissão
-        (a escolha que o Rafael falou); Escape interrompe o agente a qualquer momento.
+        Aperta uma tecla no agente da sessão: um número ou Enter só numa tela de permissão (a escolha
+        que o Rafael falou); Escape interrompe o agente a qualquer momento.
+      parameters:
+        - $ref: '#/components/parameters/Id'
       requestBody:
         required: true
         content:
@@ -1196,16 +1238,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Voz' }
         '400': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
         '409': { $ref: '#/components/responses/Erro' }
-  /voz/confirmacao:
-    post:
-      operationId: confirmarVoz
-      description: |
-        O atalho recebeu a última fala: as novidades propostas (GET /voz?entregar=true) viram lidas e o
-        ponteiro da sessão associada avança até elas. Sem proposta, não faz nada.
-      responses:
-        '204':
-          description: Confirmado
 components:
   securitySchemes:
     tokenDaSessao:
@@ -1811,9 +1845,9 @@ components:
         minutos: { type: integer, minimum: 1 }
     Voz:
       type: object
-      required: [estado, novidades, omitidas]
+      required: [sessao, tarefas, estado, novidades, omitidas]
       properties:
-        sessao: { type: string, description: 'Sessão associada (S-0001); ausente sem associação' }
+        sessao: { type: string, description: 'Sessão (S-0001)' }
         nome: { type: string, description: Nome curto da sessão }
         tarefas:
           type: array
@@ -1830,10 +1864,31 @@ components:
     EstadoDaVoz:
       type: string
       description: |
-        sem_sessao: nada associado; encerrada: a sessão associada terminou; sem_agente: a sessão está
-        ativa mas o tmux do agente não foi achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
-      enum: [sem_sessao, encerrada, sem_agente, trabalhando, ocioso, pedindo_permissao]
-      x-enum-varnames: [VozSemSessao, VozEncerrada, VozSemAgente, VozTrabalhando, VozOcioso, VozPedindoPermissao]
+        encerrada: a sessão terminou; sem_agente: a sessão está ativa mas o tmux do agente não foi
+        achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+      enum: [encerrada, sem_agente, trabalhando, ocioso, pedindo_permissao]
+      x-enum-varnames: [VozEncerrada, VozSemAgente, VozTrabalhando, VozOcioso, VozPedindoPermissao]
+    PanoramaDeVoz:
+      type: object
+      required: [sessao, tarefas, estado, nao_ouvidas]
+      properties:
+        sessao: { type: string }
+        nome: { type: string }
+        tarefas:
+          type: array
+          items: { type: string }
+        titulos:
+          type: array
+          description: Títulos das tarefas, na mesma ordem
+          items: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoDaVoz' }
+        aguardando: { type: string, description: 'O que o agente pediu ao Rafael (aguardar_resposta), se pediu' }
+        tela:
+          type: string
+          description: 'Fim da tela, só em pedindo_permissao'
+        nao_ouvidas: { type: integer, description: 'Novidades depois do ponteiro do que o Rafael ouviu' }
+        ultima: { type: string, description: 'Último texto do agente, encurtado' }
+        ultima_em: { type: string, format: date-time }
     NovidadeDeVoz:
       type: object
       required: [de, texto, em]
@@ -1845,11 +1900,18 @@ components:
         texto: { type: string }
         pedido: { type: integer, description: 'Pedido do rex voz a que se refere, quando há' }
         em: { type: string, format: date-time }
-    AssociacaoDeVoz:
+    FraseDeVoz:
       type: object
-      required: [id]
+      required: [conversa, texto]
       properties:
-        id: { type: string, description: 'Sessão (S-0001) ou tarefa com sessão ativa (T-0001)' }
+        conversa: { type: string, description: 'Código da conversa do atalho (a mesma em todas as frases dela)' }
+        texto: { type: string }
+    RespostaDeVoz:
+      type: object
+      required: [fala, fim]
+      properties:
+        fala: { type: string, description: 'O que a Siri fala: português, curto, sem markdown' }
+        fim: { type: boolean, description: 'A conversa do atalho acabou' }
     MensagemDeVoz:
       type: object
       required: [texto]

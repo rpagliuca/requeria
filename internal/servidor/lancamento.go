@@ -36,11 +36,22 @@ func (s *Servidor) LancarAgente(w http.ResponseWriter, r *http.Request, id api.I
 		responderErro(w, falha(http.StatusBadRequest, "%v", err))
 		return
 	}
+	tarefa, err := s.pedirAgente(n, pedido, func(tx *sql.Tx) (string, error) { return autor(tx, r) })
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	responder(w, http.StatusOK, tarefa)
+}
+
+// pedirAgente põe a tarefa em andamento, registra o pedido e avisa o lançador. O pedido já vem
+// validado.
+func (s *Servidor) pedirAgente(n int64, pedido api.PedidoDeLancamento, quemPede func(*sql.Tx) (string, error)) (api.Tarefa, error) {
 	var tarefa api.Tarefa
 	var anterior api.StatusTarefa
 	var quem string
-	err = s.emTransacao(func(tx *sql.Tx) (err error) {
-		if quem, err = autor(tx, r); err != nil {
+	err := s.emTransacao(func(tx *sql.Tx) (err error) {
+		if quem, err = quemPede(tx); err != nil {
 			return err
 		}
 		atual, err := carregarTarefa(tx, n)
@@ -74,11 +85,10 @@ func (s *Servidor) LancarAgente(w http.ResponseWriter, r *http.Request, id api.I
 		return err
 	})
 	if err != nil {
-		responderErro(w, err)
-		return
+		return tarefa, err
 	}
 	s.avisarMudanca(MudancaDeStatus{Tarefa: tarefa, Anterior: anterior, Autor: quem, Lancamento: &pedido})
-	responder(w, http.StatusOK, tarefa)
+	return tarefa, nil
 }
 
 // autorLancador assina os eventos das sessões abertas pelo lançador.

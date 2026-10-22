@@ -65,6 +65,17 @@ type Config struct {
 	// Projetos é onde o Claude Code guarda as conversas (<projetos>/<diretório>/<chat>.jsonl), que o
 	// rex voz lê. Padrão: ~/.claude/projects.
 	Projetos string `json:"projetos"`
+	// Voz configura o intermediário do rex voz: a sessão permanente que recebe as frases da Siri.
+	Voz *ConfigVoz `json:"voz"`
+}
+
+// ConfigVoz é o intermediário do rex voz: a tarefa fixa em que ele roda e como lançá-lo.
+type ConfigVoz struct {
+	Tarefa    string `json:"tarefa"`
+	Modelo    string `json:"modelo"`
+	Esforco   string `json:"esforco"`
+	Nome      string `json:"nome"`
+	Instrucao string `json:"instrucao"`
 }
 
 // Modelo é uma opção de modelo do agente.
