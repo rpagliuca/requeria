@@ -428,3 +428,32 @@ func TestConsultaDeTarefasPeloMCP(t *testing.T) {
 		t.Fatalf("limite: %+v", out)
 	}
 }
+
+// O conector remoto chama a API em processo e expõe só o panorama da voz.
+func TestServidorDoConectorSoPanoramaEmProcesso(t *testing.T) {
+	db, err := banco.Abrir(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	ctx := context.Background()
+	ladoServidor, ladoCliente := mcp.NewInMemoryTransports()
+	if _, err := NovoEmProcesso(servidor.Novo(db).Handler()).ServidorDoConector().Connect(ctx, ladoServidor, nil); err != nil {
+		t.Fatal(err)
+	}
+	sessao, err := mcp.NewClient(&mcp.Implementation{Name: "teste", Version: "0"}, nil).Connect(ctx, ladoCliente, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { sessao.Close() })
+	lista, err := sessao.ListTools(ctx, nil)
+	if err != nil || len(lista.Tools) != 1 || lista.Tools[0].Name != "voz_panorama" {
+		t.Fatalf("ferramentas do conector: %v %+v", err, lista)
+	}
+	c := &chat{t: t, sessao: sessao}
+	var panorama PanoramaDaVoz
+	c.chamar("voz_panorama", map[string]any{}, &panorama)
+	if panorama.Sessoes == nil {
+		t.Fatal("panorama sem a lista de sessões")
+	}
+}
