@@ -35,7 +35,7 @@ retomar agentes):
 for skill in skills/*/; do ln -sfn "$PWD/$skill" ~/.claude/skills/"$(basename "$skill")"; done
 ```
 
-Ferramentas: `obter_tarefa`, `criar_tarefa`, `alterar_tarefa`,
+Ferramentas: `obter_tarefa`, `consultar_tarefas`, `criar_tarefa`, `alterar_tarefa`,
 `historico_da_tarefa`, `iniciar_sessao`, `sessao_atual`, `vincular_tarefa`, `atualizar_journal`, `renomear_sessao`,
 `encerrar_sessao`, `repassar_sessao`, `listar_eventos`, `buscar_requisitos`, `arvore_de_requisitos`, `obter_requisito`, `criar_requisito`,
 `alterar_requisito`, `derivar_requisito`, `vincular_requisito`, `registrar_execucao`, `listar_componentes`, `criar_componente`, `vincular_componente`, `opcoes_do_lancador`, `lancar_agente`, `agentes_ativos`, `listar_templates`, `instanciar_template`, `listar_origens`, `criar_origem`, `criar_lembrete`, `proximos_lembretes`, `adiar_lembrete`, `confirmar_lembrete`, `cancelar_lembrete`, `aguardar_resposta`, `retomar_trabalho`.
