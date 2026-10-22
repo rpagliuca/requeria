@@ -78,6 +78,8 @@ func (s *Servidor) todosOsRequisitos() ([]api.Requisito, ligacoes, error) {
 	return todos, l, linhas.Err()
 }
 
+func sim(b *bool) bool { return b != nil && *b }
+
 func temComponente(x api.Requisito, c *string) bool {
 	if c == nil {
 		return true
@@ -116,7 +118,8 @@ func (s *Servidor) BuscarRequisitos(w http.ResponseWriter, r *http.Request, para
 	}
 	var achados []achado
 	for _, x := range todos {
-		if params.Organizacao != nil && x.Organizacao != *params.Organizacao || !temComponente(x, params.Componente) {
+		if params.Organizacao != nil && x.Organizacao != *params.Organizacao || !temComponente(x, params.Componente) ||
+			x.Obsoleto != nil && !sim(params.IncluirObsoletos) {
 			continue
 		}
 		if p := pontuar(termos, x); p > 0 {
@@ -129,8 +132,13 @@ func (s *Servidor) BuscarRequisitos(w http.ResponseWriter, r *http.Request, para
 		if i == limite {
 			break
 		}
-		resumos = append(resumos, api.ResumoDeRequisito{Id: a.x.Id, Titulo: a.x.Titulo, Organizacao: a.x.Organizacao,
-			Estado: a.x.Estado, Componentes: a.x.Componentes})
+		resumo := api.ResumoDeRequisito{Id: a.x.Id, Titulo: a.x.Titulo, Organizacao: a.x.Organizacao,
+			Estado: a.x.Estado, Componentes: a.x.Componentes}
+		if a.x.Obsoleto != nil {
+			obsoleto := true
+			resumo.Obsoleto = &obsoleto
+		}
+		resumos = append(resumos, resumo)
 	}
 	responder(w, http.StatusOK, resumos)
 }
@@ -190,8 +198,15 @@ func (s *Servidor) ArvoreDeRequisitos(w http.ResponseWriter, r *http.Request, pa
 		if params.Organizacao != nil && x.Organizacao != *params.Organizacao {
 			return
 		}
+		marca := ""
+		if x.Obsoleto != nil {
+			if !sim(params.IncluirObsoletos) {
+				return
+			}
+			marca = "[obsoleto] "
+		}
 		n++
-		b.WriteString(strings.Repeat("  ", nivel) + id + " " + importanciaEmTexto(x, pai) + x.Titulo + "\n")
+		b.WriteString(strings.Repeat("  ", nivel) + id + " " + importanciaEmTexto(x, pai) + marca + x.Titulo + "\n")
 		caminho[id] = true
 		filhos := slices.Clone(x.Derivados)
 		// Os mais importantes primeiro; a ordem por id desempata.

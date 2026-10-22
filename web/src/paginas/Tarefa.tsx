@@ -51,6 +51,24 @@ export function Tarefa() {
         </div>
       </header>
 
+      {t.requisitos_obsoletos && (
+        <div className="space-y-1 rounded-md border border-tom-atencao-borda bg-tom-atencao/50 p-3 text-sm">
+          <p className="font-medium">Precisa de decisão</p>
+          <p>
+            Tenta atender {t.requisitos_obsoletos.length > 1 ? "requisitos obsoletos" : "um requisito obsoleto"} (
+            {t.requisitos_obsoletos.map((rid, i) => (
+              <span key={rid}>
+                {i > 0 && ", "}
+                <Link to={`/requisitos/${rid}`} className="font-mono underline">
+                  {rid}
+                </Link>
+              </span>
+            ))}
+            ): conclua a tarefa, ligue-a a outro requisito ou desvincule-a.
+          </p>
+        </div>
+      )}
+
       <Secao titulo="Requisitos que ela tenta atender">
         <RequisitosDaTarefa tarefa={t} />
       </Secao>

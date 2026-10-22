@@ -55,6 +55,7 @@ export const nomesMotivoDeAtencao: Record<string, string> = {
   sem_descricao: "Sem descrição",
   sem_tarefa: "Ninguém trabalhando nele",
   trabalho_parado: "Trabalho parado",
+  obsoleto_com_tarefa_aberta: "Obsoleto com tarefa aberta",
 }
 
 export const nomesEstadoDoRequisito: Record<EstadoDoRequisito, string> = {

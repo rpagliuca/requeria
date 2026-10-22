@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input"
 // A tela inicial. Sem filtro, a cadeia a partir do zero, aberta sob demanda; com filtro, só os
 // requisitos que casam, cada um sob o caminho que leva do zero até ele. O grafo vem colapsado.
 export function Requisitos() {
-  const { data, isLoading, error } = useRequisitos()
+  const todos = useRequisitos()
+  const { isLoading, error } = todos
   const { organizacao } = useOrganizacaoAtual()
   const origens = useOrigens()
   const [params, setParams] = useFiltrosLembrados("requisitos", "estado=em_trabalho")
@@ -28,6 +29,12 @@ export function Requisitos() {
     setParams(novos, { replace: true })
   }
 
+  // Obsoletos: fora da árvore e das contagens, salvo pedido; sem eles em porId, o grafo nem os alcança.
+  const situacoes = ["vivo", "obsoleto"]
+  const nomesSituacao: Record<string, string> = { vivo: "Vigentes", obsoleto: "Obsoletos" }
+  const situacao = (r: { obsoleto?: unknown }) => (r.obsoleto ? "obsoleto" : "vivo")
+  const situacaoSel = params.has("obs") ? lista("obs") : ["vivo"]
+  const data = useMemo(() => todos.data?.filter((r) => situacaoSel.includes(situacao(r))), [todos.data, params]) // eslint-disable-line react-hooks/exhaustive-deps
   const porId = useMemo(() => new Map((data ?? []).map((r) => [r.id, r])), [data])
   const nomesOrigem = useMemo(() => new Map((origens.data ?? []).map((o) => [o.id, o.nome])), [origens.data])
   const organizacoes = useMemo(() => [...new Set((data ?? []).map((r) => r.organizacao))].sort(), [data])
@@ -88,6 +95,12 @@ export function Requisitos() {
           opcoes={triagens.map((t) => ({ valor: t, rotulo: nomesTriagem[t], contagem: (data ?? []).filter((r) => triagem(r) === t).length }))}
           selecionados={triagemSel}
           alterar={(v) => alterar("triagem", v.length === triagens.length ? null : v.join(","))}
+        />
+        <SelecaoMultipla
+          rotulo="Vigência"
+          opcoes={situacoes.map((s) => ({ valor: s, rotulo: nomesSituacao[s], contagem: (todos.data ?? []).filter((r) => situacao(r) === s).length }))}
+          selecionados={situacaoSel}
+          alterar={(v) => alterar("obs", v.length === 1 && v[0] === "vivo" ? null : v.join(","))}
         />
         <SelecaoMultipla
           rotulo="Componente"

@@ -62,6 +62,11 @@ func carregarTarefa(c consultor, n int64) (api.Tarefa, error) {
 	if p, ok := pesos[n]; ok {
 		t.Peso = &p
 	}
+	obsoletos, err := obsoletosDasTarefas(c)
+	if err != nil {
+		return t, err
+	}
+	t.RequisitosObsoletos = obsoletos[n]
 	componentes, err := idsLigados(c, idComponente, `SELECT componente_id FROM tarefa_componente WHERE tarefa_id = ? ORDER BY componente_id`, n)
 	t.Componentes = &componentes
 	return t, err
@@ -93,6 +98,11 @@ func (s *Servidor) ListarTarefas(w http.ResponseWriter, r *http.Request, params 
 		responderErro(w, err)
 		return
 	}
+	obsoletos, err := obsoletosDasTarefas(s.db)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
 	linhas, err := s.db.Query(consulta+` ORDER BY t.id`, args...)
 	if err != nil {
 		responderErro(w, err)
@@ -109,6 +119,7 @@ func (s *Servidor) ListarTarefas(w http.ResponseWriter, r *http.Request, params 
 		if p, ok := pesos[mustNumero(t.Id, "T")]; ok {
 			t.Peso = &p
 		}
+		t.RequisitosObsoletos = obsoletos[mustNumero(t.Id, "T")]
 		tarefas = append(tarefas, t)
 	}
 	if err := linhas.Err(); err != nil {
@@ -335,4 +346,28 @@ func pesosDasTarefas(c consultor) (map[int64]float32, error) {
 		pesos[tarefa] += float32(l.peso(requisito))
 	}
 	return pesos, linhas.Err()
+}
+
+// obsoletosDasTarefas: para cada tarefa não concluída, os requisitos obsoletos a que ela ainda está
+// ligada; a tarefa pede decisão (concluir, religar ou desvincular).
+func obsoletosDasTarefas(c consultor) (map[int64]*[]string, error) {
+	linhas, err := c.Query(`SELECT tr.tarefa_id, tr.requisito_id FROM tarefa_requisito tr
+		JOIN requisitos r ON r.id = tr.requisito_id JOIN tarefas t ON t.id = tr.tarefa_id
+		WHERE r.obsoleto_em IS NOT NULL AND t.status <> 'concluida' ORDER BY tr.requisito_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer linhas.Close()
+	obsoletos := map[int64]*[]string{}
+	for linhas.Next() {
+		var tarefa, requisito int64
+		if err := linhas.Scan(&tarefa, &requisito); err != nil {
+			return nil, err
+		}
+		if obsoletos[tarefa] == nil {
+			obsoletos[tarefa] = &[]string{}
+		}
+		*obsoletos[tarefa] = append(*obsoletos[tarefa], idRequisito(requisito))
+	}
+	return obsoletos, linhas.Err()
 }

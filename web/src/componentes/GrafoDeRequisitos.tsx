@@ -139,7 +139,7 @@ function No({
         <div className="group flex items-start gap-1 rounded-md hover:bg-muted/60">
           <button
             type="button"
-            className={cn("flex flex-1 items-start gap-1.5 px-1.5 py-1.5 text-left text-sm disabled:cursor-default", soCaminho && "opacity-60")}
+            className={cn("flex flex-1 items-start gap-1.5 px-1.5 py-1.5 text-left text-sm disabled:cursor-default", (soCaminho || r.obsoleto) && "opacity-60")}
             onClick={() => abre && alternar(chave)}
             disabled={!abre}
           >
@@ -147,8 +147,9 @@ function No({
               {abre && (estaAberto ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />)}
             </span>
             <span className="flex-1">
-              <span>{r.titulo}</span>
+              <span className={cn(r.obsoleto && "line-through")}>{r.titulo}</span>
               <span className="ml-2 inline-flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+                {r.obsoleto && <span title={r.obsoleto.motivo}>obsoleto</span>}
                 <EstadoDoRequisito estado={r.estado} className="h-5 px-1.5 text-[11px]" />
                 <PesoNoTotal peso={r.peso} className="h-5 px-1.5 text-[11px]" />
                 {filhos.length > 0 && <span>{recorte ? [...abaixo].filter((x) => recorte.casam.has(x)).length : abaixo.size} abaixo</span>}

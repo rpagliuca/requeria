@@ -51,7 +51,7 @@ export function NovoRequisito() {
         <Label>Deriva de (sem escolher, deriva do zero)</Label>
         <SelecaoMultipla
           rotulo="Requisitos"
-          opcoes={(requisitos.data ?? []).map((r) => ({ valor: r.id, rotulo: `${r.id} ${r.titulo}` }))}
+          opcoes={(requisitos.data ?? []).filter((r) => !r.obsoleto).map((r) => ({ valor: r.id, rotulo: `${r.id} ${r.titulo}` }))}
           selecionados={pais}
           alterar={setPais}
         />

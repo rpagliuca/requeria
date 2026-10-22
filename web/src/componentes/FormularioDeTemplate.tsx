@@ -74,7 +74,7 @@ export function FormularioDeTemplate({
         <Label>Requisitos que cada instância atende</Label>
         <SelecaoMultipla
           rotulo="Requisitos"
-          opcoes={(requisitos.data ?? []).map((r) => ({ valor: r.id, rotulo: `${r.id} ${r.titulo}` }))}
+          opcoes={(requisitos.data ?? []).filter((r) => !r.obsoleto).map((r) => ({ valor: r.id, rotulo: `${r.id} ${r.titulo}` }))}
           selecionados={reqs}
           alterar={setReqs}
         />

@@ -202,6 +202,8 @@ type ligacoes struct {
 	// pontos: os de cada ligação filho → pai (ausente: não triada); pesos: memória do peso no total.
 	pontos map[ligacao]int
 	pesos  map[int64]float64
+	// obsoletos: os requisitos marcados como obsoletos; não limitam os pais nem pesam entre os irmãos.
+	obsoletos map[int64]bool
 }
 
 type ligacao struct{ filho, pai int64 }
@@ -224,7 +226,7 @@ func carregarLigacoes(c consultor) (ligacoes, error) {
 		abertas: map[int64][]string{}, ultimas: map[int64]api.Execucao{},
 		filhosN: map[int64][]int64{}, estados: map[int64]api.EstadoDoRequisito{},
 		orgs: map[int64]string{}, zeros: map[int64]bool{}, componentes: map[int64][]string{},
-		pontos: map[ligacao]int{}, pesos: map[int64]float64{}}
+		pontos: map[ligacao]int{}, pesos: map[int64]float64{}, obsoletos: map[int64]bool{}}
 	if err := carregarOrganizacoesDosRequisitos(c, &l); err != nil {
 		return l, err
 	}
@@ -297,9 +299,13 @@ func (l ligacoes) pontosEfetivos(filho, pai int64) int {
 }
 
 // fatia é a parte do filho entre os irmãos sob o pai: pontos / soma dos pontos dos irmãos.
+// O obsoleto não tem fatia nem entra na soma.
 func (l ligacoes) fatia(filho, pai int64) float64 {
+	if l.obsoletos[filho] {
+		return 0
+	}
 	soma := 0
-	for _, irmao := range l.filhosN[pai] {
+	for _, irmao := range l.vivos(pai) {
 		soma += l.pontosEfetivos(irmao, pai)
 	}
 	if soma == 0 {
@@ -327,6 +333,17 @@ func (l ligacoes) peso(n int64) float64 {
 	return p
 }
 
+// vivos: os derivados de n que não estão obsoletos; só eles contam no estado e no peso.
+func (l ligacoes) vivos(n int64) []int64 {
+	var vivos []int64
+	for _, f := range l.filhosN[n] {
+		if !l.obsoletos[f] {
+			vivos = append(vivos, f)
+		}
+	}
+	return vivos
+}
+
 // paisN devolve os pais de n por número.
 func (l ligacoes) paisN(n int64) []int64 {
 	var pais []int64
@@ -337,18 +354,22 @@ func (l ligacoes) paisN(n int64) []int64 {
 }
 
 func carregarOrganizacoesDosRequisitos(c consultor, l *ligacoes) error {
-	linhas, err := c.Query(`SELECT id, organizacao FROM requisitos`)
+	linhas, err := c.Query(`SELECT id, organizacao, obsoleto_em IS NOT NULL FROM requisitos`)
 	if err != nil {
 		return err
 	}
 	for linhas.Next() {
 		var n int64
 		var org string
-		if err := linhas.Scan(&n, &org); err != nil {
+		var obsoleto bool
+		if err := linhas.Scan(&n, &org, &obsoleto); err != nil {
 			linhas.Close()
 			return err
 		}
 		l.orgs[n] = org
+		if obsoleto {
+			l.obsoletos[n] = true
+		}
 	}
 	if err := linhas.Close(); err != nil {
 		return err
@@ -391,16 +412,19 @@ func naoNulo(ids []string) []string {
 	return ids
 }
 
-const colunasRequisito = `id, titulo, descricao, organizacao, origem_id, criado_em, atualizado_em, prioridade`
+const colunasRequisito = `id, titulo, descricao, organizacao, origem_id, criado_em, atualizado_em, prioridade, obsoleto_em, motivo_obsoleto`
 
 func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	var x api.Requisito
 	var n int64
 	var origem sql.NullInt64
 	var criado, atualizado string
-	var prioridade sql.NullString
-	if err := linha.Scan(&n, &x.Titulo, &x.Descricao, &x.Organizacao, &origem, &criado, &atualizado, &prioridade); err != nil {
+	var prioridade, obsoletoEm, motivo sql.NullString
+	if err := linha.Scan(&n, &x.Titulo, &x.Descricao, &x.Organizacao, &origem, &criado, &atualizado, &prioridade, &obsoletoEm, &motivo); err != nil {
 		return x, err
+	}
+	if obsoletoEm.Valid {
+		x.Obsoleto = &api.Obsoleto{Em: lerMomento(obsoletoEm.String), Motivo: motivo.String}
 	}
 	x.Id, x.CriadoEm, x.AtualizadoEm = idRequisito(n), lerMomento(criado), lerMomento(atualizado)
 	if prioridade.Valid {
@@ -422,8 +446,15 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 	}
 	x.Peso = float32(l.peso(n))
 	x.Componentes = naoNulo(l.componentes[n])
-	x.Atencao = atencao(x, l.trabalho[n], l.agora)
-	if !l.zeros[n] {
+	x.Atencao = atencao(x, len(l.vivos(n)), l.trabalho[n], l.agora)
+	if x.Obsoleto != nil {
+		// Do obsoleto, só importa o que ainda está pendurado nele: as tarefas abertas.
+		x.Atencao = []api.Atencao{}
+		if abertas := l.abertas[n]; len(abertas) > 0 {
+			x.Atencao = append(x.Atencao, api.Atencao{Motivo: api.ObsoletoComTarefaAberta, Detalhe: fmt.Sprintf(
+				"tarefas abertas (%s): conclua, ligue a outro requisito ou desvincule cada uma", strings.Join(abertas, ", "))})
+		}
+	} else if !l.zeros[n] {
 		for _, pai := range l.paisN(n) {
 			if l.orgs[pai] != x.Organizacao {
 				x.Atencao = append(x.Atencao, api.Atencao{Motivo: api.OutraOrganizacao, Detalhe: fmt.Sprintf(
@@ -443,7 +474,7 @@ func lerRequisito(linha varredor, l ligacoes) (api.Requisito, error) {
 		x.EstadoProprio = x.Estado
 	}
 	if maturidade[x.Estado] < maturidade[l.estadoProprio(n)] {
-		for _, f := range l.filhosN[n] {
+		for _, f := range l.vivos(n) {
 			if l.estado(f) == x.Estado {
 				x.LimitadoPor = append(x.LimitadoPor, idRequisito(f))
 			}
@@ -468,7 +499,7 @@ func menosMaduro(a, b api.EstadoDoRequisito) api.EstadoDoRequisito {
 // por eles; o estado dele é o dos derivados.
 func (l ligacoes) soPelosDerivados(n int64) bool {
 	_, executado := l.ultimas[n]
-	return len(l.trabalho[n]) == 0 && !executado && len(l.filhosN[n]) > 0
+	return len(l.trabalho[n]) == 0 && !executado && len(l.vivos(n)) > 0
 }
 
 // estadoProprio vem só das tarefas ligadas e da última execução. A tarefa menos madura manda:
@@ -504,14 +535,14 @@ func (l ligacoes) estadoProprio(n int64) api.EstadoDoRequisito {
 	return api.Validado
 }
 
-// estado é limitado pelo menos maduro abaixo dele: o próprio e o de cada derivado, recursivamente.
+// estado é limitado pelo menos maduro abaixo dele: o próprio e o de cada derivado vivo, recursivamente.
 func (l ligacoes) estado(n int64) api.EstadoDoRequisito {
 	if e, ok := l.estados[n]; ok {
 		return e
 	}
 	e := l.estadoProprio(n)
 	l.estados[n] = e // a derivação não tem ciclo; isto só protege de dados inconsistentes
-	for _, f := range l.filhosN[n] {
+	for _, f := range l.vivos(n) {
 		e = menosMaduro(e, l.estado(f))
 	}
 	l.estados[n] = e
@@ -519,13 +550,14 @@ func (l ligacoes) estado(n int64) api.EstadoDoRequisito {
 }
 
 // atencao lista o que falta para o requisito estar bem cuidado.
-func atencao(x api.Requisito, trabalho []tarefaLigada, agora time.Time) []api.Atencao {
+// vivos é quantos derivados não estão obsoletos.
+func atencao(x api.Requisito, vivos int, trabalho []tarefaLigada, agora time.Time) []api.Atencao {
 	motivos := []api.Atencao{}
 	add := func(m api.MotivoDeAtencao, detalhe string, args ...any) {
 		motivos = append(motivos, api.Atencao{Motivo: m, Detalhe: fmt.Sprintf(detalhe, args...)})
 	}
-	if len(x.Derivados) > MaxFilhos {
-		add(api.MuitosFilhos, "%d requisitos derivam dele; a boa prática é até %d: agrupe-os sob requisitos intermediários", len(x.Derivados), MaxFilhos)
+	if vivos > MaxFilhos {
+		add(api.MuitosFilhos, "%d requisitos derivam dele; a boa prática é até %d: agrupe-os sob requisitos intermediários", vivos, MaxFilhos)
 	}
 	if x.Origem == nil && len(x.DerivaDe) > 0 {
 		add(api.SemOrigem, "não diz de onde vem (pessoa ou documento)")
@@ -533,7 +565,7 @@ func atencao(x api.Requisito, trabalho []tarefaLigada, agora time.Time) []api.At
 	if vazio(x.Descricao) {
 		add(api.SemDescricao, "sem descrição: por que existe e como verificar")
 	}
-	if len(x.Derivados) == 0 && len(trabalho) == 0 {
+	if vivos == 0 && len(trabalho) == 0 {
 		add(api.SemTarefa, "nenhum requisito abaixo e nenhuma tarefa tentando atendê-lo")
 	}
 	if len(trabalho) > 0 {
@@ -591,6 +623,9 @@ func derivar(tx *sql.Tx, filho, pai int64, pontos *int) error {
 		return falha(http.StatusBadRequest, "um requisito não deriva de si mesmo")
 	}
 	if err := existeRequisito(tx, pai); err != nil {
+		return err
+	}
+	if err := recusarObsoleto(tx, pai, "derivar dele"); err != nil {
 		return err
 	}
 	var ciclo int
@@ -982,6 +1017,60 @@ func (s *Servidor) DesfazerDerivacao(w http.ResponseWriter, r *http.Request, id 
 	})
 }
 
+// recusarObsoleto barra ligações novas a um requisito obsoleto: ele não é mais o porquê de nada.
+func recusarObsoleto(c consultor, n int64, acao string) error {
+	var obsoleto bool
+	if err := c.QueryRow(`SELECT obsoleto_em IS NOT NULL FROM requisitos WHERE id = ?`, n).Scan(&obsoleto); err != nil {
+		return err
+	}
+	if obsoleto {
+		return falha(http.StatusConflict, "%s está obsoleto: não dá para %s (reative-o antes, se foi engano)", idRequisito(n), acao)
+	}
+	return nil
+}
+
+// MarcarObsoleto: o requisito fica no histórico, com quando e por quê, mas sai do cálculo dos pais.
+func (s *Servidor) MarcarObsoleto(w http.ResponseWriter, r *http.Request, id api.Id) {
+	var o api.Obsolescencia
+	s.mudarCadeia(w, r, id, &o, func(tx *sql.Tx, n int64, quem string) error {
+		if vazio(o.Motivo) {
+			return falha(http.StatusBadRequest, "o motivo é obrigatório")
+		}
+		var pais int
+		if err := tx.QueryRow(`SELECT count(*) FROM derivacoes WHERE requisito_id = ?`, n).Scan(&pais); err != nil {
+			return err
+		}
+		if pais == 0 {
+			return falha(http.StatusConflict, "%s é um zero: todos os outros derivam dele", idRequisito(n))
+		}
+		if err := recusarObsoleto(tx, n, "marcá-lo de novo"); err != nil {
+			return err
+		}
+		motivo := strings.TrimSpace(o.Motivo)
+		if _, err := tx.Exec(`UPDATE requisitos SET obsoleto_em = ?, motivo_obsoleto = ? WHERE id = ?`, s.momento(), motivo, n); err != nil {
+			return err
+		}
+		return s.registrarEvento(tx, quem, idRequisito(n), "requisito_obsoleto", map[string]any{"motivo": motivo})
+	})
+}
+
+// ReativarRequisito desfaz a obsolescência (marcada por engano); o evento guarda o motivo que havia.
+func (s *Servidor) ReativarRequisito(w http.ResponseWriter, r *http.Request, id api.Id) {
+	s.mudarCadeia(w, r, id, nil, func(tx *sql.Tx, n int64, quem string) error {
+		var motivo sql.NullString
+		if err := tx.QueryRow(`SELECT motivo_obsoleto FROM requisitos WHERE id = ?`, n).Scan(&motivo); err != nil {
+			return err
+		}
+		if !motivo.Valid {
+			return falha(http.StatusConflict, "%s não está obsoleto", idRequisito(n))
+		}
+		if _, err := tx.Exec(`UPDATE requisitos SET obsoleto_em = NULL, motivo_obsoleto = NULL WHERE id = ?`, n); err != nil {
+			return err
+		}
+		return s.registrarEvento(tx, quem, idRequisito(n), "requisito_reativado", map[string]any{"motivo_obsoleto": motivo.String})
+	})
+}
+
 // ---- Tarefa ↔ Requisito ----
 
 func requisitosDaTarefa(c consultor, tarefa int64) ([]string, error) {
@@ -1022,6 +1111,11 @@ func (s *Servidor) mudarVinculoDeRequisito(w http.ResponseWriter, r *http.Reques
 		}
 		if err := existeRequisito(tx, n); err != nil {
 			return err
+		}
+		if vincular {
+			if err := recusarObsoleto(tx, n, "vincular tarefas a ele"); err != nil {
+				return err
+			}
 		}
 		tipo := "requisito_vinculado"
 		if vincular {
