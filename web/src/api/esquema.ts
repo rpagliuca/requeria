@@ -862,6 +862,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voz/intermediario": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description rex voz (atalho "rex" da Siri): leva a frase ditada ao intermediário, uma sessão permanente do
+         *     Claude Code (a sessão ativa da tarefa configurada em `voz` no lançador), e espera a resposta
+         *     dele (POST /voz/resposta). Sem intermediário vivo, encerra a sessão órfã e lança outro, com a
+         *     frase como primeira mensagem; a fala então começa avisando isso. Uma frase de cada vez: as
+         *     outras esperam a vez. A frase seguinte da mesma conversa confirma o que foi entregue antes
+         *     (as novidades propostas viram ouvidas).
+         *      */
+        post: operations["falarAoIntermediario"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voz/resposta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description O intermediário responde à frase da Siri que está esperando: `fala` é o que a Siri diz; `fim`
+         *     encerra a conversa do atalho (o intermediário continua). 409 sem frase esperando.
+         *      */
+        post: operations["responderVoz"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voz/sessoes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description As sessões ativas (menos o intermediário), cada uma com o que o agente faz agora (lido da tela
+         *     do tmux), se pediu resposta ao Rafael, quantas novidades ele ainda não ouviu e o último texto do
+         *     agente. Responde "quais sessões esperam meu input?" numa chamada. Não mexe nos ponteiros.
+         *      */
+        get: operations["panoramaDaVoz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voz/sessoes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente está fazendo agora e as
+         *     novidades da conversa dele depois do ponteiro do que o Rafael já ouviu. Não avança o ponteiro:
+         *     com `entregar`, as novidades ficam propostas e só viram ouvidas quando o atalho prova que
+         *     recebeu a fala (a frase seguinte da conversa). Com `esperar`, segura a resposta até o agente
+         *     responder algo novo ou parar de trabalhar.
+         *      */
+        get: operations["obterVoz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voz/sessoes/{id}/mensagens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Escreve a frase do Rafael no agente da sessão, numerada como pedido N. Com o agente trabalhando,
+         *     o Claude Code a põe na fila dele, em ordem. Recusada (409) quando o agente está numa tela de
+         *     permissão: a frase cairia na escolha; responda antes com as teclas.
+         *      */
+        post: operations["enviarVoz"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voz/sessoes/{id}/teclas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Aperta uma tecla no agente da sessão: um número ou Enter só numa tela de permissão (a escolha
+         *     que o Rafael falou); Escape interrompe o agente a qualquer momento.
+         *      */
+        post: operations["teclarVoz"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1389,6 +1512,78 @@ export interface components {
             /** Format: date-time */
             ate?: string;
             minutos?: number;
+        };
+        Voz: {
+            /** @description Sessão (S-0001) */
+            sessao: string;
+            /** @description Nome curto da sessão */
+            nome?: string;
+            tarefas: string[];
+            estado: components["schemas"]["EstadoDaVoz"];
+            /** @description Fim da tela do agente, só em pedindo_permissao: a pergunta e as opções numeradas */
+            tela?: string;
+            /** @description O que aconteceu na conversa do agente depois do ponteiro, em ordem (as mais recentes, se muitas) */
+            novidades: components["schemas"]["NovidadeDeVoz"][];
+            /** @description Novidades mais antigas que ficaram de fora do limite */
+            omitidas: number;
+        };
+        /**
+         * @description encerrada: a sessão terminou; sem_agente: a sessão está ativa mas o tmux do agente não foi
+         *     achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+         *
+         * @enum {string}
+         */
+        EstadoDaVoz: "encerrada" | "sem_agente" | "trabalhando" | "ocioso" | "pedindo_permissao";
+        PanoramaDeVoz: {
+            sessao: string;
+            nome?: string;
+            tarefas: string[];
+            /** @description Títulos das tarefas, na mesma ordem */
+            titulos?: string[];
+            estado: components["schemas"]["EstadoDaVoz"];
+            /** @description O que o agente pediu ao Rafael (aguardar_resposta), se pediu */
+            aguardando?: string;
+            /** @description Fim da tela, só em pedindo_permissao */
+            tela?: string;
+            /** @description Novidades depois do ponteiro do que o Rafael ouviu */
+            nao_ouvidas: number;
+            /** @description Último texto do agente, encurtado */
+            ultima?: string;
+            /** Format: date-time */
+            ultima_em?: string;
+        };
+        NovidadeDeVoz: {
+            /** @enum {string} */
+            de: "rafael" | "agente";
+            texto: string;
+            /** @description Pedido do rex voz a que se refere, quando há */
+            pedido?: number;
+            /** Format: date-time */
+            em: string;
+        };
+        FraseDeVoz: {
+            /** @description Código da conversa do atalho (a mesma em todas as frases dela) */
+            conversa: string;
+            texto: string;
+        };
+        RespostaDeVoz: {
+            /** @description O que a Siri fala: português, curto, sem markdown */
+            fala: string;
+            /** @description A conversa do atalho acabou */
+            fim: boolean;
+        };
+        MensagemDeVoz: {
+            texto: string;
+        };
+        PedidoDeVoz: {
+            /** @description Número do pedido na sessão */
+            pedido: number;
+            sessao: string;
+            estado: components["schemas"]["EstadoDaVoz"];
+        };
+        TeclaDeVoz: {
+            /** @enum {string} */
+            tecla: "1" | "2" | "3" | "4" | "Enter" | "Escape";
         };
         Espera: {
             /** @description O que o agente precisa do Rafael, em uma linha */
@@ -3130,6 +3325,164 @@ export interface operations {
                     "text/plain": string;
                 };
             };
+        };
+    };
+    falarAoIntermediario: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraseDeVoz"];
+            };
+        };
+        responses: {
+            /** @description A resposta do intermediário */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespostaDeVoz"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+            504: components["responses"]["Erro"];
+        };
+    };
+    responderVoz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RespostaDeVoz"];
+            };
+        };
+        responses: {
+            /** @description Entregue à Siri */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    panoramaDaVoz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Panorama */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanoramaDeVoz"][];
+                };
+            };
+        };
+    };
+    obterVoz: {
+        parameters: {
+            query?: {
+                entregar?: boolean;
+                /** @description Segundos (até 20) para esperar novidade enquanto o agente trabalha */
+                esperar?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Estado da sessão */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voz"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+        };
+    };
+    enviarVoz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MensagemDeVoz"];
+            };
+        };
+        responses: {
+            /** @description Entregue ao agente */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoDeVoz"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
+        };
+    };
+    teclarVoz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeclaDeVoz"];
+            };
+        };
+        responses: {
+            /** @description Tecla apertada; o estado logo depois */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voz"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
         };
     };
 }

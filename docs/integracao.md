@@ -162,22 +162,32 @@ Regras para não chutar:
 
 ## rex voz
 
-O atalho "rex" da Siri conversa com um **intermediário** (um agente leve na ponte da Siri, sempre
-disponível) que fica associado a uma sessão de trabalho e fala com o agente dela pelo tmux, como o
-Rafael faria no laptop. Rotas (contrato em `api/openapi.yaml`; ferramentas MCP `voz_*`):
+O atalho "rex" da Siri conversa com um **intermediário**: uma sessão permanente do Claude Code
+(Haiku, esforço baixo), lançada pelo lançador na tarefa fixa configurada em `voz` no JSON dele, com
+tmux e remote-control como qualquer agente. O Rafael a vê no Claude Code web e pode digitar nela.
+O intermediário fala com as outras sessões pelo tmux delas, como o Rafael faria no laptop. Rotas
+(contrato em `api/openapi.yaml`; ferramentas MCP `voz_*`):
 
-- `PUT /voz/sessao` associa uma sessão ativa (`S-…`, ou a sessão ativa de `T-…`). Vale até a próxima
-  associação, entre conversas e dias.
-- `POST /voz/mensagens` digita a frase no agente como `[rex voz · pedido N] …`. Com o agente
-  trabalhando, o Claude Code a põe na fila dele, em ordem. Recusada (409) numa tela de permissão.
-- `GET /voz` diz o estado do agente, lido da tela: `trabalhando` ("esc to interrupt" na barra),
-  `pedindo_permissao` (opções numeradas; vem a `tela`), `ocioso`, `sem_agente` (tmux não achado),
-  `encerrada` ou `sem_sessao`. Traz também as novidades do transcript do agente
+- `POST /voz/intermediario` (a ponte da Siri): digita a frase no intermediário como
+  `[rex voz · siri · quinta, 22/10/2026 09:32 · conversa nova] …` e segura a requisição até ele
+  responder com `POST /voz/resposta` (`voz_responder`: `fala` e `fim`). Se ele terminar o turno sem a
+  ferramenta, vale o último texto dele. Uma frase de cada vez. Sem intermediário vivo (tarefa sem
+  sessão ativa, ou tmux sumido), o rex encerra a sessão órfã e pede ao lançador outro, com a frase
+  na instrução; a fala começa com "Abri um intermediário novo.".
+- `GET /voz/sessoes` (`voz_panorama`): as sessões ativas menos o intermediário, com estado, o que
+  pediram ao Rafael, quantas novidades ele não ouviu e o último texto do agente.
+- `POST /voz/sessoes/{id}/mensagens` digita a frase no agente como `[rex voz · pedido N] …`. Com o
+  agente trabalhando, o Claude Code a põe na fila dele, em ordem. Recusada (409) numa tela de
+  permissão. `{id}` é a sessão ou uma tarefa com sessão ativa.
+- `GET /voz/sessoes/{id}` diz o estado do agente, lido da tela: `trabalhando` ("esc to interrupt"
+  na barra), `pedindo_permissao` (opções numeradas; vem a `tela`), `ocioso`, `sem_agente` (tmux não
+  achado) ou `encerrada`. Traz também as novidades do transcript do agente
   (`~/.claude/projects/*/<chat>.jsonl`) depois do ponteiro. `esperar` (até 20 s) segura a resposta
   enquanto o agente trabalha calado.
 - Ponteiro: cada sessão guarda o uuid da última linha do transcript que o Rafael ouviu
-  (`voz_lido_ate`). `GET /voz?entregar=true` só **propõe** o avanço. `POST /voz/confirmacao` o
-  efetiva, e a ponte o chama quando chega a frase seguinte da mesma conversa, que prova que o atalho
-  recebeu a fala anterior. Fala perdida (timeout, atalho fechado) continua como novidade.
-- `POST /voz/teclas` aperta 1–4 ou Enter numa tela de permissão (a escolha que o Rafael falou) ou
-  Escape para interromper.
+  (`voz_lido_ate`). `GET /voz/sessoes/{id}?entregar=true` só **propõe** o avanço (`voz_proposto`).
+  A frase seguinte da mesma conversa em `POST /voz/intermediario` o efetiva em todas as sessões, porque
+  prova que o atalho recebeu a fala anterior. Fala perdida (timeout, atalho fechado) continua como
+  novidade.
+- `POST /voz/sessoes/{id}/teclas` aperta 1–4 ou Enter numa tela de permissão (a escolha que o Rafael
+  falou) ou Escape para interromper.

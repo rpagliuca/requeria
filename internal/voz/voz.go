@@ -33,6 +33,8 @@ type Leitura struct {
 	Novidades []Novidade
 	Omitidas  int    // novidades mais antigas que o limite deixou de fora
 	Ate       string // uuid da última linha lida: o ponteiro novo, se o Rafael ouvir tudo
+	// Ultima é o último texto do agente no transcript inteiro, antes ou depois do ponteiro.
+	Ultima *Novidade
 }
 
 // Limites da leitura: o rex voz resume para a voz, não precisa de tudo.
@@ -85,6 +87,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 	s.Buffer(make([]byte, 1<<20), 64<<20)
 	var todas []Novidade
 	var ate string
+	var ultima *Novidade
 	achou := false
 	pedido := 0
 	for s.Scan() {
@@ -128,7 +131,8 @@ func Ler(caminho, depois string) (Leitura, error) {
 			}
 			for _, b := range blocos {
 				if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
-					todas = append(todas, Novidade{Texto: encurtar(strings.TrimSpace(b.Text)), Pedido: pedido, Em: l.Timestamp})
+					n := Novidade{Texto: encurtar(strings.TrimSpace(b.Text)), Pedido: pedido, Em: l.Timestamp}
+					todas, ultima = append(todas, n), &n
 				}
 			}
 		}
@@ -140,7 +144,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 	if achou {
 		limite = MaximoDeNovidades
 	}
-	r := Leitura{Novidades: todas, Ate: ate}
+	r := Leitura{Novidades: todas, Ate: ate, Ultima: ultima}
 	if len(todas) > limite {
 		r.Omitidas = len(todas) - limite
 		r.Novidades = todas[r.Omitidas:]
