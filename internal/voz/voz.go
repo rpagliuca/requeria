@@ -35,6 +35,9 @@ type Leitura struct {
 	Ate       string // uuid da última linha lida: o ponteiro novo, se o Rafael ouvir tudo
 	// Ultima é o último texto do agente no transcript inteiro, antes ou depois do ponteiro.
 	Ultima *Novidade
+	// Respostas conta os textos do agente depois do ponteiro e da última fala do Rafael: o que ele
+	// ainda não viu, nem pela voz nem pelo chat.
+	Respostas int
 }
 
 // Limites da leitura: o rex voz resume para a voz, não precisa de tudo.
@@ -88,6 +91,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 	var todas []Novidade
 	var ate string
 	var ultima *Novidade
+	respostas := 0
 	achou := false
 	pedido := 0
 	for s.Scan() {
@@ -97,7 +101,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 		}
 		ate = l.UUID
 		if l.UUID == depois {
-			achou, todas = true, nil
+			achou, todas, respostas = true, nil, 0
 			continue
 		}
 		switch l.Type {
@@ -115,7 +119,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 			if texto == "" || strings.HasPrefix(texto, "<") {
 				continue // comando local, lembrete do sistema
 			}
-			pedido = 0
+			pedido, respostas = 0, 0
 			if m := pedidoNoTexto.FindStringSubmatch(texto); m != nil {
 				pedido, _ = strconv.Atoi(m[1])
 				texto = texto[len(m[0]):]
@@ -133,6 +137,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 				if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
 					n := Novidade{Texto: encurtar(strings.TrimSpace(b.Text)), Pedido: pedido, Em: l.Timestamp}
 					todas, ultima = append(todas, n), &n
+					respostas++
 				}
 			}
 		}
@@ -144,7 +149,7 @@ func Ler(caminho, depois string) (Leitura, error) {
 	if achou {
 		limite = MaximoDeNovidades
 	}
-	r := Leitura{Novidades: todas, Ate: ate, Ultima: ultima}
+	r := Leitura{Novidades: todas, Ate: ate, Ultima: ultima, Respostas: respostas}
 	if len(todas) > limite {
 		r.Omitidas = len(todas) - limite
 		r.Novidades = todas[r.Omitidas:]

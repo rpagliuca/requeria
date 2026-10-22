@@ -1886,7 +1886,7 @@ components:
         tela:
           type: string
           description: 'Fim da tela, só em pedindo_permissao'
-        nao_ouvidas: { type: integer, description: 'Novidades depois do ponteiro do que o Rafael ouviu' }
+        nao_ouvidas: { type: integer, description: 'Textos do agente depois do ponteiro do que o Rafael ouviu e da última fala dele na sessão' }
         ultima: { type: string, description: 'Último texto do agente, encurtado' }
         ultima_em: { type: string, format: date-time }
     NovidadeDeVoz:

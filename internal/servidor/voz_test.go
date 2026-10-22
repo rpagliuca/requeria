@@ -151,7 +151,9 @@ func TestVozPanorama(t *testing.T) {
 	deploy := a.tarefa("Deploy do cartório")
 	s := a.sessao("Claude Opus 5.5 Medium", deploy.Id)
 	a.chamar("POST", "/sessoes/"+s.Sessao.Id+"/espera", s.Token, api.Espera{Mensagem: "aprovar o PR"}, 200, nil)
-	os.WriteFile(v.conversa, []byte(`{"type":"assistant","uuid":"u1","timestamp":"2026-10-22T10:00:09Z","message":{"content":[{"type":"text","text":"PR aberto."}]}}
+	os.WriteFile(v.conversa, []byte(`{"type":"assistant","uuid":"u0","timestamp":"2026-10-22T09:00:00Z","message":{"content":[{"type":"text","text":"Começando."}]}}
+{"type":"user","uuid":"u1","timestamp":"2026-10-22T10:00:00Z","message":{"content":"abre o PR"}}
+{"type":"assistant","uuid":"u2","timestamp":"2026-10-22T10:00:09Z","message":{"content":[{"type":"text","text":"PR aberto."}]}}
 `), 0o644)
 
 	var panorama []api.PanoramaDeVoz

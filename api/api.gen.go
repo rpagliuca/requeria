@@ -562,7 +562,7 @@ type PanoramaDeVoz struct {
 	// achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
 	Estado EstadoDaVoz `json:"estado"`
 
-	// NaoOuvidas Novidades depois do ponteiro do que o Rafael ouviu
+	// NaoOuvidas Textos do agente depois do ponteiro do que o Rafael ouviu e da última fala dele na sessão
 	NaoOuvidas int      `json:"nao_ouvidas"`
 	Nome       *string  `json:"nome,omitempty"`
 	Sessao     string   `json:"sessao"`
