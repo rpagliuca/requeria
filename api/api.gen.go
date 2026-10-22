@@ -1010,6 +1010,7 @@ type ListarTarefasParams struct {
 // ObterVozParams defines parameters for ObterVoz.
 type ObterVozParams struct {
 	Entregar *bool `form:"entregar,omitempty" json:"entregar,omitempty"`
+	Ouvir    *bool `form:"ouvir,omitempty" json:"ouvir,omitempty"`
 
 	// Esperar Segundos (até 20) para esperar novidade enquanto o agente trabalha
 	Esperar *int `form:"esperar,omitempty" json:"esperar,omitempty"`
@@ -5789,6 +5790,22 @@ func NewObterVozRequest(server string, id Id, params *ObterVozParams) (*http.Req
 		if params.Entregar != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "entregar", runtime.ParamLocationQuery, *params.Entregar); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Ouvir != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "ouvir", runtime.ParamLocationQuery, *params.Ouvir); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -13321,6 +13338,14 @@ func (siw *ServerInterfaceWrapper) ObterVoz(w http.ResponseWriter, r *http.Reque
 	err = runtime.BindQueryParameter("form", true, false, "entregar", r.URL.Query(), &params.Entregar)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "entregar", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "ouvir" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "ouvir", r.URL.Query(), &params.Ouvir)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ouvir", Err: err})
 		return
 	}
 

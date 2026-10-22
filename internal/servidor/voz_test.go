@@ -125,6 +125,19 @@ func TestVozPorSessao(t *testing.T) {
 		t.Fatalf("depois da confirmação: %+v", estado.Novidades)
 	}
 
+	// ouvir (conector do app): viram ouvidas na hora, sem confirmação.
+	linhas += `{"type":"assistant","uuid":"u3","timestamp":"2026-10-22T10:01:00Z","message":{"content":[{"type":"text","text":"E os testes passaram."}]}}
+`
+	os.WriteFile(v.conversa, []byte(linhas), 0o644)
+	a.chamar("GET", caminho+"?ouvir=true", "", nil, 200, &estado)
+	if len(estado.Novidades) != 1 {
+		t.Fatalf("com ouvir: %+v", estado.Novidades)
+	}
+	a.chamar("GET", caminho, "", nil, 200, &estado)
+	if len(estado.Novidades) != 0 {
+		t.Fatalf("ouvir devia marcar na hora: %+v", estado.Novidades)
+	}
+
 	// esperar: com o agente trabalhando e calado, segura até o limite.
 	v.tela = telaTrabalhando
 	inicio := time.Now()
