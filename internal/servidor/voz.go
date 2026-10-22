@@ -171,7 +171,14 @@ func (s *Servidor) ObterVoz(w http.ResponseWriter, r *http.Request, id api.Id, p
 		responderErro(w, err)
 		return
 	}
-	if params.Entregar != nil && *params.Entregar && v.ate != "" {
+	switch {
+	case v.ate == "":
+	case params.Ouvir != nil && *params.Ouvir:
+		if _, err := s.db.Exec(`UPDATE sessoes SET voz_lido_ate = ?, voz_proposto = NULL WHERE id = ?`, v.ate, n); err != nil {
+			responderErro(w, err)
+			return
+		}
+	case params.Entregar != nil && *params.Entregar:
 		if _, err := s.db.Exec(`UPDATE sessoes SET voz_proposto = ? WHERE id = ?`, v.ate, n); err != nil {
 			responderErro(w, err)
 			return

@@ -429,8 +429,8 @@ func TestConsultaDeTarefasPeloMCP(t *testing.T) {
 	}
 }
 
-// O conector remoto chama a API em processo e expõe só o panorama da voz.
-func TestServidorDoConectorSoPanoramaEmProcesso(t *testing.T) {
+// O conector remoto chama a API em processo e expõe só as ferramentas da voz, sem voz_responder.
+func TestServidorDoConectorSoVozEmProcesso(t *testing.T) {
 	db, err := banco.Abrir(":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -447,7 +447,11 @@ func TestServidorDoConectorSoPanoramaEmProcesso(t *testing.T) {
 	}
 	t.Cleanup(func() { sessao.Close() })
 	lista, err := sessao.ListTools(ctx, nil)
-	if err != nil || len(lista.Tools) != 1 || lista.Tools[0].Name != "voz_panorama" {
+	var nomes []string
+	for _, f := range lista.Tools {
+		nomes = append(nomes, f.Name)
+	}
+	if err != nil || strings.Join(nomes, ",") != "voz_enviar,voz_panorama,voz_situacao,voz_tecla" {
 		t.Fatalf("ferramentas do conector: %v %+v", err, lista)
 	}
 	c := &chat{t: t, sessao: sessao}

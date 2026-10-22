@@ -33,6 +33,9 @@ type Ferramentas struct {
 	ambiente func(string) string
 	// journals é a raiz onde cada sessão ganha a pasta do seu journal; vazio desliga.
 	journals string
+	// ouvir marca as novidades de voz_situacao como ouvidas na hora, em vez de só propô-las: o
+	// conector do app do Claude fala o que recebe e não tem a frase seguinte da Siri como prova.
+	ouvir bool
 
 	mu     sync.Mutex
 	sessao string
@@ -56,7 +59,7 @@ func Novo(endereco string) (*Ferramentas, error) {
 // conector remoto, servido pelo próprio rex.
 func NovoEmProcesso(h http.Handler) *Ferramentas {
 	cliente, _ := api.NewClient("http://rex", api.WithHTTPClient(emProcesso{h}))
-	return &Ferramentas{cliente: cliente, ambiente: func(string) string { return "" }}
+	return &Ferramentas{cliente: cliente, ambiente: func(string) string { return "" }, ouvir: true}
 }
 
 type emProcesso struct{ h http.Handler }
@@ -131,19 +134,40 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 }
 
 // ServidorDoConector monta o servidor MCP do conector personalizado do Claude (/mcp, atrás de
-// OAuth): só leitura, por ora só o panorama da voz, para o modo de voz do app do Claude.
+// OAuth), para o app do Claude, no modo de voz, fazer o papel do intermediário do rex voz: ver as
+// sessões, ouvir o que disseram, mandar pedidos e responder às telas de permissão.
 func (f *Ferramentas) ServidorDoConector() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "rex", Version: "0.1.0"}, &mcp.ServerOptions{
-		Instructions: "Sessões de trabalho dos agentes de IA do Rafael no rex. Para \"quais sessões esperam meu input?\" " +
-			"ou \"o que os agentes estão fazendo?\", chame voz_panorama e responda curto, para ser falado.",
+		Instructions: "Sessões de trabalho dos agentes de IA do Rafael no rex, quase sempre usadas por voz. " +
+			"\"Quais sessões esperam meu input?\": voz_panorama; esperam as com aguardando, as em pedindo_permissao e as ociosas com nao_ouvidas. " +
+			"\"O que a do deploy disse?\": voz_situacao e resuma as novidades. \"Diz pra ela…\": voz_enviar com a frase como ele disse, " +
+			"depois voz_situacao com esperar_segundos 12 para contar a resposta. Na fala: curto, sem ids (chame cada sessão pelo nome curto " +
+			"lido como palavras), números por extenso. Antes de voz_tecla, leia a tela, diga as opções e aperte só a que ele escolher.",
 	})
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "voz_panorama",
 		Description: "As sessões de trabalho ativas no rex, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada. Só leitura.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, Title: "Panorama das sessões"},
 	}, f.vozPanorama)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "voz_situacao",
+		Description: "Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente faz agora e as novidades da conversa dele que o Rafael ainda não ouviu, que ficam como ouvidas: resuma-as na resposta. esperar_segundos segura até o agente responder ou parar.",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(false), Title: "Situação de uma sessão"},
+	}, f.vozSituacao)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "voz_enviar",
+		Description: "Escreve a frase do Rafael no agente da sessão, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla).",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(false), Title: "Mandar pedido a uma sessão"},
+	}, f.vozEnviar)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "voz_tecla",
+		Description: "Aperta, no agente da sessão, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente. Só depois de ele dizer qual.",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(true), Title: "Responder tela de permissão"},
+	}, f.vozTecla)
 	return s
 }
+
+func ptr[T any](v T) *T { return &v }
 
 // autorizar acrescenta o token da sessão aberta, se houver, para atribuir a escrita a ela.
 func (f *Ferramentas) autorizar(ctx context.Context, req *http.Request) error {
@@ -932,8 +956,14 @@ func (f *Ferramentas) vozPanorama(ctx context.Context, _ *mcp.CallToolRequest, _
 
 func (f *Ferramentas) vozSituacao(ctx context.Context, _ *mcp.CallToolRequest, in SituacaoDaVoz) (*mcp.CallToolResult, api.Voz, error) {
 	var out api.Voz
-	entregar := true
-	resp, err := f.cliente.ObterVoz(ctx, in.Sessao, &api.ObterVozParams{Entregar: &entregar, Esperar: &in.EsperarSegundos}, f.autorizar)
+	params := &api.ObterVozParams{Esperar: &in.EsperarSegundos}
+	if f.ouvir {
+		params.Ouvir = &f.ouvir
+	} else {
+		entregar := true
+		params.Entregar = &entregar
+	}
+	resp, err := f.cliente.ObterVoz(ctx, in.Sessao, params, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }
 

@@ -1176,11 +1176,15 @@ paths:
         Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente está fazendo agora e as
         novidades da conversa dele depois do ponteiro do que o Rafael já ouviu. Não avança o ponteiro:
         com `entregar`, as novidades ficam propostas e só viram ouvidas quando o atalho prova que
-        recebeu a fala (a frase seguinte da conversa). Com `esperar`, segura a resposta até o agente
-        responder algo novo ou parar de trabalhar.
+        recebeu a fala (a frase seguinte da conversa). Com `ouvir`, viram ouvidas na hora: é o caso do
+        conector do app do Claude, que fala o que recebe e não tem como provar a entrega. Com `esperar`,
+        segura a resposta até o agente responder algo novo ou parar de trabalhar.
       parameters:
         - $ref: '#/components/parameters/Id'
         - name: entregar
+          in: query
+          schema: { type: boolean }
+        - name: ouvir
           in: query
           schema: { type: boolean }
         - name: esperar
