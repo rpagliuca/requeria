@@ -65,6 +65,10 @@ diga qual, para quê e com qual modelo e esforço.
   `concluida`). O agente encerra a sessão com resumo e fecha o próprio tmux. Nunca mande mensagem
   ao tmux de outro agente nem o feche.
 - **Retomar**: `lancar_agente` de novo; o agente novo começa pelo resumo da última sessão.
+- **Conversar com um agente vivo** (perguntar, combinar algo): `enviar_a_sessao(sessao, texto)`. A
+  mensagem chega identificada por você e com a instrução de responder pela mesma ferramenta; a
+  resposta entra no seu chat como mensagem nova. Não use `voz_enviar` (é a voz do Rafael), não fique
+  consultando `voz_situacao` e nunca leia a tela do tmux dele para achar a resposta.
 
 ## Pausar, bloquear, validar, concluir ou retomar
 

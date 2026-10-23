@@ -20,9 +20,27 @@ import (
 // Prefixo marca no agente as frases que vieram do rex voz: "[rex voz · pedido 3] …".
 const Prefixo = "[rex voz · pedido "
 
-// Novidade é uma fala do Rafael ou um texto do agente.
+// PrefixoDeSessao marca no agente as mensagens de outra sessão: "[rex · de S-0001 nome] …".
+const PrefixoDeSessao = "[rex · de "
+
+// MensagemDeSessao monta, numa linha só (uma quebra de linha mandaria a frase antes da hora), o que a
+// sessão de origem escreve no agente de outra: quem mandou e como responder, para a resposta voltar
+// pelo rex ao chat da origem em vez de ficar só na conversa do destino.
+func MensagemDeSessao(origem, nome, texto string) string {
+	quem := origem
+	if nome != "" {
+		quem += " " + nome
+	}
+	return PrefixoDeSessao + quem + "] " + texto + " — (mensagem da sessão " + quem + ", não do Rafael: " +
+		"responda com a ferramenta enviar_a_sessao do rex para " + origem + "; a resposta entra no chat dela)"
+}
+
+var instrucaoDeSessao = regexp.MustCompile(` — \(mensagem da sessão S-\d+[^)]*\)$`)
+
+// Novidade é uma fala do Rafael, uma mensagem de outra sessão ou um texto do agente.
 type Novidade struct {
 	DeRafael bool
+	Origem   string // a sessão (S-0001) que mandou a mensagem; vazio quando não veio de outra sessão
 	Texto    string
 	Pedido   int // 0 quando não veio do rex voz nem responde a um pedido dele
 	Em       time.Time
@@ -76,7 +94,10 @@ type linha struct {
 	} `json:"attachment"`
 }
 
-var pedidoNoTexto = regexp.MustCompile(`^\[rex voz · pedido (\d+)\]\s*`)
+var (
+	pedidoNoTexto = regexp.MustCompile(`^\[rex voz · pedido (\d+)\]\s*`)
+	sessaoNoTexto = regexp.MustCompile(`^\[rex · de (S-\d+)[^\]]*\]\s*`)
+)
 
 // Ler devolve as novidades do transcript depois da linha `depois` (uuid). Ponteiro vazio ou que
 // não está mais no arquivo: só as últimas, como se fosse a primeira vez.
@@ -119,6 +140,13 @@ func Ler(caminho, depois string) (Leitura, error) {
 			if texto == "" || strings.HasPrefix(texto, "<") {
 				continue // comando local, lembrete do sistema
 			}
+			if m := sessaoNoTexto.FindStringSubmatch(texto); m != nil {
+				// Outra sessão falou: não é o Rafael, então o que ele ainda não viu continua contando.
+				pedido = 0
+				texto = instrucaoDeSessao.ReplaceAllString(texto[len(m[0]):], "")
+				todas = append(todas, Novidade{Origem: m[1], Texto: encurtar(texto), Em: l.Timestamp})
+				continue
+			}
 			pedido, respostas = 0, 0
 			if m := pedidoNoTexto.FindStringSubmatch(texto); m != nil {
 				pedido, _ = strconv.Atoi(m[1])
@@ -127,15 +155,24 @@ func Ler(caminho, depois string) (Leitura, error) {
 			todas = append(todas, Novidade{DeRafael: true, Texto: encurtar(texto), Pedido: pedido, Em: l.Timestamp})
 		case "assistant":
 			var blocos []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
+				Type     string `json:"type"`
+				Text     string `json:"text"`
+				Thinking string `json:"thinking"`
 			}
 			if json.Unmarshal(l.Message.Content, &blocos) != nil {
 				continue
 			}
 			for _, b := range blocos {
-				if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
-					n := Novidade{Texto: encurtar(strings.TrimSpace(b.Text)), Pedido: pedido, Em: l.Timestamp}
+				texto := b.Text
+				if b.Type == "thinking" {
+					// O raciocínio fica gravado vazio; um thinking com texto é a narração que o agente
+					// mostra no meio do turno, como a resposta a um pedido antes de seguir com ferramentas.
+					texto = b.Thinking
+				} else if b.Type != "text" {
+					continue
+				}
+				if texto = strings.TrimSpace(texto); texto != "" {
+					n := Novidade{Texto: encurtar(texto), Pedido: pedido, Em: l.Timestamp}
 					todas, ultima = append(todas, n), &n
 					respostas++
 				}

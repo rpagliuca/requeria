@@ -813,6 +813,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessoes/{id}/mensagens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Uma sessão escreve uma mensagem no agente de outra (S-0001, ou a sessão ativa da tarefa T-0001).
+         *     A origem é a sessão dona do token. A mensagem chega identificada por ela, "[rex · de S-0001 nome]",
+         *     e com a instrução de responder por esta mesma rota para a origem: a resposta entra no chat da
+         *     origem como mensagem nova, sem ela precisar ler a conversa nem a tela da outra. Com o agente
+         *     trabalhando, entra na fila dele. Recusada (409) quando o agente está numa tela de permissão.
+         *      */
+        post: operations["enviarASessao"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/integracao/pendencias": {
         parameters: {
             query?: never;
@@ -1533,8 +1557,13 @@ export interface components {
             ultima_em?: string;
         };
         NovidadeDeVoz: {
-            /** @enum {string} */
-            de: "rafael" | "agente";
+            /**
+             * @description rafael (fala dele, inclusive pelo rex voz), sessao (mensagem de outra sessão, ver origem) ou agente
+             * @enum {string}
+             */
+            de: "rafael" | "sessao" | "agente";
+            /** @description Sessão (S-0001) que mandou a mensagem, quando de é sessao */
+            origem?: string;
             texto: string;
             /** @description Pedido do rex voz a que se refere, quando há */
             pedido?: number;
@@ -1548,6 +1577,13 @@ export interface components {
             /** @description Número do pedido na sessão */
             pedido: number;
             sessao: string;
+            estado: components["schemas"]["EstadoDaVoz"];
+        };
+        MensagemEntreSessoes: {
+            /** @description Sessão de origem (S-0001) */
+            de: string;
+            /** @description Sessão de destino */
+            para: string;
             estado: components["schemas"]["EstadoDaVoz"];
         };
         TeclaDeVoz: {
@@ -3197,6 +3233,36 @@ export interface operations {
             };
             401: components["responses"]["Erro"];
             404: components["responses"]["Erro"];
+        };
+    };
+    enviarASessao: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MensagemDeVoz"];
+            };
+        };
+        responses: {
+            /** @description Entregue ao agente */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MensagemEntreSessoes"];
+                };
+            };
+            400: components["responses"]["Erro"];
+            401: components["responses"]["Erro"];
+            404: components["responses"]["Erro"];
+            409: components["responses"]["Erro"];
         };
     };
     listarPendencias: {

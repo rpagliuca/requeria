@@ -61,6 +61,7 @@ const (
 
 // Defines values for NovidadeDeVozDe.
 const (
+	DaSessao NovidadeDeVozDe = "sessao"
 	DoAgente NovidadeDeVozDe = "agente"
 	DoRafael NovidadeDeVozDe = "rafael"
 )
@@ -421,6 +422,19 @@ type MensagemDeVoz struct {
 	Texto string `json:"texto"`
 }
 
+// MensagemEntreSessoes defines model for MensagemEntreSessoes.
+type MensagemEntreSessoes struct {
+	// De Sessão de origem (S-0001)
+	De string `json:"de"`
+
+	// Estado encerrada: a sessão terminou; sem_agente: a sessão está ativa mas o tmux do agente não foi
+	// achado; trabalhando, ocioso ou pedindo_permissao: lido da tela.
+	Estado EstadoDaVoz `json:"estado"`
+
+	// Para Sessão de destino
+	Para string `json:"para"`
+}
+
 // MotivoDeAtencao defines model for MotivoDeAtencao.
 type MotivoDeAtencao string
 
@@ -480,15 +494,19 @@ type NovaTarefa struct {
 
 // NovidadeDeVoz defines model for NovidadeDeVoz.
 type NovidadeDeVoz struct {
+	// De rafael (fala dele, inclusive pelo rex voz), sessao (mensagem de outra sessão, ver origem) ou agente
 	De NovidadeDeVozDe `json:"de"`
 	Em time.Time       `json:"em"`
+
+	// Origem Sessão (S-0001) que mandou a mensagem, quando de é sessao
+	Origem *string `json:"origem,omitempty"`
 
 	// Pedido Pedido do rex voz a que se refere, quando há
 	Pedido *int   `json:"pedido,omitempty"`
 	Texto  string `json:"texto"`
 }
 
-// NovidadeDeVozDe defines model for NovidadeDeVoz.De.
+// NovidadeDeVozDe rafael (fala dele, inclusive pelo rex voz), sessao (mensagem de outra sessão, ver origem) ou agente
 type NovidadeDeVozDe string
 
 // NovoComponente defines model for NovoComponente.
@@ -1098,6 +1116,9 @@ type EncerrarSessaoManualmenteJSONRequestBody = Encerramento
 // AguardarRespostaJSONRequestBody defines body for AguardarResposta for application/json ContentType.
 type AguardarRespostaJSONRequestBody = Espera
 
+// EnviarASessaoJSONRequestBody defines body for EnviarASessao for application/json ContentType.
+type EnviarASessaoJSONRequestBody = MensagemDeVoz
+
 // RepassarSessaoJSONRequestBody defines body for RepassarSessao for application/json ContentType.
 type RepassarSessaoJSONRequestBody = Repasse
 
@@ -1388,6 +1409,11 @@ type ClientInterface interface {
 	AguardarRespostaWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	AguardarResposta(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnviarASessaoWithBody request with any body
+	EnviarASessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EnviarASessao(ctx context.Context, id Id, body EnviarASessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RepassarSessaoWithBody request with any body
 	RepassarSessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2283,6 +2309,30 @@ func (c *Client) AguardarRespostaWithBody(ctx context.Context, id Id, contentTyp
 
 func (c *Client) AguardarResposta(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAguardarRespostaRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EnviarASessaoWithBody(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnviarASessaoRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EnviarASessao(ctx context.Context, id Id, body EnviarASessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnviarASessaoRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4871,6 +4921,53 @@ func NewAguardarRespostaRequestWithBody(server string, id Id, contentType string
 	return req, nil
 }
 
+// NewEnviarASessaoRequest calls the generic EnviarASessao builder with application/json body
+func NewEnviarASessaoRequest(server string, id Id, body EnviarASessaoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEnviarASessaoRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewEnviarASessaoRequestWithBody generates requests for EnviarASessao with any type of body
+func NewEnviarASessaoRequestWithBody(server string, id Id, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/sessoes/%s/mensagens", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRepassarSessaoRequest calls the generic RepassarSessao builder with application/json body
 func NewRepassarSessaoRequest(server string, id Id, body RepassarSessaoJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6020,6 +6117,11 @@ type ClientWithResponsesInterface interface {
 	AguardarRespostaWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error)
 
 	AguardarRespostaWithResponse(ctx context.Context, id Id, body AguardarRespostaJSONRequestBody, reqEditors ...RequestEditorFn) (*AguardarRespostaResponse, error)
+
+	// EnviarASessaoWithBodyWithResponse request with any body
+	EnviarASessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnviarASessaoResponse, error)
+
+	EnviarASessaoWithResponse(ctx context.Context, id Id, body EnviarASessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*EnviarASessaoResponse, error)
 
 	// RepassarSessaoWithBodyWithResponse request with any body
 	RepassarSessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RepassarSessaoResponse, error)
@@ -7194,6 +7296,32 @@ func (r AguardarRespostaResponse) StatusCode() int {
 	return 0
 }
 
+type EnviarASessaoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *MensagemEntreSessoes
+	JSON400      *Erro
+	JSON401      *Erro
+	JSON404      *Erro
+	JSON409      *Erro
+}
+
+// Status returns HTTPResponse.Status
+func (r EnviarASessaoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EnviarASessaoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type RepassarSessaoResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8278,6 +8406,23 @@ func (c *ClientWithResponses) AguardarRespostaWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseAguardarRespostaResponse(rsp)
+}
+
+// EnviarASessaoWithBodyWithResponse request with arbitrary body returning *EnviarASessaoResponse
+func (c *ClientWithResponses) EnviarASessaoWithBodyWithResponse(ctx context.Context, id Id, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnviarASessaoResponse, error) {
+	rsp, err := c.EnviarASessaoWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnviarASessaoResponse(rsp)
+}
+
+func (c *ClientWithResponses) EnviarASessaoWithResponse(ctx context.Context, id Id, body EnviarASessaoJSONRequestBody, reqEditors ...RequestEditorFn) (*EnviarASessaoResponse, error) {
+	rsp, err := c.EnviarASessao(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnviarASessaoResponse(rsp)
 }
 
 // RepassarSessaoWithBodyWithResponse request with arbitrary body returning *RepassarSessaoResponse
@@ -10269,6 +10414,60 @@ func ParseAguardarRespostaResponse(rsp *http.Response) (*AguardarRespostaRespons
 	return response, nil
 }
 
+// ParseEnviarASessaoResponse parses an HTTP response from a EnviarASessaoWithResponse call
+func ParseEnviarASessaoResponse(rsp *http.Response) (*EnviarASessaoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EnviarASessaoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest MensagemEntreSessoes
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Erro
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRepassarSessaoResponse parses an HTTP response from a RepassarSessaoWithResponse call
 func ParseRepassarSessaoResponse(rsp *http.Response) (*RepassarSessaoResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -11193,6 +11392,9 @@ type ServerInterface interface {
 
 	// (POST /sessoes/{id}/espera)
 	AguardarResposta(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /sessoes/{id}/mensagens)
+	EnviarASessao(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /sessoes/{id}/repasse)
 	RepassarSessao(w http.ResponseWriter, r *http.Request, id Id)
@@ -12512,6 +12714,37 @@ func (siw *ServerInterfaceWrapper) AguardarResposta(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// EnviarASessao operation middleware
+func (siw *ServerInterfaceWrapper) EnviarASessao(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenDaSessaoScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnviarASessao(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RepassarSessao operation middleware
 func (siw *ServerInterfaceWrapper) RepassarSessao(w http.ResponseWriter, r *http.Request) {
 
@@ -13218,6 +13451,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/encerramento-manual", wrapper.EncerrarSessaoManualmente)
 	m.HandleFunc("DELETE "+options.BaseURL+"/sessoes/{id}/espera", wrapper.RetomarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/espera", wrapper.AguardarResposta)
+	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/mensagens", wrapper.EnviarASessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/repasse", wrapper.RepassarSessao)
 	m.HandleFunc("POST "+options.BaseURL+"/sessoes/{id}/tarefas", wrapper.VincularTarefa)
 	m.HandleFunc("GET "+options.BaseURL+"/tarefas", wrapper.ListarTarefas)
