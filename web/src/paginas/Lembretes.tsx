@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom"
 import {
   type AlteracaoLembrete,
   type Lembrete,
+  type PrecisaoLembrete,
   useAdiarLembrete,
   useAlterarLembrete,
   useCancelarLembrete,
@@ -19,11 +20,32 @@ import { useOrganizacaoAtual } from "@/hooks/useOrganizacaoAtual"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 const formatoDaHora = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+const formatoDoDia = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })
 
-// Lembretes com hora marcada: o que está tocando primeiro, depois os próximos; quem avisa no celular
+type Turno = "manha" | "tarde" | "noite"
+const nomesDoTurno: Record<Turno, string> = { manha: "manhã", tarde: "tarde", noite: "noite" }
+// Uma hora dentro de cada turno, para o servidor pôr no início dele (os turnos são da instalação;
+// antes da manhã conta como manhã, e 23:59 é sempre noite).
+const horaDentroDoTurno: Record<Turno, string> = { manha: "00:00", tarde: "15:00", noite: "23:59" }
+
+// O turno de um lembrete pela hora de início (aproximado: os limites exatos são da instalação).
+function turnoDe(quando: string): Turno {
+  const h = new Date(quando).getHours()
+  return h < 12 ? "manha" : h < 18 ? "tarde" : "noite"
+}
+
+function descreverQuando(l: Lembrete): string {
+  const d = new Date(l.quando)
+  if (l.precisao === "dia") return `${formatoDoDia.format(d)} · o dia todo`
+  if (l.precisao === "turno") return `${formatoDoDia.format(d)} · ${nomesDoTurno[turnoDe(l.quando)]}`
+  return formatoDaHora.format(d)
+}
+
+// Lembretes: o que está tocando primeiro, depois os próximos; quem avisa no celular
 // e na barra são as integrações da instalação.
 export function Lembretes() {
   const { id } = useParams()
@@ -83,7 +105,7 @@ function ItemDeLembrete({ lembrete: l, destacado }: { lembrete: Lembrete; destac
         <StatusDoLembrete status={l.status} />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
-        <span>{formatoDaHora.format(new Date(l.quando))}</span>
+        <span>{descreverQuando(l)}</span>
         {l.atrasado && l.status === "disparado" && <span>tocou atrasado</span>}
         {l.adiamentos > 0 && <span>adiado {l.adiamentos}×</span>}
         <span>{l.organizacao}</span>
@@ -140,14 +162,81 @@ function horaLocal(quando: string): string {
   return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}T${dois(d.getHours())}:${dois(d.getMinutes())}`
 }
 
+// Marcacao é o que o formulário guarda de quando: data e hora (hora marcada) ou só a data (turno e
+// dia), e o turno.
+type Marcacao = { precisao: PrecisaoLembrete; local: string; turno: Turno }
+
+const marcacaoVazia: Marcacao = { precisao: "hora", local: "", turno: "manha" }
+
+function marcacaoDe(l: Lembrete): Marcacao {
+  const local = horaLocal(l.quando)
+  return { precisao: l.precisao, local: l.precisao === "hora" ? local : local.slice(0, 10), turno: turnoDe(l.quando) }
+}
+
+function quandoDe(m: Marcacao): string {
+  if (m.precisao === "hora") return comFuso(m.local)
+  return comFuso(`${m.local}T${m.precisao === "turno" ? horaDentroDoTurno[m.turno] : "12:00"}`)
+}
+
+// Trocar a precisão mantém a data já escolhida.
+function trocarPrecisao(m: Marcacao, precisao: PrecisaoLembrete): Marcacao {
+  const data = m.local.slice(0, 10)
+  return { ...m, precisao, local: precisao === "hora" ? (data ? `${data}T09:00` : "") : data }
+}
+
+// Hora marcada (com alarme) ou um turno ou dia (avisados em lote, sem som).
+function CamposDeQuando({ prefixo, marcacao: m, mudar }: { prefixo: string; marcacao: Marcacao; mudar: (m: Marcacao) => void }) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${prefixo}-precisao`}>Precisão</Label>
+        <Select value={m.precisao} onValueChange={(v) => mudar(trocarPrecisao(m, v as PrecisaoLembrete))}>
+          <SelectTrigger id={`${prefixo}-precisao`} className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hora">Hora marcada</SelectItem>
+            <SelectItem value="turno">Turno</SelectItem>
+            <SelectItem value="dia">Dia</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${prefixo}-quando`}>Quando</Label>
+        <div className="flex gap-2">
+          <Input
+            id={`${prefixo}-quando`}
+            type={m.precisao === "hora" ? "datetime-local" : "date"}
+            value={m.local}
+            onChange={(e) => mudar({ ...m, local: e.target.value })}
+            required
+          />
+          {m.precisao === "turno" && (
+            <Select value={m.turno} onValueChange={(v) => mudar({ ...m, turno: v as Turno })}>
+              <SelectTrigger aria-label="Turno" className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manha">Manhã</SelectItem>
+                <SelectItem value="tarde">Tarde</SelectItem>
+                <SelectItem value="noite">Noite</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // Corrige o lembrete mantendo o id; vai só o que mudou (a hora, se mantida, não é reenviada: a de um
-// lembrete disparado já passou e seria recusada). Tarefa ou requisito vazio remove a ligação.
+// lembrete disparado já passou e seria recusada; mudar a precisão reenvia a hora). Tarefa ou requisito vazio remove a ligação.
 function EditarLembrete({ lembrete: l, aoTerminar }: { lembrete: Lembrete; aoTerminar: () => void }) {
   const alterar = useAlterarLembrete()
   const organizacoes = useOrganizacoes()
-  const horaOriginal = horaLocal(l.quando)
+  const original = marcacaoDe(l)
   const [texto, setTexto] = useState(l.texto)
-  const [quando, setQuando] = useState(horaOriginal)
+  const [marcacao, setMarcacao] = useState(original)
   const [organizacao, setOrganizacao] = useState(l.organizacao)
   const [tarefa, setTarefa] = useState(l.tarefa ?? "")
   const [requisito, setRequisito] = useState(l.requisito ?? "")
@@ -159,7 +248,9 @@ function EditarLembrete({ lembrete: l, aoTerminar }: { lembrete: Lembrete; aoTer
         e.preventDefault()
         const alteracao: AlteracaoLembrete = {}
         if (texto.trim() !== l.texto) alteracao.texto = texto
-        if (quando !== horaOriginal) alteracao.quando = comFuso(quando)
+        if (marcacao.precisao !== original.precisao) alteracao.precisao = marcacao.precisao
+        if (alteracao.precisao || marcacao.local !== original.local || (marcacao.precisao === "turno" && marcacao.turno !== original.turno))
+          alteracao.quando = quandoDe(marcacao)
         if (organizacao.trim() !== l.organizacao) alteracao.organizacao = organizacao
         if (tarefa.trim() !== (l.tarefa ?? "")) alteracao.tarefa = tarefa.trim()
         if (requisito.trim() !== (l.requisito ?? "")) alteracao.requisito = requisito.trim()
@@ -174,10 +265,7 @@ function EditarLembrete({ lembrete: l, aoTerminar }: { lembrete: Lembrete; aoTer
         <Label htmlFor={`${prefixo}-texto`}>Lembrar de</Label>
         <Input id={`${prefixo}-texto`} value={texto} onChange={(e) => setTexto(e.target.value)} required />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${prefixo}-quando`}>Quando</Label>
-        <Input id={`${prefixo}-quando`} type="datetime-local" value={quando} onChange={(e) => setQuando(e.target.value)} required />
-      </div>
+      <CamposDeQuando prefixo={prefixo} marcacao={marcacao} mudar={setMarcacao} />
       <div className="w-36 space-y-1.5">
         <Label htmlFor={`${prefixo}-organizacao`}>Organização</Label>
         <Input
@@ -219,7 +307,7 @@ function NovoLembrete() {
   const organizacoes = useOrganizacoes()
   const atual = useOrganizacaoAtual().organizacao
   const [texto, setTexto] = useState("")
-  const [quando, setQuando] = useState("")
+  const [marcacao, setMarcacao] = useState(marcacaoVazia)
   const [organizacao, setOrganizacao] = useState(atual)
   return (
     <form
@@ -227,11 +315,11 @@ function NovoLembrete() {
       onSubmit={(e) => {
         e.preventDefault()
         criar.mutate(
-          { texto, quando: comFuso(quando), organizacao },
+          { texto, quando: quandoDe(marcacao), precisao: marcacao.precisao, organizacao },
           {
             onSuccess: () => {
               setTexto("")
-              setQuando("")
+              setMarcacao({ ...marcacao, local: "" })
             },
           },
         )
@@ -241,10 +329,7 @@ function NovoLembrete() {
         <Label htmlFor="texto">Lembrar de</Label>
         <Input id="texto" value={texto} onChange={(e) => setTexto(e.target.value)} required />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="quando">Quando</Label>
-        <Input id="quando" type="datetime-local" value={quando} onChange={(e) => setQuando(e.target.value)} required />
-      </div>
+      <CamposDeQuando prefixo="novo" marcacao={marcacao} mudar={setMarcacao} />
       <div className="w-36 space-y-1.5">
         <Label htmlFor="organizacao-lembrete">Organização</Label>
         <Input
