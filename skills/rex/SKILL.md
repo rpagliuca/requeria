@@ -151,8 +151,9 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 Compromisso com hora marcada que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar
 o certificado na sexta às 9"): `criar_lembrete` com a hora em RFC 3339 com fuso, ligado à tarefa
 quando for dela. A `precisao` sai do que ele disse: `hora` só com data e hora explícitas ("sexta às
-9"), `turno` para "de manhã", "à tarde" ou "à noite", `dia` para "amanhã" ou "sexta" sem hora. Nunca
-invente uma hora para o que não tem: só `hora` toca alarme; turno e dia são avisados em lote, sem som. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
+9"), `turno` para "de manhã", "no almoço", "à tarde" ou "à noite", `dia` para "amanhã" ou "sexta" sem
+hora, `semana` para "semana que vem", `mes` para "em abril". Nunca invente uma hora para o que não
+tem: só `hora` toca alarme; os demais são avisados em lote, sem som. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
 que viu ou fez. Para mudar o texto, a hora ou a ligação de um lembrete, `alterar_lembrete` (mantém o
 id); `cancelar_lembrete` só quando ele disser que o lembrete não vale mais. Nunca cancele e recrie
 para editar: o Rafael vê o antigo como cancelado, e cancelado não volta. O rex guarda a hora; avisar

@@ -60,6 +60,9 @@ func TestInterpretarLembreteSemHora(t *testing.T) {
 		{"comprar pão amanhã de manhã", "comprar pão", "2026-10-21", Turno, "manha", "quarta 21/10 de manhã"},
 		{"ligar para a escola hoje à noite", "ligar para a escola", "2026-10-20", Turno, "noite", "terça 20/10 à noite"},
 		{"regar as plantas à tarde", "regar as plantas", "2026-10-20", Turno, "tarde", "terça 20/10 à tarde"},
+		{"pagar a conta amanhã no almoço", "pagar a conta", "2026-10-21", Turno, "almoco", "quarta 21/10 no almoço"},
+		{"almoço com a Ana amanhã", "almoço com a Ana", "2026-10-21", Dia, "", "quarta 21/10, o dia todo"},
+		{"ligar para o banco na hora do almoço", "ligar para o banco", "2026-10-20", Turno, "almoco", "terça 20/10 no almoço"},
 		{"revisar o contrato daqui a 3 dias", "revisar o contrato", "2026-10-23", Dia, "", "sexta 23/10, o dia todo"},
 		{"lavar o carro daqui a 2 dias de manhã", "lavar o carro", "2026-10-22", Turno, "manha", "quinta 22/10 de manhã"},
 	}

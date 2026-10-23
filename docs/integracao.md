@@ -90,9 +90,9 @@ a integrações:
 
 - `fuso`: em que fuso a captura interpreta "amanhã às 9" e a tela mostra as horas. Padrão: o da máquina.
 - `base_publica`: base do campo `link` dos lembretes. Sem ela, `link` fica ausente.
-- `turnos`: onde começam a manhã (e o dia), a tarde e a noite, em `"HH:MM"`, para os lembretes de
-  turno ou dia (ver abaixo). Padrão: `{"manha": "08:00", "tarde": "13:00", "noite": "18:00"}`; o turno
-  omitido fica com o padrão.
+- `turnos`: onde começam a manhã (e o dia), o almoço, a tarde e a noite, em `"HH:MM"`, para os
+  lembretes de turno ou dia (ver abaixo). Padrão: `{"manha": "08:00", "almoco": "12:00", "tarde":
+  "13:00", "noite": "18:00"}`; o turno omitido fica com o padrão.
 - `captura`: liga `POST /captura`; o token vem da variável de ambiente nomeada (o segredo nunca fica
   no JSON). Sem `captura`, o endpoint responde 404.
 - `eventos`: tipos exatos ou com `*` no fim.
@@ -123,14 +123,15 @@ Dentro do `rex servir`, a cada 15 s: todo lembrete agendado ou adiado com `quand
 passado vira `disparado` e gera `lembrete_disparado`. Ao subir, o servidor dispara de uma vez os que
 venceram enquanto ele estava parado, com `atrasado: true`; nada some em silêncio.
 
-### Precisão: hora, turno ou dia
+### Precisão: hora, turno, dia, semana ou mês
 
 Todo lembrete tem `precisao`:
 
 - `hora`: data e hora explícitas. É sensível ao horário: um consumidor pode avisar individualmente
   e tocar alarme antes da hora.
-- `turno` (manhã, tarde ou noite) e `dia`: vale para a janela inteira, sem hora exata. O rex põe
-  `quando` no início da janela (o turno que contém a hora pedida; antes da manhã conta como manhã) e
+- `turno` (manhã, almoço, tarde ou noite), `dia`, `semana` (segunda a domingo) e `mes`: vale para a
+  janela inteira, sem hora exata. O rex põe `quando` no início da janela (o turno que contém a hora
+  pedida, e antes da manhã conta como manhã; dia, semana e mês começam na manhã do primeiro dia) e
   devolve `fim`. Por isso os lembretes do mesmo turno disparam juntos: o consumidor deve agrupá-los
   numa notificação em lote (mesmo `quando`, precisão diferente de `hora`), sem alarme sonoro, e pode
   mostrá-los até `fim`. Um lembrete de hoje cuja janela ainda não acabou é aceito e dispara na hora;
@@ -173,7 +174,9 @@ O autor de tudo no log de eventos é `captura`.
 
 Sem hora, o lembrete é de turno ou de dia (precisão `turno` ou `dia`, ver acima), nunca com uma hora
 inventada: "amanhã de manhã", "hoje à tarde", "sexta à noite" e "daqui a 2 dias de manhã" são de turno;
-"amanhã", "sexta", "dia 30" e "daqui a 3 dias" são do dia. Um turno solto junto de uma hora vira o
+"amanhã", "sexta", "dia 30" e "daqui a 3 dias" são do dia; "no almoço" e "na hora do almoço" são do
+turno do almoço (só com a preposição: "almoço com a Ana" é texto). Semana e mês ainda não são lidos
+da voz. Um turno solto junto de uma hora vira o
 período dela ("amanhã à tarde às 5" = 17:00, precisão `hora`).
 
 Regras para não chutar:
