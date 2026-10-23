@@ -29,6 +29,7 @@ export type OpcoesDeLancamento = components["schemas"]["OpcoesDeLancamento"]
 export type Lembrete = components["schemas"]["Lembrete"]
 export type StatusLembrete = components["schemas"]["StatusLembrete"]
 export type NovoLembrete = components["schemas"]["NovoLembrete"]
+export type AlteracaoLembrete = components["schemas"]["AlteracaoLembrete"]
 export type Adiamento = components["schemas"]["Adiamento"]
 
 // A API fica na mesma origem do frontend; em desenvolvimento, o Vite encaminha.
@@ -234,6 +235,9 @@ export const useLembretes = (status?: StatusLembrete[]) => {
 }
 
 export const useCriarLembrete = () => useEscrita((novo: NovoLembrete) => obter<Lembrete>("/lembretes", "POST", novo))
+
+export const useAlterarLembrete = () =>
+  useEscrita(({ id, ...alteracao }: AlteracaoLembrete & { id: string }) => obter<Lembrete>(`/lembretes/${id}`, "PATCH", alteracao))
 
 export const useConfirmarLembrete = () =>
   useEscrita((id: string) => obter<Lembrete>(`/lembretes/${id}/confirmacao`, "POST"))
