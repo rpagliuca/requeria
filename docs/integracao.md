@@ -90,6 +90,9 @@ a integrações:
 
 - `fuso`: em que fuso a captura interpreta "amanhã às 9" e a tela mostra as horas. Padrão: o da máquina.
 - `base_publica`: base do campo `link` dos lembretes. Sem ela, `link` fica ausente.
+- `turnos`: onde começam a manhã (e o dia), a tarde e a noite, em `"HH:MM"`, para os lembretes de
+  turno ou dia (ver abaixo). Padrão: `{"manha": "08:00", "tarde": "13:00", "noite": "18:00"}`; o turno
+  omitido fica com o padrão.
 - `captura`: liga `POST /captura`; o token vem da variável de ambiente nomeada (o segredo nunca fica
   no JSON). Sem `captura`, o endpoint responde 404.
 - `eventos`: tipos exatos ou com `*` no fim.
@@ -119,6 +122,23 @@ lista, sobre os mesmos eventos.
 Dentro do `rex servir`, a cada 15 s: todo lembrete agendado ou adiado com `quando` no
 passado vira `disparado` e gera `lembrete_disparado`. Ao subir, o servidor dispara de uma vez os que
 venceram enquanto ele estava parado, com `atrasado: true`; nada some em silêncio.
+
+### Precisão: hora, turno ou dia
+
+Todo lembrete tem `precisao`:
+
+- `hora`: data e hora explícitas. É sensível ao horário: um consumidor pode avisar individualmente
+  e tocar alarme antes da hora.
+- `turno` (manhã, tarde ou noite) e `dia`: vale para a janela inteira, sem hora exata. O rex põe
+  `quando` no início da janela (o turno que contém a hora pedida; antes da manhã conta como manhã) e
+  devolve `fim`. Por isso os lembretes do mesmo turno disparam juntos: o consumidor deve agrupá-los
+  numa notificação em lote (mesmo `quando`, precisão diferente de `hora`), sem alarme sonoro, e pode
+  mostrá-los até `fim`. Um lembrete de hoje cuja janela ainda não acabou é aceito e dispara na hora;
+  disparar depois do início da janela nunca é `atrasado`. Adiar põe `quando` exatamente na nova hora,
+  mantendo a precisão.
+
+O `POST /lembretes` sem `precisao` assume `hora`; a ferramenta `criar_lembrete` do MCP exige que o
+agente escolha, pelo que o usuário disse.
 
 ## Captura
 

@@ -33,6 +33,15 @@ type Config struct {
 	BasePublica string   `json:"base_publica"`
 	Captura     *Captura `json:"captura"`
 	Ganchos     []Gancho `json:"ganchos"`
+	// Turnos dos lembretes de turno ou dia, em "HH:MM". Padrão: 08:00, 13:00 e 18:00.
+	Turnos *Turnos `json:"turnos"`
+}
+
+// Turnos: onde começam a manhã (e o dia), a tarde e a noite.
+type Turnos struct {
+	Manha string `json:"manha"`
+	Tarde string `json:"tarde"`
+	Noite string `json:"noite"`
 }
 
 // Captura liga POST /captura.
@@ -63,8 +72,9 @@ const eventoDeFalha = "integracao_falhou"
 
 // Integracao é a configuração carregada e validada.
 type Integracao struct {
-	cfg  Config
-	fuso *time.Location
+	cfg    Config
+	fuso   *time.Location
+	turnos servidor.Turnos
 	// tentativas são as esperas entre uma tentativa e a seguinte.
 	tentativas []time.Duration
 	// intervalo entre leituras do log.
@@ -103,6 +113,12 @@ func Nova(cfg Config, ambiente func(string) string) (*Integracao, error) {
 		}
 		i.fuso = fuso
 	}
+	if t := cfg.Turnos; t != nil {
+		var err error
+		if i.turnos, err = lerTurnos(*t); err != nil {
+			return nil, fmt.Errorf("configuração de integração: turnos: %w", err)
+		}
+	}
 	if c := cfg.Captura; c != nil {
 		if c.TokenAmbiente == "" || ambiente(c.TokenAmbiente) == "" {
 			return nil, fmt.Errorf("configuração de integração: a captura precisa do token na variável %q", c.TokenAmbiente)
@@ -127,7 +143,7 @@ func Nova(cfg Config, ambiente func(string) string) (*Integracao, error) {
 
 // Opcoes são os parâmetros que a API usa.
 func (i *Integracao) Opcoes() servidor.Integracao {
-	o := servidor.Integracao{Fuso: i.fuso, BasePublica: i.cfg.BasePublica}
+	o := servidor.Integracao{Fuso: i.fuso, BasePublica: i.cfg.BasePublica, Turnos: i.turnos}
 	if c := i.cfg.Captura; c != nil {
 		o.TokenDeCaptura = i.ambiente(c.TokenAmbiente)
 		o.OrganizacaoDaCaptura = c.Organizacao
@@ -141,6 +157,25 @@ func (i *Integracao) Conectar(ctx context.Context, s *servidor.Servidor) {
 	for _, g := range i.cfg.Ganchos {
 		go i.entregar(ctx, s, g)
 	}
+}
+
+// lerTurnos lê as horas "HH:MM"; o turno omitido fica com o padrão.
+func lerTurnos(t Turnos) (servidor.Turnos, error) {
+	out := servidor.TurnosPadrao
+	for _, c := range []struct {
+		nome, valor string
+		destino     *int
+	}{{"manha", t.Manha, &out.Manha}, {"tarde", t.Tarde, &out.Tarde}, {"noite", t.Noite, &out.Noite}} {
+		if c.valor == "" {
+			continue
+		}
+		h, err := time.Parse("15:04", c.valor)
+		if err != nil {
+			return out, fmt.Errorf("%s: use HH:MM (%q)", c.nome, c.valor)
+		}
+		*c.destino = h.Hour()*60 + h.Minute()
+	}
+	return out, out.Validar()
 }
 
 func casa(g Gancho, tipo string) bool {

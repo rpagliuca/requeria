@@ -355,12 +355,15 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 	c.chamar("iniciar_sessao", map[string]any{"modelo": "Claude Opus 5.5", "tarefas": []string{tarefa.Id}}, &sessao)
 
 	quando := time.Now().Add(2 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
-	if msg := c.chamar("criar_lembrete", map[string]any{"texto": "x", "quando": "amanhã", "organizacao": "Exemplo"}, nil); !strings.Contains(msg, "RFC 3339") {
+	if msg := c.chamar("criar_lembrete", map[string]any{"texto": "x", "quando": "amanhã", "precisao": "dia", "organizacao": "Exemplo"}, nil); !strings.Contains(msg, "RFC 3339") {
 		t.Fatalf("hora inválida deveria orientar: %q", msg)
 	}
+	if msg := c.chamar("criar_lembrete", map[string]any{"texto": "x", "quando": quando, "organizacao": "Exemplo"}, nil); !strings.Contains(msg, "precisao") {
+		t.Fatalf("sem precisão deveria recusar: %q", msg)
+	}
 	var l ResumoDeLembrete
-	c.chamar("criar_lembrete", map[string]any{"texto": "ligar para o contador", "quando": quando, "organizacao": "Exemplo", "tarefa": tarefa.Id}, &l)
-	if l.Id != "L-0001" || l.Status != "agendado" || l.Quando != quando {
+	c.chamar("criar_lembrete", map[string]any{"texto": "ligar para o contador", "quando": quando, "precisao": "hora", "organizacao": "Exemplo", "tarefa": tarefa.Id}, &l)
+	if l.Id != "L-0001" || l.Status != "agendado" || l.Quando != quando || l.Precisao != "hora" {
 		t.Fatalf("lembrete: %+v", l)
 	}
 	var proximos Lembretes
@@ -396,6 +399,19 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 	c.chamar("confirmar_lembrete", map[string]any{"id": "L-0001"}, &l)
 	if l.Status != "confirmado" {
 		t.Fatalf("confirmado: %+v", l)
+	}
+
+	// Dia sem hora: o rex põe no início do dia (08:00 por padrão), no fuso pedido.
+	amanha := time.Now().In(time.FixedZone("BRT", -3*3600)).AddDate(0, 0, 1)
+	tarde := time.Date(amanha.Year(), amanha.Month(), amanha.Day(), 15, 0, 0, 0, amanha.Location())
+	var dia ResumoDeLembrete
+	c.chamar("criar_lembrete", map[string]any{"texto": "pagar o boleto", "quando": tarde.Format(time.RFC3339), "precisao": "dia", "organizacao": "Exemplo"}, &dia)
+	if inicio := tarde.Add(-7 * time.Hour).Format(time.RFC3339); dia.Precisao != "dia" || dia.Quando != inicio {
+		t.Fatalf("lembrete de dia: %+v (esperava %s)", dia, inicio)
+	}
+	c.chamar("alterar_lembrete", map[string]any{"id": dia.Id, "precisao": "turno", "quando": tarde.Format(time.RFC3339)}, &dia)
+	if inicio := tarde.Add(-2 * time.Hour).Format(time.RFC3339); dia.Precisao != "turno" || dia.Quando != inicio {
+		t.Fatalf("lembrete de turno: %+v (esperava %s)", dia, inicio)
 	}
 
 	var eventos Eventos

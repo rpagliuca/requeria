@@ -21,6 +21,8 @@ type Integracao struct {
 	TokenDeCaptura string
 	// OrganizacaoDaCaptura é a organização quando a captura não diz qual.
 	OrganizacaoDaCaptura string
+	// Turnos dos lembretes de turno ou dia; vazio, TurnosPadrao.
+	Turnos Turnos
 }
 
 // ComIntegracao liga os parâmetros da instalação.

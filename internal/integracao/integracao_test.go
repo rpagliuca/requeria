@@ -128,10 +128,22 @@ func TestGanchoQueDesisteRegistraAFalha(t *testing.T) {
 	})
 }
 
+func TestTurnos(t *testing.T) {
+	i, err := Nova(Config{Turnos: &Turnos{Manha: "07:30", Noite: "19:00"}}, os.Getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, quer := i.Opcoes().Turnos, (servidor.Turnos{Manha: 7*60 + 30, Tarde: 13 * 60, Noite: 19 * 60}); got != quer {
+		t.Fatalf("turnos: %+v, esperava %+v", got, quer)
+	}
+}
+
 func TestConfiguracaoInvalida(t *testing.T) {
 	semAmbiente := func(string) string { return "" }
 	for _, cfg := range []Config{
 		{Fuso: "Lugar/Nenhum"},
+		{Turnos: &Turnos{Tarde: "1h"}},
+		{Turnos: &Turnos{Tarde: "07:00"}},
 		{Captura: &Captura{TokenAmbiente: "NAO_DEFINIDA"}},
 		{Ganchos: []Gancho{{Nome: "a", Eventos: []string{"x"}}}},
 		{Ganchos: []Gancho{{Nome: "a", Comando: []string{"true"}}}},

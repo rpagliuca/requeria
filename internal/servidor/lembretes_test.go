@@ -92,6 +92,77 @@ func TestCicloDoLembrete(t *testing.T) {
 	}
 }
 
+func TestLembretesDeTurnoEDia(t *testing.T) {
+	a := novoAmbiente(t)
+	fuso := time.FixedZone("-03", -3*3600)
+	agora := a.relogio(time.Date(2026, 10, 20, 10, 0, 0, 0, fuso))
+	precisao := func(p api.PrecisaoLembrete) *api.PrecisaoLembrete { return &p }
+	em := func(dia, hora, minuto int) time.Time { return time.Date(2026, 10, dia, hora, minuto, 0, 0, fuso) }
+	criar := func(texto string, quando time.Time, p api.PrecisaoLembrete, status int) api.Lembrete {
+		var l api.Lembrete
+		a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: texto, Quando: quando, Precisao: precisao(p), Organizacao: "Exemplo"}, status, &l)
+		return l
+	}
+
+	// Sem precisão, hora (compatível com os clientes de antes).
+	var l api.Lembrete
+	a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: "x", Quando: em(20, 11, 0), Organizacao: "Exemplo"}, 201, &l)
+	if l.Precisao != api.PrecisaoHora || l.Fim != nil {
+		t.Fatalf("padrão deveria ser hora, sem fim: %+v", l)
+	}
+
+	// Turno e dia vão para o início da janela, e o fim vem junto.
+	tarde := criar("comprar pão", em(21, 15, 30), api.PrecisaoTurno, 201)
+	if tarde.Quando.Format(time.RFC3339) != "2026-10-21T13:00:00-03:00" || tarde.Fim.Format(time.RFC3339) != "2026-10-21T18:00:00-03:00" {
+		t.Fatalf("turno da tarde: %+v", tarde)
+	}
+	noite := criar("ler", em(21, 23, 0), api.PrecisaoTurno, 201)
+	if noite.Quando.Format(time.RFC3339) != "2026-10-21T18:00:00-03:00" || noite.Fim.Format(time.RFC3339) != "2026-10-22T00:00:00-03:00" {
+		t.Fatalf("turno da noite: %+v", noite)
+	}
+	madrugada := criar("regar", em(21, 6, 0), api.PrecisaoTurno, 201)
+	if madrugada.Quando.Format(time.RFC3339) != "2026-10-21T08:00:00-03:00" {
+		t.Fatalf("antes da manhã conta como manhã: %+v", madrugada)
+	}
+	dia := criar("pagar boleto", em(21, 9, 0), api.PrecisaoDia, 201)
+	if !dia.Quando.Equal(madrugada.Quando) || dia.Fim.Format(time.RFC3339) != "2026-10-22T00:00:00-03:00" {
+		t.Fatalf("dia: %+v", dia)
+	}
+
+	// Hoje: a manhã ainda não acabou (aceita, já vencido); a janela que acabou é recusada.
+	hoje := criar("ligar para a escola", em(20, 9, 0), api.PrecisaoTurno, 201)
+	if hoje.Quando.Format(time.RFC3339) != "2026-10-20T08:00:00-03:00" {
+		t.Fatalf("manhã de hoje: %+v", hoje)
+	}
+	criar("x", em(19, 9, 0), api.PrecisaoDia, 400)
+	a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: "x", Quando: em(21, 9, 0), Precisao: precisao("semana"), Organizacao: "Exemplo"}, 400, nil)
+
+	// Disparar depois do início da janela não é atraso.
+	a.servidor.DispararVencidos()
+	a.chamar("GET", "/lembretes/"+hoje.Id, "", nil, 200, &l)
+	if l.Status != api.Disparado || *l.Atrasado {
+		t.Fatalf("turno disparado não é atrasado: %+v", l)
+	}
+
+	// Os do mesmo início disparam juntos (o lote).
+	*agora = em(21, 8, 0)
+	if n, _ := a.servidor.DispararVencidos(); n != 3 {
+		t.Fatalf("esperava o lote de 3 das 8h (o x das 11h de ontem também), veio %d", n)
+	}
+
+	// Mudar a precisão põe no início da nova janela; hora volta a ser exata.
+	a.chamar("PATCH", "/lembretes/"+tarde.Id, "", api.AlteracaoLembrete{Precisao: precisao(api.PrecisaoDia)}, 200, &l)
+	if l.Precisao != api.PrecisaoDia || l.Quando.Format(time.RFC3339) != "2026-10-21T08:00:00-03:00" {
+		t.Fatalf("turno para dia: %+v", l)
+	}
+	quando := em(21, 16, 45)
+	var exato api.Lembrete
+	a.chamar("PATCH", "/lembretes/"+tarde.Id, "", api.AlteracaoLembrete{Precisao: precisao(api.PrecisaoHora), Quando: &quando}, 200, &exato)
+	if exato.Precisao != api.PrecisaoHora || !exato.Quando.Equal(quando) || exato.Fim != nil {
+		t.Fatalf("dia para hora: %+v", exato)
+	}
+}
+
 func TestPendencias(t *testing.T) {
 	a := novoAmbiente(t)
 	agora := a.relogio(time.Date(2026, 10, 20, 14, 0, 0, 0, time.UTC))
