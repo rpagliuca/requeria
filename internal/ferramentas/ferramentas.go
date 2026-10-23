@@ -127,7 +127,8 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_panorama", Description: "rex voz. As sessões ativas, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada; não marca nada como ouvido."}, f.vozPanorama)
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_situacao", Description: "rex voz. Uma sessão (S-0001, ou a sessão ativa da tarefa T-0001): o que o agente faz agora e as novidades da conversa dele que o Rafael ainda não ouviu. Só leitura: nada fica como ouvido (isso é do conector do app do Claude). esperar_segundos segura até o agente responder ou parar."}, f.vozSituacao)
-	mcp.AddTool(s, &mcp.Tool{Name: "voz_enviar", Description: "rex voz. Escreve a frase do Rafael no agente da sessão, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla)."}, f.vozEnviar)
+	mcp.AddTool(s, &mcp.Tool{Name: "enviar_a_sessao", Description: "Manda uma mensagem deste chat ao agente de outra sessão, para perguntar ou para responder. Ela chega identificada por esta sessão e com a instrução de responder com enviar_a_sessao para cá: a resposta entra neste chat como mensagem nova (não consulte voz_situacao nem leia o tmux dela para esperá-la). Com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha do Rafael na tela. Quando receber \"[rex · de S-… ]\", responda por aqui para essa sessão."}, f.enviarASessao)
+	mcp.AddTool(s, &mcp.Tool{Name: "voz_enviar", Description: "rex voz. Escreve a frase do Rafael no agente da sessão, como pedido N; com o agente trabalhando, entra na fila dele. Recusa quando ele espera uma escolha na tela (use voz_tecla). Para uma sessão falar com outra, enviar_a_sessao."}, f.vozEnviar)
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_tecla", Description: "rex voz. Aperta, no agente da sessão, a opção que o Rafael escolheu numa tela de permissão (1 a 4, Enter) ou Escape para interromper o agente."}, f.vozTecla)
 	mcp.AddTool(s, &mcp.Tool{Name: "listar_eventos", Description: "Lista o log de eventos, opcionalmente de uma entidade (T-0001, S-0001)."}, f.listarEventos)
 	return s
@@ -976,6 +977,11 @@ type MensagemDeVoz struct {
 	Texto  string `json:"texto" jsonschema:"o que o Rafael pediu, como ele disse"`
 }
 
+type MensagemASessao struct {
+	Sessao string `json:"sessao" jsonschema:"sessão de destino (S-0001) ou tarefa com sessão ativa (T-0001); para responder, a sessão que mandou a mensagem"`
+	Texto  string `json:"texto" jsonschema:"a mensagem, numa linha"`
+}
+
 type TeclaDeVoz struct {
 	Sessao string `json:"sessao" jsonschema:"sessão (S-0001) ou tarefa com sessão ativa (T-0001)"`
 	Tecla  string `json:"tecla" jsonschema:"1, 2, 3, 4, Enter ou Escape"`
@@ -1000,6 +1006,15 @@ func (f *Ferramentas) vozSituacao(ctx context.Context, _ *mcp.CallToolRequest, i
 func (f *Ferramentas) vozEnviar(ctx context.Context, _ *mcp.CallToolRequest, in MensagemDeVoz) (*mcp.CallToolResult, api.PedidoDeVoz, error) {
 	var out api.PedidoDeVoz
 	resp, err := f.cliente.EnviarVoz(ctx, in.Sessao, api.MensagemDeVoz{Texto: in.Texto}, f.autorizar)
+	return nil, out, decodificar(resp, err, &out)
+}
+
+func (f *Ferramentas) enviarASessao(ctx context.Context, _ *mcp.CallToolRequest, in MensagemASessao) (*mcp.CallToolResult, api.MensagemEntreSessoes, error) {
+	var out api.MensagemEntreSessoes
+	if _, err := f.sessaoAberta(); err != nil {
+		return nil, out, err
+	}
+	resp, err := f.cliente.EnviarASessao(ctx, in.Sessao, api.MensagemDeVoz{Texto: in.Texto}, f.autorizar)
 	return nil, out, decodificar(resp, err, &out)
 }
 

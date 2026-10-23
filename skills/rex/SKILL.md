@@ -86,6 +86,16 @@ Na dúvida, não ligue: tarefa sem requisito aparece para o Rafael na triagem. L
   repositório.
 - Toda alteração que você fizer pelas ferramentas fica atribuída à sua sessão no log de eventos.
 
+## Falar com outra sessão
+
+- **Mensagem que chega** como `[rex · de S-0254 nome] …` vem de outra sessão, não do Rafael. Responda
+  com `enviar_a_sessao(sessao: "S-0254", texto)`: a resposta entra no chat dela. Responder só no seu
+  chat não chega a ela.
+- **Para perguntar** a outra sessão, `enviar_a_sessao` também. A resposta chega aqui como mensagem
+  nova: não fique consultando `voz_situacao` e **nunca leia a tela do tmux de outro agente**
+  (`capture-pane`) para achar a resposta. `voz_enviar` é a voz do Rafael; não use para falar em seu
+  nome.
+
 ## Ao terminar o trabalho: entregue e espere
 
 **Você não encerra a sessão por conta própria.** Terminar a entrega, ficar bloqueado, precisar de

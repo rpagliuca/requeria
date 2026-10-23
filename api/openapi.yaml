@@ -1032,6 +1032,34 @@ paths:
               schema: { $ref: '#/components/schemas/Sessao' }
         '401': { $ref: '#/components/responses/Erro' }
         '404': { $ref: '#/components/responses/Erro' }
+  /sessoes/{id}/mensagens:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: enviarASessao
+      description: |
+        Uma sessão escreve uma mensagem no agente de outra (S-0001, ou a sessão ativa da tarefa T-0001).
+        A origem é a sessão dona do token. A mensagem chega identificada por ela, "[rex · de S-0001 nome]",
+        e com a instrução de responder por esta mesma rota para a origem: a resposta entra no chat da
+        origem como mensagem nova, sem ela precisar ler a conversa nem a tela da outra. Com o agente
+        trabalhando, entra na fila dele. Recusada (409) quando o agente está numa tela de permissão.
+      security:
+        - tokenDaSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MensagemDeVoz' }
+      responses:
+        '201':
+          description: Entregue ao agente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MensagemEntreSessoes' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '401': { $ref: '#/components/responses/Erro' }
+        '404': { $ref: '#/components/responses/Erro' }
+        '409': { $ref: '#/components/responses/Erro' }
   /integracao/pendencias:
     get:
       operationId: listarPendencias
@@ -1880,8 +1908,10 @@ components:
       properties:
         de:
           type: string
-          enum: [rafael, agente]
-          x-enum-varnames: [DoRafael, DoAgente]
+          description: 'rafael (fala dele, inclusive pelo rex voz), sessao (mensagem de outra sessão, ver origem) ou agente'
+          enum: [rafael, sessao, agente]
+          x-enum-varnames: [DoRafael, DaSessao, DoAgente]
+        origem: { type: string, description: 'Sessão (S-0001) que mandou a mensagem, quando de é sessao' }
         texto: { type: string }
         pedido: { type: integer, description: 'Pedido do rex voz a que se refere, quando há' }
         em: { type: string, format: date-time }
@@ -1896,6 +1926,13 @@ components:
       properties:
         pedido: { type: integer, description: Número do pedido na sessão }
         sessao: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoDaVoz' }
+    MensagemEntreSessoes:
+      type: object
+      required: [de, para, estado]
+      properties:
+        de: { type: string, description: 'Sessão de origem (S-0001)' }
+        para: { type: string, description: 'Sessão de destino' }
         estado: { $ref: '#/components/schemas/EstadoDaVoz' }
     TeclaDeVoz:
       type: object

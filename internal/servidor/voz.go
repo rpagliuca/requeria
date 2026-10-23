@@ -125,8 +125,12 @@ func (s *Servidor) lerVoz(x api.Sessao, n int64) (estadoDaVoz, error) {
 	v.ate, v.Omitidas = l.Ate, l.Omitidas
 	for _, n := range l.Novidades {
 		nova := api.NovidadeDeVoz{De: api.DoAgente, Texto: semSufixo(n.Texto), Em: n.Em}
-		if n.DeRafael {
+		switch {
+		case n.DeRafael:
 			nova.De = api.DoRafael
+		case n.Origem != "":
+			origem := n.Origem
+			nova.De, nova.Origem = api.DaSessao, &origem
 		}
 		if n.Pedido > 0 {
 			pedido := n.Pedido
@@ -302,6 +306,76 @@ func (s *Servidor) EnviarVoz(w http.ResponseWriter, r *http.Request, id api.Id) 
 		return
 	}
 	responder(w, http.StatusCreated, api.PedidoDeVoz{Pedido: pedido, Sessao: x.Id, Estado: api.EstadoDaVoz(estado)})
+}
+
+// EnviarASessao escreve no agente de uma sessão a mensagem da sessão dona do token, identificada e
+// com a instrução de responder pela mesma via (R-0538).
+func (s *Servidor) EnviarASessao(w http.ResponseWriter, r *http.Request, id api.Id) {
+	var corpo api.MensagemDeVoz
+	if err := ler(r, &corpo); err != nil {
+		responderErro(w, err)
+		return
+	}
+	texto := strings.Join(strings.Fields(corpo.Texto), " ")
+	if texto == "" {
+		responderErro(w, falha(http.StatusBadRequest, "o texto é obrigatório"))
+		return
+	}
+	if tokenDaRequisicao(r) == "" {
+		responderErro(w, falha(http.StatusUnauthorized, "esta operação exige o token da sessão que manda a mensagem"))
+		return
+	}
+	var origem api.Sessao
+	err := s.emTransacao(func(tx *sql.Tx) error {
+		quem, err := autor(tx, r)
+		if err != nil {
+			return err
+		}
+		n, err := numero(quem, "S")
+		if err != nil {
+			return err
+		}
+		origem, err = carregarSessao(tx, n)
+		return err
+	})
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	x, _, err := s.sessaoComAgente(id)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	if x.Id == origem.Id {
+		responderErro(w, falha(http.StatusBadRequest, "a sessão %s é a deste chat: mande a mensagem para outra", x.Id))
+		return
+	}
+	estado, err := s.telaDaVoz(x)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	if estado == voz.PedindoPermissao {
+		responderErro(w, falha(http.StatusConflict, "o agente da sessão %s está esperando uma escolha do Rafael na tela: tente de novo depois", x.Id))
+		return
+	}
+	nome := ""
+	if origem.Nome != nil {
+		nome = *origem.Nome
+	}
+	if err := s.voz.Escrever(x, voz.MensagemDeSessao(origem.Id, nome, texto)); err != nil {
+		responderErro(w, err)
+		return
+	}
+	err = s.emTransacao(func(tx *sql.Tx) error {
+		return s.registrarEvento(tx, origem.Id, x.Id, "mensagem_de_sessao", map[string]any{"de": origem.Id, "texto": texto})
+	})
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+	responder(w, http.StatusCreated, api.MensagemEntreSessoes{De: origem.Id, Para: x.Id, Estado: api.EstadoDaVoz(estado)})
 }
 
 // esperaDaTecla dá tempo à tela de mudar antes de lê-la de novo.

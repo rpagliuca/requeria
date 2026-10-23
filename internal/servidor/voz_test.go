@@ -1,6 +1,7 @@
 package servidor
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,4 +162,49 @@ func TestVozPanorama(t *testing.T) {
 		p.NaoOuvidas != 1 || p.Ultima == nil || *p.Ultima != "PR aberto." || (*p.Titulos)[0] != "Deploy do cartório" {
 		t.Fatalf("panorama: %+v", p)
 	}
+}
+
+func TestMensagemEntreSessoes(t *testing.T) {
+	a := novoAmbiente(t)
+	v := &vozFalsa{tela: telaTrabalhando, conversa: filepath.Join(t.TempDir(), "c.jsonl")}
+	a.servidor.ComVoz(v)
+	global := a.sessao("Claude Opus 5.5 Medium")
+	a.chamar("PATCH", "/sessoes/"+global.Sessao.Id, global.Token, api.AlteracaoSessao{Nome: ptr("agente-global")}, 200, nil)
+	planilha := a.sessao("Claude Opus 5.5 Medium", a.tarefa("Planilha").Id)
+	caminho := "/sessoes/" + planilha.Sessao.Id + "/mensagens"
+
+	// A origem é a sessão do token: sem token, não há a quem responder.
+	a.chamar("POST", caminho, "", api.MensagemDeVoz{Texto: "oi"}, 401, nil)
+	a.chamar("POST", caminho, global.Token, api.MensagemDeVoz{Texto: " "}, 400, nil)
+	a.chamar("POST", "/sessoes/"+global.Sessao.Id+"/mensagens", global.Token, api.MensagemDeVoz{Texto: "oi"}, 400, nil)
+
+	var m api.MensagemEntreSessoes
+	a.chamar("POST", caminho, global.Token, api.MensagemDeVoz{Texto: "posso desligar\n a cópia 1?"}, 201, &m)
+	if m.De != global.Sessao.Id || m.Para != planilha.Sessao.Id || m.Estado != api.VozTrabalhando || len(v.escritos) != 1 {
+		t.Fatalf("mensagem: %+v %q", m, v.escritos)
+	}
+	escrito := v.escritos[0]
+	if escrito != voz.MensagemDeSessao(global.Sessao.Id, "agente-global", "posso desligar a cópia 1?") {
+		t.Fatalf("escrito: %q", escrito)
+	}
+
+	// A resposta volta pela mesma rota, para a origem.
+	a.chamar("POST", "/sessoes/"+global.Sessao.Id+"/mensagens", planilha.Token, api.MensagemDeVoz{Texto: "pode"}, 201, &m)
+	if m.De != planilha.Sessao.Id || !strings.HasPrefix(v.escritos[1], voz.PrefixoDeSessao+planilha.Sessao.Id+"] pode") {
+		t.Fatalf("resposta: %+v %q", m, v.escritos[1])
+	}
+
+	// No rex voz, a mensagem aparece como da sessão, não do Rafael.
+	conversa, _ := json.Marshal(map[string]any{"type": "attachment", "uuid": "x1", "timestamp": "2026-10-23T17:27:19Z",
+		"attachment": map[string]any{"type": "queued_command", "prompt": escrito}})
+	os.WriteFile(v.conversa, append(conversa, '\n'), 0o644)
+	var estado api.Voz
+	a.chamar("GET", "/voz/sessoes/"+planilha.Sessao.Id, "", nil, 200, &estado)
+	if len(estado.Novidades) != 1 || estado.Novidades[0].De != api.DaSessao || *estado.Novidades[0].Origem != global.Sessao.Id ||
+		estado.Novidades[0].Texto != "posso desligar a cópia 1?" {
+		t.Fatalf("novidades: %+v", estado.Novidades)
+	}
+
+	v.tela = telaPermissao
+	a.chamar("POST", caminho, global.Token, api.MensagemDeVoz{Texto: "oi"}, 409, nil)
 }
