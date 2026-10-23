@@ -63,6 +63,19 @@ func (t Turnos) janela(p api.PrecisaoLembrete, quando time.Time) (inicio, fim ti
 	return quando, quando
 }
 
+// inicio devolve onde começa o turno nomeado (manha, tarde ou noite) no dia de dia; outro nome,
+// o começo do dia (a manhã).
+func (t Turnos) inicio(dia time.Time, turno string) time.Time {
+	minutos := t.Manha
+	switch turno {
+	case "tarde":
+		minutos = t.Tarde
+	case "noite":
+		minutos = t.Noite
+	}
+	return time.Date(dia.Year(), dia.Month(), dia.Day(), 0, 0, 0, 0, dia.Location()).Add(time.Duration(minutos) * time.Minute)
+}
+
 // marcar põe quando no início da janela da precisão e recusa a janela que já acabou.
 func (s *Servidor) marcar(p api.PrecisaoLembrete, quando time.Time) (time.Time, error) {
 	if !precisaoValida(p) {

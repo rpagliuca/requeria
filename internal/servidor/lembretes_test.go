@@ -271,6 +271,25 @@ func TestCaptura(t *testing.T) {
 		t.Fatalf("atrasado: %d %q %+v", st, frase, l)
 	}
 
+	// Sem hora: turno ou dia, no início da janela da instalação; "hoje à tarde" às 14:40 ainda vale.
+	st, frase, id = a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaLembrete, Texto: "comprar pão hoje à tarde"})
+	var turno api.Lembrete
+	a.chamar("GET", "/lembretes/"+id, "", nil, 200, &turno)
+	if st != 201 || turno.Precisao != api.PrecisaoTurno || turno.Quando.Format(time.RFC3339) != "2026-10-20T13:00:00-03:00" ||
+		frase != "Lembrete L-0003: comprar pão, terça 20/10 à tarde." {
+		t.Fatalf("turno: %d %q %+v", st, frase, turno)
+	}
+	st, frase, id = a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaLembrete, Texto: "pagar o boleto amanhã"})
+	var dia api.Lembrete
+	a.chamar("GET", "/lembretes/"+id, "", nil, 200, &dia)
+	if st != 201 || dia.Precisao != api.PrecisaoDia || dia.Quando.Format(time.RFC3339) != "2026-10-21T08:00:00-03:00" ||
+		frase != "Lembrete L-0004: pagar o boleto, quarta 21/10, o dia todo." {
+		t.Fatalf("dia: %d %q %+v", st, frase, dia)
+	}
+	if st, frase, _ := a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaLembrete, Texto: "regar hoje de manhã"}); st != 422 || frase != "terça 20/10 de manhã já passou. Diga de novo com o dia, o turno ou a hora." {
+		t.Fatalf("manhã que já passou: %d %q", st, frase)
+	}
+
 	// Tarefa: sempre a fazer, sem lançar agente.
 	st, frase, id = a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaTarefa, Texto: "Trocar o filtro da caixa d'água"})
 	var tarefa api.Tarefa

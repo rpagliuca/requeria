@@ -18,10 +18,22 @@ func (d *Duvida) Error() string { return d.Frase }
 
 func duvida(formato string, args ...any) error { return &Duvida{Frase: fmt.Sprintf(formato, args...)} }
 
-// Lembrete é um pedido de lembrete interpretado.
+// Precisao diz se o pedido deu a hora (Hora), só um turno (Turno) ou só o dia (Dia).
+type Precisao string
+
+const (
+	Hora  Precisao = "hora"
+	Turno Precisao = "turno"
+	Dia   Precisao = "dia"
+)
+
+// Lembrete é um pedido de lembrete interpretado. Em Turno e Dia, Quando é a meia-noite do dia e
+// NomeDoTurno diz qual turno (manha, tarde ou noite); a hora de cada turno é da instalação.
 type Lembrete struct {
-	Texto  string
-	Quando time.Time
+	Texto       string
+	Quando      time.Time
+	Precisao    Precisao
+	NomeDoTurno string
 }
 
 var semAcento = strings.NewReplacer(
@@ -75,6 +87,7 @@ var (
 	reDiaSo       = regexp.MustCompile(`\b(?:no\s+)?dia\s+(\d{1,2})\b`)
 	reMeioDia     = regexp.MustCompile(`\b(?:(?:ao|as|a)\s+)?(meio[- ]dia|meia[- ]noite)(?:\s+e\s+meia)?\b`)
 	reMarcaDeHora = regexp.MustCompile(`\d\s*(h|:|horas?)`)
+	reTurno       = regexp.MustCompile(`\b(?:(?:de|da|pela|na|nesta|esta|a)\s+)?(manha|tarde|noite)\b`)
 	reHora        = regexp.MustCompile(`\b(?:(?:as|a|ate as|pelas|por volta das)\s+)?(\d{1,2})(?:\s*(?:h|:|horas?)\s*(\d{2})?|\s+e\s+(meia|\d{1,2})(?:\s+minutos?)?)?(?:\s+(?:da|de)\s+(manha|tarde|noite|madrugada))?\b`)
 )
 
@@ -172,8 +185,16 @@ func InterpretarLembrete(texto string, ref time.Time, fuso *time.Location) (Lemb
 		return Lembrete{}, err
 	}
 	hora, minuto, periodo, ok := l.lerHora()
-	if !ok {
-		return Lembrete{}, duvida("Não entendi a hora do lembrete. Diga de novo com o dia e a hora.")
+	turno, temTurno := l.lerTurno()
+	switch {
+	case !ok && temTurno:
+		return l.semHora(dia, Turno, turno)
+	case !ok && diaExplicito:
+		return l.semHora(dia, Dia, "")
+	case !ok:
+		return Lembrete{}, duvida("Não entendi quando. Diga de novo com o dia, o turno ou a hora.")
+	case periodo == "" && temTurno:
+		periodo = turno // "à tarde, às 3"
 	}
 	switch periodo {
 	case "tarde", "noite":
@@ -203,13 +224,20 @@ func (l *leitura) diaRelativo(ref time.Time, dias int) (Lembrete, error) {
 		return Lembrete{}, duvida("Não entendi daqui a quantos dias. Diga de novo com o dia e a hora.")
 	}
 	hora, minuto, periodo, ok := l.lerHora()
+	turno, temTurno := l.lerTurno()
+	d := ref.AddDate(0, 0, dias)
 	if !ok {
-		return Lembrete{}, duvida("Não entendi a hora do lembrete. Diga de novo com o dia e a hora.")
+		if temTurno {
+			return l.semHora(d, Turno, turno)
+		}
+		return l.semHora(d, Dia, "")
+	}
+	if periodo == "" {
+		periodo = turno
 	}
 	if (periodo == "tarde" || periodo == "noite") && hora < 12 {
 		hora += 12
 	}
-	d := ref.AddDate(0, 0, dias)
 	return l.resultado(time.Date(d.Year(), d.Month(), d.Day(), hora, minuto, 0, 0, ref.Location()))
 }
 
@@ -218,7 +246,26 @@ func (l *leitura) resultado(quando time.Time) (Lembrete, error) {
 	if texto == "" {
 		return Lembrete{}, duvida("Entendi a hora, mas não o que lembrar. Diga de novo o lembrete inteiro.")
 	}
-	return Lembrete{Texto: texto, Quando: quando}, nil
+	return Lembrete{Texto: texto, Quando: quando, Precisao: Hora}, nil
+}
+
+// semHora é o lembrete de um turno ou de um dia inteiro: sem hora inventada.
+func (l *leitura) semHora(dia time.Time, p Precisao, turno string) (Lembrete, error) {
+	x, err := l.resultado(time.Date(dia.Year(), dia.Month(), dia.Day(), 0, 0, 0, 0, dia.Location()))
+	x.Precisao, x.NomeDoTurno = p, turno
+	return x, err
+}
+
+// lerTurno acha "de manhã", "à tarde", "à noite" fora da hora já lida (e marca o trecho).
+func (l *leitura) lerTurno() (string, bool) {
+	for _, m := range reTurno.FindAllStringSubmatchIndex(l.norm, -1) {
+		if l.dentroDeTrecho(m[0]) {
+			continue
+		}
+		l.marcar(m[0], m[1])
+		return l.norm[m[2]:m[3]], true
+	}
+	return "", false
 }
 
 // lerDia acha o dia; sem dia, hoje (diaExplicito falso).
@@ -371,6 +418,21 @@ func (l *leitura) dentroDeTrecho(bytes int) bool {
 // Descrever é como a resposta fala uma hora marcada: "terça 21/10 às 09:00".
 func Descrever(t time.Time) string {
 	return fmt.Sprintf("%s %02d/%02d às %02d:%02d", nomesDosDias[t.Weekday()], t.Day(), int(t.Month()), t.Hour(), t.Minute())
+}
+
+var falaDoTurno = map[string]string{"manha": "de manhã", "tarde": "à tarde", "noite": "à noite"}
+
+// DescreverLembrete fala o quando do lembrete: "terça 21/10 às 09:00", "terça 21/10 à tarde" ou
+// "terça 21/10, o dia todo".
+func DescreverLembrete(x Lembrete) string {
+	dia := fmt.Sprintf("%s %02d/%02d", nomesDosDias[x.Quando.Weekday()], x.Quando.Day(), int(x.Quando.Month()))
+	switch x.Precisao {
+	case Turno:
+		return dia + " " + falaDoTurno[x.NomeDoTurno]
+	case Dia:
+		return dia + ", o dia todo"
+	}
+	return Descrever(x.Quando)
 }
 
 // Encurtar corta s em até n runes, com reticências.

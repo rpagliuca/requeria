@@ -171,14 +171,22 @@ O autor de tudo no log de eventos é `captura`.
 "hoje/amanhã/depois de amanhã às 9", "às 14h30", "9 da manhã", "3 da tarde", "segunda às 10",
 "dia 25 às 8", "25/10 às 8", "daqui a 20 minutos", "daqui a 2 horas", "meio-dia", "meia-noite".
 
+Sem hora, o lembrete é de turno ou de dia (precisão `turno` ou `dia`, ver acima), nunca com uma hora
+inventada: "amanhã de manhã", "hoje à tarde", "sexta à noite" e "daqui a 2 dias de manhã" são de turno;
+"amanhã", "sexta", "dia 30" e "daqui a 3 dias" são do dia. Um turno solto junto de uma hora vira o
+período dela ("amanhã à tarde às 5" = 17:00, precisão `hora`).
+
 Regras para não chutar:
 
 - hora sem dia vale para hoje; se já passou (em relação a `dita_em`), é 422 — nunca vira amanhã
   sozinha;
 - hora de 1 a 11 sem "da manhã/da tarde/da noite" vale como dita (às 3 = 03:00), o que, combinado
   com a regra anterior, faz "às 3" dito às 14:00 virar 422;
-- texto sem nenhuma hora reconhecida é 422;
-- a frase de resposta sempre repete dia da semana, data e hora ("terça 21/10 às 09:00").
+- texto sem hora, turno nem dia reconhecidos é 422;
+- turno ou dia cuja janela inteira já passou (em relação a `dita_em`) é 422; o de hoje que ainda não
+  acabou é aceito ("hoje à tarde" dito às 14:00);
+- a frase de resposta sempre repete dia da semana, data e hora ("terça 21/10 às 09:00"), ou o turno
+  ("terça 21/10 à tarde") ou o dia ("terça 21/10, o dia todo").
 
 ## rex voz
 

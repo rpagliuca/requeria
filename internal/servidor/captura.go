@@ -72,6 +72,8 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 	simular := c.Simular != nil && *c.Simular
 
 	var lembrete captura.Lembrete
+	var quando time.Time
+	precisao := api.PrecisaoHora
 	if c.Tipo == api.TipoDeCapturaLembrete {
 		var err error
 		lembrete, err = captura.InterpretarLembrete(texto, ditaEm, s.fuso())
@@ -84,12 +86,22 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 			responderFrase(w, http.StatusInternalServerError, "", "O rex falhou ao entender o pedido.")
 			return
 		}
+		quando = lembrete.Quando
+		if lembrete.Precisao != captura.Hora {
+			// Turno ou dia: começa onde a instalação diz; só recusa se a janela inteira já passou.
+			precisao = api.PrecisaoLembrete(lembrete.Precisao)
+			quando = s.turnos().inicio(lembrete.Quando, lembrete.NomeDoTurno)
+			if _, fim := s.turnos().janela(precisao, quando); !fim.After(ditaEm) {
+				responderFrase(w, http.StatusUnprocessableEntity, "", captura.DescreverLembrete(lembrete)+" já passou. Diga de novo com o dia, o turno ou a hora.")
+				return
+			}
+		}
 	}
 
 	if simular {
 		switch c.Tipo {
 		case api.TipoDeCapturaLembrete:
-			responderFrase(w, http.StatusOK, "", frase("Entendi o lembrete: ", lembrete.Texto, ", "+captura.Descrever(lembrete.Quando)+"."))
+			responderFrase(w, http.StatusOK, "", frase("Entendi o lembrete: ", lembrete.Texto, ", "+captura.DescreverLembrete(lembrete)+"."))
 		case api.TipoDeCapturaTarefa:
 			responderFrase(w, http.StatusOK, "", frase("Entendi a tarefa: ", texto, "."))
 		case api.TipoDeCapturaRequisito:
@@ -123,15 +135,15 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 		switch c.Tipo {
 		case api.TipoDeCapturaLembrete:
 			x, err := s.inserirLembrete(tx, autorDaCaptura, api.NovoLembrete{
-				Texto: lembrete.Texto, Quando: lembrete.Quando, Organizacao: organizacao,
+				Texto: lembrete.Texto, Quando: quando, Precisao: &precisao, Organizacao: organizacao,
 			})
 			if err != nil {
 				return err
 			}
 			id = x.Id
-			resposta = frase("Lembrete "+x.Id+": ", x.Texto, ", "+captura.Descrever(lembrete.Quando)+".")
-			if !lembrete.Quando.After(s.agora()) {
-				resposta = frase("Lembrete "+x.Id+": ", x.Texto, ", "+captura.Descrever(lembrete.Quando)+". Chegou depois da hora e já está tocando.")
+			resposta = frase("Lembrete "+x.Id+": ", x.Texto, ", "+captura.DescreverLembrete(lembrete)+".")
+			if precisao == api.PrecisaoHora && !quando.After(s.agora()) {
+				resposta = frase("Lembrete "+x.Id+": ", x.Texto, ", "+captura.Descrever(quando)+". Chegou depois da hora e já está tocando.")
 			}
 		case api.TipoDeCapturaTarefa:
 			x, err := s.inserirTarefa(tx, autorDaCaptura, texto, "Capturada por voz em "+ditaEm.In(s.fuso()).Format(time.RFC3339)+".",
