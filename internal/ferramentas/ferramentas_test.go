@@ -347,7 +347,8 @@ func TestRequisitosPeloMCP(t *testing.T) {
 }
 
 func TestLembretesEEsperaPeloMCP(t *testing.T) {
-	c := novoChat(t, novaAPI(t))
+	endereco := novaAPI(t)
+	c := novoChat(t, endereco)
 	var tarefa api.Tarefa
 	c.chamar("criar_tarefa", map[string]any{"titulo": "Pagar contas", "organizacao": "Exemplo"}, &tarefa)
 	var sessao api.Sessao
@@ -370,6 +371,23 @@ func TestLembretesEEsperaPeloMCP(t *testing.T) {
 	c.chamar("proximos_lembretes", map[string]any{}, &proximos)
 	if len(proximos.Lembretes) != 1 {
 		t.Fatalf("dentro da janela padrão: %+v", proximos)
+	}
+	c.chamar("alterar_lembrete", map[string]any{"id": "L-0001", "texto": "ligar para o contador e retomar a tarefa"}, &l)
+	if l.Id != "L-0001" || l.Texto != "ligar para o contador e retomar a tarefa" || l.Status != "agendado" || l.Quando != quando {
+		t.Fatalf("alterado só o texto: %+v", l)
+	}
+	var completo api.Lembrete
+	c.chamar("alterar_lembrete", map[string]any{"id": "L-0001", "tarefa": ""}, &l)
+	cliente, err := api.NewClient(endereco)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := cliente.ObterLembrete(context.Background(), "L-0001")
+	if err := decodificar(resp, err, &completo); err != nil || completo.Tarefa != nil || completo.Texto != l.Texto {
+		t.Fatalf("tarefa vazia deveria remover a ligação: %+v %v", completo, err)
+	}
+	if msg := c.chamar("alterar_lembrete", map[string]any{"id": "L-0001"}, nil); !strings.Contains(msg, "nenhum campo") {
+		t.Fatalf("sem campos deveria recusar: %q", msg)
 	}
 	c.chamar("adiar_lembrete", map[string]any{"id": "L-0001", "minutos": 30}, &l)
 	if l.Status != "adiado" {

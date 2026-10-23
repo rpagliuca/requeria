@@ -120,8 +120,9 @@ func (f *Ferramentas) Servidor() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "criar_lembrete", Description: "Agenda um lembrete para o Rafael numa hora marcada (RFC 3339 com fuso), solto ou ligado a uma tarefa ou requisito. As integrações da instalação o avisam; o rex guarda só a hora."}, f.criarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "proximos_lembretes", Description: "Lembretes que pedem atenção: os disparados e os que vencem nas próximas horas (padrão 24). Só id, texto, hora e status."}, f.proximosLembretes)
 	mcp.AddTool(s, &mcp.Tool{Name: "adiar_lembrete", Description: "Reagenda um lembrete para daqui a N minutos ou para uma hora (RFC 3339)."}, f.adiarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "alterar_lembrete", Description: "Corrige texto, hora, organização ou ligações de um lembrete, mantendo o id: nunca cancele e recrie para isso. Só os campos informados mudam; tarefa ou requisito vazio remove a ligação. Confirmado ou cancelado não muda."}, f.alterarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "confirmar_lembrete", Description: "Marca o lembrete como visto: ele para de pedir atenção. Só quando o Rafael disser que viu ou fez."}, f.confirmarLembrete)
-	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais."}, f.cancelarLembrete)
+	mcp.AddTool(s, &mcp.Tool{Name: "cancelar_lembrete", Description: "Cancela um lembrete que não vale mais. Só quando o Rafael disser que não vale mais; para mudar texto, hora ou ligações, alterar_lembrete."}, f.cancelarLembrete)
 	mcp.AddTool(s, &mcp.Tool{Name: "aguardar_resposta", Description: "Avisa que a sessão deste chat entregou ou está bloqueada e espera o Rafael (aprovação, decisão, informação). Aparece nas pendências até retomar_trabalho ou o encerramento."}, f.aguardarResposta)
 	mcp.AddTool(s, &mcp.Tool{Name: "retomar_trabalho", Description: "Tira a sessão deste chat da espera: o Rafael respondeu e o trabalho continuou."}, f.retomarTrabalho)
 	mcp.AddTool(s, &mcp.Tool{Name: "voz_panorama", Description: "rex voz. As sessões ativas, cada uma com o que o agente faz agora (trabalhando, ocioso, pedindo_permissao com a tela, sem_agente), o que pediu ao Rafael (aguardando), quantas novidades ele não ouviu e o último texto do agente. Responde \"quais sessões esperam meu input?\" numa chamada; não marca nada como ouvido."}, f.vozPanorama)
@@ -816,6 +817,15 @@ type AdiamentoDeLembrete struct {
 	Ate     string `json:"ate,omitempty" jsonschema:"ou a nova hora, em RFC 3339 com fuso"`
 }
 
+type AlteracaoDeLembrete struct {
+	Id          string  `json:"id" jsonschema:"lembrete, como L-0001"`
+	Texto       string  `json:"texto,omitempty" jsonschema:"novo texto, como o Rafael vai ler"`
+	Quando      string  `json:"quando,omitempty" jsonschema:"nova hora marcada, em RFC 3339 com fuso"`
+	Organizacao string  `json:"organizacao,omitempty" jsonschema:"nova organização"`
+	Tarefa      *string `json:"tarefa,omitempty" jsonschema:"tarefa ligada, como T-0001; vazio remove a ligação"`
+	Requisito   *string `json:"requisito,omitempty" jsonschema:"requisito ligado, como R-0001; vazio remove a ligação"`
+}
+
 type Espera struct {
 	Mensagem string `json:"mensagem" jsonschema:"o que você precisa do Rafael, em uma linha"`
 }
@@ -879,6 +889,23 @@ func (f *Ferramentas) adiarLembrete(ctx context.Context, _ *mcp.CallToolRequest,
 	}
 	var x api.Lembrete
 	resp, err := f.cliente.AdiarLembrete(ctx, in.Id, a, f.autorizar)
+	if err := decodificar(resp, err, &x); err != nil {
+		return nil, ResumoDeLembrete{}, err
+	}
+	return nil, resumirLembrete(x), nil
+}
+
+func (f *Ferramentas) alterarLembrete(ctx context.Context, _ *mcp.CallToolRequest, in AlteracaoDeLembrete) (*mcp.CallToolResult, ResumoDeLembrete, error) {
+	a := api.AlteracaoLembrete{Texto: opcional(in.Texto), Organizacao: opcional(in.Organizacao), Tarefa: in.Tarefa, Requisito: in.Requisito}
+	if in.Quando != "" {
+		quando, err := lerHora("quando", in.Quando)
+		if err != nil {
+			return nil, ResumoDeLembrete{}, err
+		}
+		a.Quando = &quando
+	}
+	var x api.Lembrete
+	resp, err := f.cliente.AlterarLembrete(ctx, in.Id, a, f.autorizar)
 	if err := decodificar(resp, err, &x); err != nil {
 		return nil, ResumoDeLembrete{}, err
 	}
