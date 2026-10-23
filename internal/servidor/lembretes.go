@@ -15,7 +15,7 @@ func idLembrete(n int64) string { return idCom("L", n) }
 // toleranciaDeDisparo: um disparo até este tempo depois da hora não conta como atrasado.
 const toleranciaDeDisparo = time.Minute
 
-const colunasLembrete = `id, texto, quando, organizacao, tarefa_id, requisito_id, status, autor, disparado_em, atrasado,
+const colunasLembrete = `id, texto, quando, precisao, organizacao, tarefa_id, requisito_id, status, autor, disparado_em, atrasado,
 	adiamentos, confirmado_em, criado_em, atualizado_em`
 
 // pendente: os status que ainda pedem atenção.
@@ -24,16 +24,21 @@ var statusPendentes = []api.StatusLembrete{api.Agendado, api.Adiado, api.Dispara
 func (s *Servidor) lerLembrete(linha varredor) (api.Lembrete, error) {
 	var x api.Lembrete
 	var n int64
-	var quando, status, criado, atualizado string
+	var quando, precisao, status, criado, atualizado string
 	var tarefa, requisito sql.NullInt64
 	var disparado, confirmado sql.NullString
 	var atrasado bool
-	if err := linha.Scan(&n, &x.Texto, &quando, &x.Organizacao, &tarefa, &requisito, &status, &x.Autor, &disparado,
+	if err := linha.Scan(&n, &x.Texto, &quando, &precisao, &x.Organizacao, &tarefa, &requisito, &status, &x.Autor, &disparado,
 		&atrasado, &x.Adiamentos, &confirmado, &criado, &atualizado); err != nil {
 		return x, err
 	}
 	x.Id = idLembrete(n)
 	x.Quando, _ = time.Parse(time.RFC3339, quando)
+	x.Precisao = api.PrecisaoLembrete(precisao)
+	if x.Precisao != api.PrecisaoHora {
+		_, fim := s.turnos().janela(x.Precisao, x.Quando)
+		x.Fim = &fim
+	}
 	x.Status = api.StatusLembrete(status)
 	x.Atrasado = &atrasado
 	x.CriadoEm = lerMomento(criado)
@@ -183,9 +188,14 @@ func (s *Servidor) CriarLembrete(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if novo.Quando.Before(s.agora()) {
-			return falha(http.StatusBadRequest, "a hora marcada já passou: %s", novo.Quando.Format(time.RFC3339))
+		precisao := api.PrecisaoHora
+		if novo.Precisao != nil {
+			precisao = *novo.Precisao
 		}
+		if novo.Quando, err = s.marcar(precisao, novo.Quando); err != nil {
+			return err
+		}
+		novo.Precisao = &precisao
 		criado, err = s.inserirLembrete(tx, quem, novo)
 		return err
 	})
@@ -208,14 +218,18 @@ func (s *Servidor) inserirLembrete(tx *sql.Tx, quem string, novo api.NovoLembret
 	if novo.Quando.IsZero() {
 		return api.Lembrete{}, falha(http.StatusBadRequest, "a hora marcada é obrigatória")
 	}
+	precisao := api.PrecisaoHora
+	if novo.Precisao != nil {
+		precisao = *novo.Precisao
+	}
 	tarefa, requisito, err := ligacoesDoLembrete(tx, novo.Tarefa, novo.Requisito)
 	if err != nil {
 		return api.Lembrete{}, err
 	}
 	agora := s.momento()
-	res, err := tx.Exec(`INSERT INTO lembretes (texto, quando, quando_utc, organizacao, tarefa_id, requisito_id, autor, criado_em, atualizado_em)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, strings.TrimSpace(novo.Texto), novo.Quando.Format(time.RFC3339), utc(novo.Quando),
-		strings.TrimSpace(novo.Organizacao), tarefa, requisito, quem, agora, agora)
+	res, err := tx.Exec(`INSERT INTO lembretes (texto, quando, quando_utc, precisao, organizacao, tarefa_id, requisito_id, autor, criado_em, atualizado_em)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, strings.TrimSpace(novo.Texto), novo.Quando.Format(time.RFC3339), utc(novo.Quando),
+		string(precisao), strings.TrimSpace(novo.Organizacao), tarefa, requisito, quem, agora, agora)
 	if err != nil {
 		return api.Lembrete{}, err
 	}
@@ -227,7 +241,7 @@ func (s *Servidor) inserirLembrete(tx *sql.Tx, quem string, novo api.NovoLembret
 	if err != nil {
 		return criado, err
 	}
-	return criado, s.registrarEvento(tx, quem, criado.Id, "lembrete_criado", map[string]any{"quando": criado.Quando})
+	return criado, s.registrarEvento(tx, quem, criado.Id, "lembrete_criado", map[string]any{"quando": criado.Quando, "precisao": criado.Precisao})
 }
 
 func (s *Servidor) ObterLembrete(w http.ResponseWriter, r *http.Request, id api.Id) {
@@ -314,14 +328,25 @@ func (s *Servidor) AlterarLembrete(w http.ResponseWriter, r *http.Request, id ap
 			}
 			definir("organizacao", strings.TrimSpace(*alteracao.Organizacao))
 		}
-		if alteracao.Quando != nil {
-			if alteracao.Quando.Before(s.agora()) {
-				return falha(http.StatusBadRequest, "a hora marcada já passou: %s", alteracao.Quando.Format(time.RFC3339))
+		if alteracao.Quando != nil || alteracao.Precisao != nil {
+			precisao, quando := atual.Precisao, atual.Quando
+			if alteracao.Precisao != nil {
+				precisao = *alteracao.Precisao
+				definir("precisao", string(precisao))
 			}
-			definir("quando", alteracao.Quando.Format(time.RFC3339))
-			sets, args = append(sets, "quando_utc = ?"), append(args, utc(*alteracao.Quando))
-			if atual.Status == api.Disparado {
-				definir("status", string(api.Agendado))
+			if alteracao.Quando != nil {
+				quando = *alteracao.Quando
+			}
+			quando, err := s.marcar(precisao, quando)
+			if err != nil {
+				return err
+			}
+			if alteracao.Quando != nil || !quando.Equal(atual.Quando) {
+				definir("quando", quando.Format(time.RFC3339))
+				sets, args = append(sets, "quando_utc = ?"), append(args, utc(quando))
+				if atual.Status == api.Disparado {
+					definir("status", string(api.Agendado))
+				}
 			}
 		}
 		if alteracao.Tarefa != nil || alteracao.Requisito != nil {
@@ -420,7 +445,8 @@ func (s *Servidor) DispararVencidos() (int, error) {
 			return err
 		}
 		for _, x := range vencidos {
-			atrasado := agora.Sub(x.Quando) > toleranciaDeDisparo
+			// Turno e dia valem até o fim da janela: disparar depois do início não é atraso.
+			atrasado := x.Precisao == api.PrecisaoHora && agora.Sub(x.Quando) > toleranciaDeDisparo
 			if _, err := tx.Exec(`UPDATE lembretes SET status = ?, disparado_em = ?, atrasado = ?, atualizado_em = ? WHERE id = ?`,
 				string(api.Disparado), s.momento(), atrasado, s.momento(), mustNumero(x.Id, "L")); err != nil {
 				return err

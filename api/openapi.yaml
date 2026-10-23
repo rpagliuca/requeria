@@ -1755,9 +1755,18 @@ components:
         adiado (reagendado depois de criado; volta a disparado na nova hora), confirmado e cancelado
         (finais).
       enum: [agendado, disparado, adiado, confirmado, cancelado]
+    PrecisaoLembrete:
+      type: string
+      description: |
+        Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
+        sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
+        (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
+        os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+      enum: [hora, turno, dia]
+      x-enum-varnames: [PrecisaoHora, PrecisaoTurno, PrecisaoDia]
     Lembrete:
       type: object
-      required: [id, texto, quando, organizacao, status, autor, adiamentos, criado_em, atualizado_em]
+      required: [id, texto, quando, precisao, organizacao, status, autor, adiamentos, criado_em, atualizado_em]
       properties:
         id: { type: string, example: L-0001 }
         texto: { type: string }
@@ -1766,6 +1775,11 @@ components:
           format: date-time
           description: 'Hora marcada atual (após adiamentos), com o fuso em que foi pedida'
           example: '2026-10-21T09:00:00-03:00'
+        precisao: { $ref: '#/components/schemas/PrecisaoLembrete' }
+        fim:
+          type: string
+          format: date-time
+          description: 'Fim da janela (do turno ou do dia de `quando`); ausente na precisão hora'
         organizacao: { type: string }
         tarefa: { type: string, example: T-0001 }
         requisito: { type: string, example: R-0001 }
@@ -1785,7 +1799,15 @@ components:
       required: [texto, quando, organizacao]
       properties:
         texto: { type: string }
-        quando: { type: string, format: date-time, description: 'Instante com fuso; no passado é recusado' }
+        quando:
+          type: string
+          format: date-time
+          description: |
+            Instante com fuso; no passado é recusado. Em turno ou dia, qualquer hora do turno ou do
+            dia: o rex a troca pelo início da janela, e só recusa se a janela inteira já passou.
+        precisao:
+          allOf: [{ $ref: '#/components/schemas/PrecisaoLembrete' }]
+          description: 'Padrão: hora'
         organizacao: { type: string }
         tarefa: { type: string }
         requisito: { type: string }
@@ -1794,6 +1816,9 @@ components:
       properties:
         texto: { type: string }
         quando: { type: string, format: date-time }
+        precisao:
+          allOf: [{ $ref: '#/components/schemas/PrecisaoLembrete' }]
+          description: 'Mudar a precisão (ou a hora de um turno ou dia) põe `quando` no início da janela'
         organizacao: { type: string }
         tarefa: { type: string, description: 'Vazio remove a ligação' }
         requisito: { type: string, description: 'Vazio remove a ligação' }

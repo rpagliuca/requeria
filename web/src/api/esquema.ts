@@ -1409,6 +1409,15 @@ export interface components {
          * @enum {string}
          */
         StatusLembrete: "agendado" | "disparado" | "adiado" | "confirmado" | "cancelado";
+        /**
+         * @description Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
+         *     sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
+         *     (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
+         *     os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+         *
+         * @enum {string}
+         */
+        PrecisaoLembrete: "hora" | "turno" | "dia";
         Lembrete: {
             /** @example L-0001 */
             id: string;
@@ -1419,6 +1428,12 @@ export interface components {
              * @example 2026-10-21T09:00:00-03:00
              */
             quando: string;
+            precisao: components["schemas"]["PrecisaoLembrete"];
+            /**
+             * Format: date-time
+             * @description Fim da janela (do turno ou do dia de `quando`); ausente na precisão hora
+             */
+            fim?: string;
             organizacao: string;
             /** @example T-0001 */
             tarefa?: string;
@@ -1449,9 +1464,13 @@ export interface components {
             texto: string;
             /**
              * Format: date-time
-             * @description Instante com fuso; no passado é recusado
+             * @description Instante com fuso; no passado é recusado. Em turno ou dia, qualquer hora do turno ou do
+             *     dia: o rex a troca pelo início da janela, e só recusa se a janela inteira já passou.
+             *
              */
             quando: string;
+            /** @description Padrão: hora */
+            precisao?: components["schemas"]["PrecisaoLembrete"];
             organizacao: string;
             tarefa?: string;
             requisito?: string;
@@ -1460,6 +1479,8 @@ export interface components {
             texto?: string;
             /** Format: date-time */
             quando?: string;
+            /** @description Mudar a precisão (ou a hora de um turno ou dia) põe `quando` no início da janela */
+            precisao?: components["schemas"]["PrecisaoLembrete"];
             organizacao?: string;
             /** @description Vazio remove a ligação */
             tarefa?: string;

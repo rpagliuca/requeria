@@ -65,6 +65,13 @@ const (
 	DoRafael NovidadeDeVozDe = "rafael"
 )
 
+// Defines values for PrecisaoLembrete.
+const (
+	PrecisaoDia   PrecisaoLembrete = "dia"
+	PrecisaoHora  PrecisaoLembrete = "hora"
+	PrecisaoTurno PrecisaoLembrete = "turno"
+)
+
 // Defines values for Prioridade.
 const (
 	Alta  Prioridade = "alta"
@@ -144,8 +151,11 @@ type AlteracaoComponente struct {
 
 // AlteracaoLembrete defines model for AlteracaoLembrete.
 type AlteracaoLembrete struct {
-	Organizacao *string    `json:"organizacao,omitempty"`
-	Quando      *time.Time `json:"quando,omitempty"`
+	Organizacao *string `json:"organizacao,omitempty"`
+
+	// Precisao Mudar a precisão (ou a hora de um turno ou dia) põe `quando` no início da janela
+	Precisao *PrecisaoLembrete `json:"precisao,omitempty"`
+	Quando   *time.Time        `json:"quando,omitempty"`
 
 	// Requisito Vazio remove a ligação
 	Requisito *string `json:"requisito,omitempty"`
@@ -376,11 +386,20 @@ type Lembrete struct {
 
 	// DisparadoEm Último disparo
 	DisparadoEm *time.Time `json:"disparado_em,omitempty"`
-	Id          string     `json:"id"`
+
+	// Fim Fim da janela (do turno ou do dia de `quando`); ausente na precisão hora
+	Fim *time.Time `json:"fim,omitempty"`
+	Id  string     `json:"id"`
 
 	// Link URL do lembrete no frontend, se o servidor conhece a base pública
 	Link        *string `json:"link,omitempty"`
 	Organizacao string  `json:"organizacao"`
+
+	// Precisao Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
+	// sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
+	// (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
+	// os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+	Precisao PrecisaoLembrete `json:"precisao"`
 
 	// Quando Hora marcada atual (após adiamentos), com o fuso em que foi pedida
 	Quando    time.Time `json:"quando"`
@@ -480,7 +499,11 @@ type NovoComponente struct {
 type NovoLembrete struct {
 	Organizacao string `json:"organizacao"`
 
-	// Quando Instante com fuso; no passado é recusado
+	// Precisao Padrão: hora
+	Precisao *PrecisaoLembrete `json:"precisao,omitempty"`
+
+	// Quando Instante com fuso; no passado é recusado. Em turno ou dia, qualquer hora do turno ou do
+	// dia: o rex a troca pelo início da janela, e só recusa se a janela inteira já passou.
 	Quando    time.Time `json:"quando"`
 	Requisito *string   `json:"requisito,omitempty"`
 	Tarefa    *string   `json:"tarefa,omitempty"`
@@ -628,6 +651,12 @@ type Pontos struct {
 	// Pontos Ausente: volta a não triado
 	Pontos *int `json:"pontos,omitempty"`
 }
+
+// PrecisaoLembrete Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
+// sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
+// (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
+// os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+type PrecisaoLembrete string
 
 // Prioridade Obsoleta, substituída pelos pontos de importância; guardada só como histórico.
 type Prioridade string
