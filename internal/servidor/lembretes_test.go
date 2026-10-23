@@ -306,6 +306,22 @@ func TestCaptura(t *testing.T) {
 		frase != "Lembrete L-0004: pagar o boleto, quarta 21/10, o dia todo." {
 		t.Fatalf("dia: %d %q %+v", st, frase, dia)
 	}
+	// Semana e mês: no início da manhã da segunda e do dia 1; "nesta semana" ainda vale na terça.
+	for _, c := range []struct {
+		dito, quando, frase string
+		precisao            api.PrecisaoLembrete
+	}{
+		{"recapturar os retentivos semana que vem", "2026-10-26T08:00:00-03:00", "recapturar os retentivos, na semana de 26/10.", api.PrecisaoSemana},
+		{"ligar para o banco nesta semana", "2026-10-19T08:00:00-03:00", "ligar para o banco, na semana de 19/10.", api.PrecisaoSemana},
+		{"revisar os acessos em abril", "2027-04-01T08:00:00-03:00", "revisar os acessos, em abril de 2027.", api.PrecisaoMes},
+	} {
+		st, frase, id := a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaLembrete, Texto: c.dito})
+		var x api.Lembrete
+		a.chamar("GET", "/lembretes/"+id, "", nil, 200, &x)
+		if st != 201 || x.Precisao != c.precisao || x.Quando.Format(time.RFC3339) != c.quando || frase != "Lembrete "+id+": "+c.frase {
+			t.Fatalf("%q: %d %q %+v", c.dito, st, frase, x)
+		}
+	}
 	if st, frase, _ := a.capturar("segredo", api.Captura{Tipo: api.TipoDeCapturaLembrete, Texto: "regar hoje de manhã"}); st != 422 || frase != "terça 20/10 de manhã já passou. Diga de novo com o dia, o turno ou a hora." {
 		t.Fatalf("manhã que já passou: %d %q", st, frase)
 	}

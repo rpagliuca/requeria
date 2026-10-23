@@ -175,8 +175,12 @@ O autor de tudo no log de eventos é `captura`.
 Sem hora, o lembrete é de turno ou de dia (precisão `turno` ou `dia`, ver acima), nunca com uma hora
 inventada: "amanhã de manhã", "hoje à tarde", "sexta à noite" e "daqui a 2 dias de manhã" são de turno;
 "amanhã", "sexta", "dia 30" e "daqui a 3 dias" são do dia; "no almoço" e "na hora do almoço" são do
-turno do almoço (só com a preposição: "almoço com a Ana" é texto). Semana e mês ainda não são lidos
-da voz. Um turno solto junto de uma hora vira o
+turno do almoço (só com a preposição: "almoço com a Ana" é texto). "Semana que vem", "próxima
+semana", "nesta semana", "na semana do dia 12" e "daqui a 2 semanas" são da semana; "mês que vem",
+"neste mês", "em abril", "em abril de 2027" e "daqui a 3 meses" são do mês ("em abril" dito em
+outubro é o do ano seguinte; o mês corrente vale ainda este ano). Com o dia dentro deles, o dia
+vence: "quarta da semana que vem" e "em abril, dia 20" são do dia. Semana ou mês com hora ou turno
+e sem dia é 422 (não se chuta o dia). Um turno solto junto de uma hora vira o
 período dela ("amanhã à tarde às 5" = 17:00, precisão `hora`).
 
 Regras para não chutar:

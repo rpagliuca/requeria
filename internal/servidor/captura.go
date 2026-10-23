@@ -88,7 +88,7 @@ func (s *Servidor) Capturar(w http.ResponseWriter, r *http.Request) {
 		}
 		quando = lembrete.Quando
 		if lembrete.Precisao != captura.Hora {
-			// Turno ou dia: começa onde a instalação diz; só recusa se a janela inteira já passou.
+			// Turno, dia, semana ou mês: começa onde a instalação diz; só recusa se a janela inteira já passou.
 			precisao = api.PrecisaoLembrete(lembrete.Precisao)
 			quando = s.turnos().inicio(lembrete.Quando, lembrete.NomeDoTurno)
 			if _, fim := s.turnos().janela(precisao, quando); !fim.After(ditaEm) {

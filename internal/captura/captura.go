@@ -18,17 +18,21 @@ func (d *Duvida) Error() string { return d.Frase }
 
 func duvida(formato string, args ...any) error { return &Duvida{Frase: fmt.Sprintf(formato, args...)} }
 
-// Precisao diz se o pedido deu a hora (Hora), só um turno (Turno) ou só o dia (Dia).
+// Precisao diz se o pedido deu a hora (Hora), só um turno (Turno), só o dia (Dia), só a semana
+// (Semana) ou só o mês (Mes).
 type Precisao string
 
 const (
-	Hora  Precisao = "hora"
-	Turno Precisao = "turno"
-	Dia   Precisao = "dia"
+	Hora   Precisao = "hora"
+	Turno  Precisao = "turno"
+	Dia    Precisao = "dia"
+	Semana Precisao = "semana"
+	Mes    Precisao = "mes"
 )
 
-// Lembrete é um pedido de lembrete interpretado. Em Turno e Dia, Quando é a meia-noite do dia e
-// NomeDoTurno diz qual turno (manha, almoco, tarde ou noite); a hora de cada turno é da instalação.
+// Lembrete é um pedido de lembrete interpretado. Fora de Hora, Quando é a meia-noite do primeiro dia
+// (a segunda da semana, o dia 1 do mês) e, em Turno, NomeDoTurno diz qual turno (manha, almoco,
+// tarde ou noite); a hora de cada turno é da instalação.
 type Lembrete struct {
 	Texto       string
 	Quando      time.Time
@@ -78,7 +82,7 @@ var nomesDosDias = []string{"domingo", "segunda", "terça", "quarta", "quinta", 
 const numero = `(\d{1,3}|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta e cinco|quarenta|cinquenta|meia)`
 
 var (
-	reRelativo    = regexp.MustCompile(`\b(?:daqui a|daqui|dentro de|em)\s+` + numero + `\s+(minutos?|min|horas?|h|dias?)(?:\s+e\s+meia)?\b`)
+	reRelativo    = regexp.MustCompile(`\b(?:daqui a|daqui|dentro de|em)\s+` + numero + `\s+(minutos?|min|horas?|h|dias?|semanas?|mes|meses)(?:\s+e\s+meia)?\b`)
 	reMeiaHora    = regexp.MustCompile(`\b(?:daqui a|dentro de|em)\s+meia\s+hora\b`)
 	reDia         = regexp.MustCompile(`\b(?:depois de amanha|amanha|hoje)\b`)
 	reSemana      = regexp.MustCompile(`\b(?:(?:na|no|nesta|neste|esta|este|proxima|proximo|na proxima|no proximo)\s+)?(segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:-feira|\s+feira)?\b`)
@@ -89,7 +93,15 @@ var (
 	reMarcaDeHora = regexp.MustCompile(`\d\s*(h|:|horas?)`)
 	// O almoço só com preposição: "almoço com a Ana" é o texto do lembrete.
 	reTurno = regexp.MustCompile(`\b(?:(?:de|da|pela|na|nesta|esta|a)\s+)?(manha|tarde|noite)\b|\b(?:na hora do|no)\s+(almoco)\b`)
-	reHora  = regexp.MustCompile(`\b(?:(?:as|a|ate as|pelas|por volta das)\s+)?(\d{1,2})(?:\s*(?:h|:|horas?)\s*(\d{2})?|\s+e\s+(meia|\d{1,2})(?:\s+minutos?)?)?(?:\s+(?:da|de)\s+(manha|tarde|noite|madrugada))?\b`)
+	// Semana e mês sem dia: "semana que vem", "nesta semana", "na semana do dia 12", "mês que vem",
+	// "em abril", "no mês de abril de 2027".
+	reSemanaQueVem = regexp.MustCompile(`\b(?:(?:da|na|para a|pra)\s+)?(?:semana que vem|proxima semana)\b`)
+	reEstaSemana   = regexp.MustCompile(`\b(?:(?:da|para|pra)\s+)?(?:nesta|nessa|esta|essa)\s+semana\b`)
+	reSemanaDo     = regexp.MustCompile(`\b(?:(?:na|para a|pra)\s+)?semana\s+d[oe]\s+`)
+	reMesQueVem    = regexp.MustCompile(`\b(?:(?:no|para o|pro)\s+)?(?:mes que vem|proximo mes)\b`)
+	reEsteMes      = regexp.MustCompile(`\b(?:(?:para|pra)\s+)?(?:neste|nesse|este|esse)\s+mes\b`)
+	reMesNome      = regexp.MustCompile(`\b(?:em|no mes de|para|pra|ate)\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?\b`)
+	reHora         = regexp.MustCompile(`\b(?:(?:as|a|ate as|pelas|por volta das)\s+)?(\d{1,2})(?:\s*(?:h|:|horas?)\s*(\d{2})?|\s+e\s+(meia|\d{1,2})(?:\s+minutos?)?)?(?:\s+(?:da|de)\s+(manha|tarde|noite|madrugada))?\b`)
 )
 
 // trecho é uma parte reconhecida do texto, em índices de rune.
@@ -172,6 +184,10 @@ func InterpretarLembrete(texto string, ref time.Time, fuso *time.Location) (Lemb
 			if meia {
 				d += 30 * time.Minute
 			}
+		case strings.HasPrefix(unidade, "semana"):
+			return l.periodoRelativo(ref.AddDate(0, 0, 7*n), Semana, n)
+		case strings.HasPrefix(unidade, "mes"):
+			return l.periodoRelativo(time.Date(ref.Year(), ref.Month()+time.Month(n), 1, 0, 0, 0, 0, ref.Location()), Mes, n)
 		default:
 			return l.diaRelativo(ref, n)
 		}
@@ -181,12 +197,18 @@ func InterpretarLembrete(texto string, ref time.Time, fuso *time.Location) (Lemb
 		return l.resultado(ref.Add(d).Truncate(time.Minute))
 	}
 
-	dia, diaExplicito, err := l.lerDia(ref)
+	dia, diaExplicito, semanaOuMes, err := l.lerPeriodo(ref)
 	if err != nil {
 		return Lembrete{}, err
 	}
 	hora, minuto, periodo, ok := l.lerHora()
 	turno, temTurno := l.lerTurno()
+	if semanaOuMes != "" {
+		if ok || temTurno {
+			return Lembrete{}, duvida("Com a hora ou o turno, diga também o dia.")
+		}
+		return l.semHora(dia, semanaOuMes, "")
+	}
 	switch {
 	case !ok && temTurno:
 		return l.semHora(dia, Turno, turno)
@@ -240,6 +262,97 @@ func (l *leitura) diaRelativo(ref time.Time, dias int) (Lembrete, error) {
 		hora += 12
 	}
 	return l.resultado(time.Date(d.Year(), d.Month(), d.Day(), hora, minuto, 0, 0, ref.Location()))
+}
+
+// periodoRelativo é "daqui a 2 semanas" ou "daqui a 3 meses": a semana ou o mês inteiro, sem hora.
+func (l *leitura) periodoRelativo(alvo time.Time, p Precisao, n int) (Lembrete, error) {
+	if n <= 0 {
+		return Lembrete{}, duvida("Não entendi daqui a quanto tempo. Diga de novo com a semana ou o mês.")
+	}
+	if _, _, _, ok := l.lerHora(); ok {
+		return Lembrete{}, duvida("Com a hora, diga também o dia.")
+	}
+	if _, ok := l.lerTurno(); ok {
+		return Lembrete{}, duvida("Com o turno, diga também o dia.")
+	}
+	return l.semHora(inicioDoPeriodo(alvo, p), p, "")
+}
+
+// inicioDoPeriodo é a meia-noite da segunda da semana de t, ou do dia 1 do mês de t.
+func inicioDoPeriodo(t time.Time, p Precisao) time.Time {
+	dia := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	if p == Mes {
+		return dia.AddDate(0, 0, 1-dia.Day())
+	}
+	return dia.AddDate(0, 0, -(int(dia.Weekday())+6)%7)
+}
+
+// lerPeriodo acha a semana ou o mês e, dentro deles, o dia, se dito: "quarta da semana que vem" e
+// "em abril, dia 20" são dias. Sem dia, devolve o início da semana ou do mês com semanaOuMes
+// preenchido. Um dia que não cabe na semana ou no mês ("amanhã, semana que vem") vence.
+func (l *leitura) lerPeriodo(ref time.Time) (dia time.Time, diaExplicito bool, semanaOuMes Precisao, err error) {
+	hoje := time.Date(ref.Year(), ref.Month(), ref.Day(), 0, 0, 0, 0, ref.Location())
+	segunda := inicioDoPeriodo(hoje, Semana)
+	if m := reSemanaDo.FindStringIndex(l.norm); m != nil {
+		// "na semana do dia 12": a semana do dia dito.
+		l.marcar(m[0], m[1])
+		dia, explicito, err := l.lerDia(ref)
+		if err != nil || !explicito {
+			return dia, explicito, "", duvida("Não entendi a semana. Diga de novo, por exemplo: na semana do dia 12.")
+		}
+		return inicioDoPeriodo(dia, Semana), true, Semana, nil
+	}
+	for _, sem := range []struct {
+		re      *regexp.Regexp
+		semanas int
+	}{{reSemanaQueVem, 1}, {reEstaSemana, 0}} {
+		m := sem.re.FindStringIndex(l.norm)
+		if m == nil {
+			continue
+		}
+		l.marcar(m[0], m[1])
+		inicio := segunda.AddDate(0, 0, 7*sem.semanas)
+		if w := reSemana.FindStringSubmatchIndex(l.norm); w != nil && !l.dentroDeTrecho(w[0]) {
+			alvo := diasDaSemana[l.norm[w[2]:w[3]]]
+			l.marcar(w[0], w[1])
+			return inicio.AddDate(0, 0, (int(alvo)+6)%7), true, "", nil
+		}
+		if dia, explicito, err := l.lerDia(ref); err != nil || explicito {
+			return dia, explicito, "", err
+		}
+		return inicio, true, Semana, nil
+	}
+	var mes time.Time
+	if m := reMesQueVem.FindStringIndex(l.norm); m != nil {
+		l.marcar(m[0], m[1])
+		mes = time.Date(ref.Year(), ref.Month()+1, 1, 0, 0, 0, 0, ref.Location())
+	} else if m := reEsteMes.FindStringIndex(l.norm); m != nil {
+		l.marcar(m[0], m[1])
+		mes = time.Date(ref.Year(), ref.Month(), 1, 0, 0, 0, 0, ref.Location())
+	} else if m := reMesNome.FindStringSubmatchIndex(l.norm); m != nil {
+		l.marcar(m[0], m[1])
+		// Sem ano, o próximo mês com esse nome; o mês corrente vale ainda este ano.
+		nome, ano := meses[l.norm[m[2]:m[3]]], ref.Year()
+		if m[4] >= 0 {
+			ano = valor(l.norm[m[4]:m[5]])
+		} else if nome < ref.Month() {
+			ano++
+		}
+		mes = time.Date(ano, nome, 1, 0, 0, 0, 0, ref.Location())
+	} else {
+		dia, explicito, err := l.lerDia(ref)
+		return dia, explicito, "", err
+	}
+	if m := reDiaSo.FindStringSubmatchIndex(l.norm); m != nil && !l.dentroDeTrecho(m[0]) {
+		d := valor(l.norm[m[2]:m[3]])
+		l.marcar(m[0], m[1])
+		dia, _, err := dataValida(mes.Year(), mes.Month(), d, ref)
+		return dia, true, "", err
+	}
+	if dia, explicito, err := l.lerDia(ref); err != nil || explicito {
+		return dia, explicito, "", err
+	}
+	return mes, true, Mes, nil
 }
 
 func (l *leitura) resultado(quando time.Time) (Lembrete, error) {
@@ -424,11 +537,20 @@ func Descrever(t time.Time) string {
 	return fmt.Sprintf("%s %02d/%02d às %02d:%02d", nomesDosDias[t.Weekday()], t.Day(), int(t.Month()), t.Hour(), t.Minute())
 }
 
+var nomesDosMeses = []string{"", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+	"setembro", "outubro", "novembro", "dezembro"}
+
 var falaDoTurno = map[string]string{"manha": "de manhã", "almoco": "no almoço", "tarde": "à tarde", "noite": "à noite"}
 
-// DescreverLembrete fala o quando do lembrete: "terça 21/10 às 09:00", "terça 21/10 à tarde" ou
-// "terça 21/10, o dia todo".
+// DescreverLembrete fala o quando do lembrete: "terça 21/10 às 09:00", "terça 21/10 à tarde",
+// "terça 21/10, o dia todo", "na semana de 26/10" ou "em abril de 2027".
 func DescreverLembrete(x Lembrete) string {
+	switch x.Precisao {
+	case Semana:
+		return fmt.Sprintf("na semana de %02d/%02d", x.Quando.Day(), int(x.Quando.Month()))
+	case Mes:
+		return fmt.Sprintf("em %s de %d", nomesDosMeses[x.Quando.Month()], x.Quando.Year())
+	}
 	dia := fmt.Sprintf("%s %02d/%02d", nomesDosDias[x.Quando.Weekday()], x.Quando.Day(), int(x.Quando.Month()))
 	switch x.Precisao {
 	case Turno:
