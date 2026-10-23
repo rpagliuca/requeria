@@ -84,6 +84,56 @@ func TestInterpretarLembreteSemHora(t *testing.T) {
 	}
 }
 
+// Semana e mês sem dia (R-0525, R-0526); com o dia dentro deles, o dia vence.
+func TestInterpretarLembreteSemanaEMes(t *testing.T) {
+	fuso, _ := time.LoadLocation("America/Sao_Paulo")
+	// Terça-feira, 20/10/2026, 14:10 em São Paulo.
+	ref := time.Date(2026, 10, 20, 14, 10, 0, 0, fuso)
+	casos := []struct {
+		dito, texto, dia string
+		precisao         Precisao
+		fala             string
+	}{
+		{"recapturar os retentivos semana que vem", "recapturar os retentivos", "2026-10-26", Semana, "na semana de 26/10"},
+		{"na próxima semana trocar o óleo", "trocar o óleo", "2026-10-26", Semana, "na semana de 26/10"},
+		{"ligar para o banco nesta semana", "ligar para o banco", "2026-10-19", Semana, "na semana de 19/10"},
+		{"marcar o dentista na semana do dia 12", "marcar o dentista", "2026-11-09", Semana, "na semana de 09/11"},
+		{"visitar a obra na semana de 5 de novembro", "visitar a obra", "2026-11-02", Semana, "na semana de 02/11"},
+		{"revisar os acessos daqui a duas semanas", "revisar os acessos", "2026-11-02", Semana, "na semana de 02/11"},
+		{"pagar o IPVA mês que vem", "pagar o IPVA", "2026-11-01", Mes, "em novembro de 2026"},
+		{"declarar o imposto em abril", "declarar o imposto", "2027-04-01", Mes, "em abril de 2027"},
+		{"revisar os acessos do cartório em abril de 2027", "revisar os acessos do cartório", "2027-04-01", Mes, "em abril de 2027"},
+		{"fechar as contas neste mês", "fechar as contas", "2026-10-01", Mes, "em outubro de 2026"},
+		{"trocar a bateria em outubro", "trocar a bateria", "2026-10-01", Mes, "em outubro de 2026"},
+		{"renovar o domínio daqui a 3 meses", "renovar o domínio", "2027-01-01", Mes, "em janeiro de 2027"},
+		{"pagar o boleto quarta da semana que vem", "pagar o boleto", "2026-10-28", Dia, "quarta 28/10, o dia todo"},
+		{"na semana que vem, na sexta à tarde, lavar o carro", "lavar o carro", "2026-10-30", Turno, "sexta 30/10 à tarde"},
+		{"declarar o imposto em abril, dia 20", "declarar o imposto", "2027-04-20", Dia, "terça 20/04, o dia todo"},
+	}
+	for _, c := range casos {
+		l, err := InterpretarLembrete(c.dito, ref, fuso)
+		if err != nil {
+			t.Errorf("%q: %v", c.dito, err)
+			continue
+		}
+		if l.Texto != c.texto || l.Quando.Format("2006-01-02") != c.dia || l.Precisao != c.precisao || DescreverLembrete(l) != c.fala {
+			t.Errorf("%q: %q %s %s %q, esperado %q %s %s %q", c.dito, l.Texto, l.Quando.Format("2006-01-02"), l.Precisao, DescreverLembrete(l), c.texto, c.dia, c.precisao, c.fala)
+		}
+	}
+
+	// Com hora e dia dentro da semana, a hora vale.
+	l, err := InterpretarLembrete("dentista quinta da semana que vem às 9", ref, fuso)
+	if err != nil || l.Precisao != Hora || l.Texto != "dentista" || l.Quando.Format(time.RFC3339) != "2026-10-29T09:00:00-03:00" {
+		t.Fatalf("semana com dia e hora: %+v %v", l, err)
+	}
+	// Semana ou mês com hora, sem dia: não chuta o dia.
+	for _, dito := range []string{"dentista semana que vem às 9", "dentista em abril à tarde"} {
+		if _, err := InterpretarLembrete(dito, ref, fuso); err == nil {
+			t.Errorf("%q: esperava dúvida", dito)
+		}
+	}
+}
+
 func TestInterpretarLembreteNaoChuta(t *testing.T) {
 	fuso, _ := time.LoadLocation("America/Sao_Paulo")
 	ref := time.Date(2026, 10, 20, 14, 10, 0, 0, fuso)

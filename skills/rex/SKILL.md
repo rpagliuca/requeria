@@ -1,6 +1,6 @@
 ---
 name: rex
-description: "Ciclo de trabalho de um agente de IA no rex pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, entregar e esperar (nunca se encerrar sem pedido claro do Rafael ou do lançador), encerrar com resumo. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__rex__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REX_TAREFA ou REX_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, rex, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa."
+description: "Ciclo de trabalho de um agente de IA no rex pelas ferramentas MCP: toda sessão de trabalho é registrada antes da primeira ação que muda estado; abrir ou adotar a Sessão de Trabalho, achar ou criar a Tarefa, escrever o journal, mudar o status, entregar e esperar (nunca se encerrar sem pedido claro do Rafael ou do lançador), encerrar com resumo. Use SEMPRE no início de qualquer trabalho num chat em que as ferramentas mcp__rex__* estejam disponíveis — investigar, alterar, escrever código, documentar, operar sistemas —, qualquer que seja a origem do chat. Use também ao retomar ou encerrar trabalho, quando o prompt citar uma tarefa T-0001 ou sessão S-0001, quando REX_TAREFA ou REX_SESSAO estiver no ambiente, ou quando pedirem para este chat virar (se promover a) uma tarefa. Triggers: começar a trabalhar, continue a partir do CLAUDE.md, retomar, rex, tarefa T-, sessão S-, iniciar_sessao, sessao_atual, encerrar_sessao, repassar_sessao, resumo para retomar, journal da sessão, a tarefa foi movida, a tarefa já tem a sessão ativa, se promover a tarefa, criar lembrete, me lembra de, alterar lembrete."
 user-invocable: true
 ---
 
@@ -148,16 +148,17 @@ atual termina como substituída e outra começa com as mesmas tarefas. Só quand
 
 ## Lembretes
 
-Compromisso com hora marcada que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar
-o certificado na sexta às 9"): `criar_lembrete` com a hora em RFC 3339 com fuso, ligado à tarefa
-quando for dela. A `precisao` sai do que ele disse: `hora` só com data e hora explícitas ("sexta às
-9"), `turno` para "de manhã", "no almoço", "à tarde" ou "à noite", `dia` para "amanhã" ou "sexta" sem
-hora, `semana` para "semana que vem", `mes` para "em abril". Nunca invente uma hora para o que não
-tem: só `hora` toca alarme; os demais são avisados em lote, sem som. `proximos_lembretes` mostra o que vence; `confirmar_lembrete` só quando ele disser
-que viu ou fez. Para mudar o texto, a hora ou a ligação de um lembrete, `alterar_lembrete` (mantém o
-id); `cancelar_lembrete` só quando ele disser que o lembrete não vale mais. Nunca cancele e recrie
-para editar: o Rafael vê o antigo como cancelado, e cancelado não volta. O rex guarda a hora; avisar
-com antecedência é das integrações.
+Compromisso que o Rafael pediu para lembrar (ou que a tarefa exige, como "renovar o certificado na
+sexta às 9"): `criar_lembrete` com `quando` em RFC 3339 com fuso, ligado à tarefa quando for dela. A
+`precisao` sai do que ele disse: `hora` só com data e hora explícitas ("sexta às 9"), `turno` para
+"de manhã", "no almoço", "à tarde" ou "à noite", `dia` para "amanhã" ou "sexta" sem hora, `semana`
+para "semana que vem" ou "próxima semana", `mes` para "em abril" ou "mês que vem"; com o dia dentro
+deles ("quarta da semana que vem"), `dia`. Nunca invente uma hora para o que não tem: só `hora` toca
+alarme; os demais são avisados em lote, sem som. `proximos_lembretes` mostra o que vence;
+`confirmar_lembrete` só quando ele disser que viu ou fez. Para mudar o texto, a hora, a precisão ou a
+ligação de um lembrete, `alterar_lembrete` (mantém o id); `cancelar_lembrete` só quando ele disser
+que o lembrete não vale mais. Nunca cancele e recrie para editar: o Rafael vê o antigo como
+cancelado, e cancelado não volta. O rex guarda a hora; avisar com antecedência é das integrações.
 
 ## O que não fazer
 

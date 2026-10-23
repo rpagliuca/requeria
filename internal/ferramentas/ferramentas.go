@@ -141,7 +141,8 @@ func (f *Ferramentas) ServidorDoConector() *mcp.Server {
 		Instructions: "Sessões de trabalho dos agentes de IA do Rafael no rex, quase sempre usadas por voz. " +
 			"\"Quais sessões esperam meu input?\": voz_panorama; esperam as com aguardando, as em pedindo_permissao e as ociosas com nao_ouvidas. " +
 			"\"O que a do deploy disse?\": voz_situacao e resuma as novidades. \"Diz pra ela…\": voz_enviar com a frase como ele disse, " +
-			"depois voz_situacao com esperar_segundos 12 para contar a resposta. Na fala: curto, sem ids (chame cada sessão pelo nome curto " +
+			"depois voz_situacao com esperar_segundos 12 para contar a resposta. Lembrete, tarefa ou outro pedido sem sessão própria: voz_enviar ao Agente Global, " +
+			"com o quando nas palavras dele (\"semana que vem\", \"no almoço\", \"em abril\"), sem trocar por data ou hora. Na fala: curto, sem ids (chame cada sessão pelo nome curto " +
 			"lido como palavras), números por extenso. Antes de voz_tecla, leia a tela, diga as opções e aperte só a que ele escolher.",
 	})
 	mcp.AddTool(s, &mcp.Tool{
@@ -790,7 +791,7 @@ func (f *Ferramentas) criarOrigem(ctx context.Context, _ *mcp.CallToolRequest, i
 
 type NovoLembrete struct {
 	Texto       string `json:"texto" jsonschema:"o que lembrar, como o Rafael vai ler"`
-	Quando      string `json:"quando" jsonschema:"hora marcada em RFC 3339 com fuso, como 2026-10-21T09:00:00-03:00; em turno ou dia, qualquer hora dentro dele"`
+	Quando      string `json:"quando" jsonschema:"hora marcada em RFC 3339 com fuso, como 2026-10-21T09:00:00-03:00; fora de hora, uma hora dentro da janela: em turno, é ela que escolhe o turno (manhã 10:00, almoço 12:30, tarde 15:00, noite 20:00); em dia, semana ou mês, qualquer hora de um dia dentro dele"`
 	Precisao    string `json:"precisao" jsonschema:"hora (o Rafael disse data e hora explícitas), turno (manhã, almoço, tarde ou noite), dia (um dia, sem hora), semana (uma semana, sem dia) ou mes (um mês, sem dia); infira da mensagem dele"`
 	Organizacao string `json:"organizacao" jsonschema:"Cartório, Yes ou Pessoal (ou a da instalação)"`
 	Tarefa      string `json:"tarefa,omitempty" jsonschema:"tarefa ligada, como T-0001"`
