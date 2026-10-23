@@ -25,21 +25,25 @@ import { cn } from "@/lib/utils"
 
 const formatoDaHora = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
 const formatoDoDia = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })
+const formatoDaSemana = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" })
+const formatoDoMes = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" })
 
-type Turno = "manha" | "tarde" | "noite"
-const nomesDoTurno: Record<Turno, string> = { manha: "manhã", tarde: "tarde", noite: "noite" }
+type Turno = "manha" | "almoco" | "tarde" | "noite"
+const nomesDoTurno: Record<Turno, string> = { manha: "manhã", almoco: "almoço", tarde: "tarde", noite: "noite" }
 // Uma hora dentro de cada turno, para o servidor pôr no início dele (os turnos são da instalação;
 // antes da manhã conta como manhã, e 23:59 é sempre noite).
-const horaDentroDoTurno: Record<Turno, string> = { manha: "00:00", tarde: "15:00", noite: "23:59" }
+const horaDentroDoTurno: Record<Turno, string> = { manha: "00:00", almoco: "12:30", tarde: "15:00", noite: "23:59" }
 
 // O turno de um lembrete pela hora de início (aproximado: os limites exatos são da instalação).
 function turnoDe(quando: string): Turno {
   const h = new Date(quando).getHours()
-  return h < 12 ? "manha" : h < 18 ? "tarde" : "noite"
+  return h < 12 ? "manha" : h < 13 ? "almoco" : h < 18 ? "tarde" : "noite"
 }
 
 function descreverQuando(l: Lembrete): string {
   const d = new Date(l.quando)
+  if (l.precisao === "mes") return formatoDoMes.format(d)
+  if (l.precisao === "semana") return `semana de ${formatoDaSemana.format(d)}`
   if (l.precisao === "dia") return `${formatoDoDia.format(d)} · o dia todo`
   if (l.precisao === "turno") return `${formatoDoDia.format(d)} · ${nomesDoTurno[turnoDe(l.quando)]}`
   return formatoDaHora.format(d)
@@ -184,7 +188,8 @@ function trocarPrecisao(m: Marcacao, precisao: PrecisaoLembrete): Marcacao {
   return { ...m, precisao, local: precisao === "hora" ? (data ? `${data}T09:00` : "") : data }
 }
 
-// Hora marcada (com alarme) ou um turno ou dia (avisados em lote, sem som).
+// Hora marcada (com alarme) ou um turno, dia, semana ou mês (avisados em lote, sem som). Em semana e
+// mês, qualquer dia dentro dela serve: o servidor põe no início.
 function CamposDeQuando({ prefixo, marcacao: m, mudar }: { prefixo: string; marcacao: Marcacao; mudar: (m: Marcacao) => void }) {
   return (
     <>
@@ -198,6 +203,8 @@ function CamposDeQuando({ prefixo, marcacao: m, mudar }: { prefixo: string; marc
             <SelectItem value="hora">Hora marcada</SelectItem>
             <SelectItem value="turno">Turno</SelectItem>
             <SelectItem value="dia">Dia</SelectItem>
+            <SelectItem value="semana">Semana</SelectItem>
+            <SelectItem value="mes">Mês</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -218,6 +225,7 @@ function CamposDeQuando({ prefixo, marcacao: m, mudar }: { prefixo: string; marc
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="manha">Manhã</SelectItem>
+                <SelectItem value="almoco">Almoço</SelectItem>
                 <SelectItem value="tarde">Tarde</SelectItem>
                 <SelectItem value="noite">Noite</SelectItem>
               </SelectContent>

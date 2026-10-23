@@ -133,7 +133,7 @@ func TestTurnos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, quer := i.Opcoes().Turnos, (servidor.Turnos{Manha: 7*60 + 30, Tarde: 13 * 60, Noite: 19 * 60}); got != quer {
+	if got, quer := i.Opcoes().Turnos, (servidor.Turnos{Manha: 7*60 + 30, Almoco: 12 * 60, Tarde: 13 * 60, Noite: 19 * 60}); got != quer {
 		t.Fatalf("turnos: %+v, esperava %+v", got, quer)
 	}
 }
@@ -144,6 +144,7 @@ func TestConfiguracaoInvalida(t *testing.T) {
 		{Fuso: "Lugar/Nenhum"},
 		{Turnos: &Turnos{Tarde: "1h"}},
 		{Turnos: &Turnos{Tarde: "07:00"}},
+		{Turnos: &Turnos{Almoco: "13:30"}},
 		{Captura: &Captura{TokenAmbiente: "NAO_DEFINIDA"}},
 		{Ganchos: []Gancho{{Nome: "a", Eventos: []string{"x"}}}},
 		{Ganchos: []Gancho{{Nome: "a", Comando: []string{"true"}}}},

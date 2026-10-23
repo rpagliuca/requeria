@@ -120,9 +120,29 @@ func TestLembretesDeTurnoEDia(t *testing.T) {
 	if noite.Quando.Format(time.RFC3339) != "2026-10-21T18:00:00-03:00" || noite.Fim.Format(time.RFC3339) != "2026-10-22T00:00:00-03:00" {
 		t.Fatalf("turno da noite: %+v", noite)
 	}
+	almoco := criar("pagar a conta", em(22, 12, 30), api.PrecisaoTurno, 201)
+	if almoco.Quando.Format(time.RFC3339) != "2026-10-22T12:00:00-03:00" || almoco.Fim.Format(time.RFC3339) != "2026-10-22T13:00:00-03:00" {
+		t.Fatalf("turno do almoço: %+v", almoco)
+	}
+	manha := criar("ligar", em(22, 11, 0), api.PrecisaoTurno, 201)
+	if manha.Fim.Format(time.RFC3339) != "2026-10-22T12:00:00-03:00" {
+		t.Fatalf("a manhã acaba no almoço: %+v", manha)
+	}
 	madrugada := criar("regar", em(21, 6, 0), api.PrecisaoTurno, 201)
 	if madrugada.Quando.Format(time.RFC3339) != "2026-10-21T08:00:00-03:00" {
 		t.Fatalf("antes da manhã conta como manhã: %+v", madrugada)
+	}
+	semana := criar("recapturar", em(22, 15, 0), api.PrecisaoSemana, 201)
+	if semana.Quando.Format(time.RFC3339) != "2026-10-19T08:00:00-03:00" || semana.Fim.Format(time.RFC3339) != "2026-10-26T00:00:00-03:00" {
+		t.Fatalf("semana (segunda a domingo): %+v", semana)
+	}
+	domingo := criar("revisar", time.Date(2026, 11, 1, 10, 0, 0, 0, fuso), api.PrecisaoSemana, 201)
+	if domingo.Quando.Format(time.RFC3339) != "2026-10-26T08:00:00-03:00" {
+		t.Fatalf("domingo é da semana que começou na segunda: %+v", domingo)
+	}
+	mes := criar("revisar acessos", time.Date(2027, 4, 20, 9, 0, 0, 0, fuso), api.PrecisaoMes, 201)
+	if mes.Quando.Format(time.RFC3339) != "2027-04-01T08:00:00-03:00" || mes.Fim.Format(time.RFC3339) != "2027-05-01T00:00:00-03:00" {
+		t.Fatalf("mês: %+v", mes)
 	}
 	dia := criar("pagar boleto", em(21, 9, 0), api.PrecisaoDia, 201)
 	if !dia.Quando.Equal(madrugada.Quando) || dia.Fim.Format(time.RFC3339) != "2026-10-22T00:00:00-03:00" {
@@ -135,7 +155,7 @@ func TestLembretesDeTurnoEDia(t *testing.T) {
 		t.Fatalf("manhã de hoje: %+v", hoje)
 	}
 	criar("x", em(19, 9, 0), api.PrecisaoDia, 400)
-	a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: "x", Quando: em(21, 9, 0), Precisao: precisao("semana"), Organizacao: "Exemplo"}, 400, nil)
+	a.chamar("POST", "/lembretes", "", api.NovoLembrete{Texto: "x", Quando: em(21, 9, 0), Precisao: precisao("ano"), Organizacao: "Exemplo"}, 400, nil)
 
 	// Disparar depois do início da janela não é atraso.
 	a.servidor.DispararVencidos()

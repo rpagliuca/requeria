@@ -28,7 +28,7 @@ const (
 )
 
 // Lembrete é um pedido de lembrete interpretado. Em Turno e Dia, Quando é a meia-noite do dia e
-// NomeDoTurno diz qual turno (manha, tarde ou noite); a hora de cada turno é da instalação.
+// NomeDoTurno diz qual turno (manha, almoco, tarde ou noite); a hora de cada turno é da instalação.
 type Lembrete struct {
 	Texto       string
 	Quando      time.Time
@@ -87,8 +87,9 @@ var (
 	reDiaSo       = regexp.MustCompile(`\b(?:no\s+)?dia\s+(\d{1,2})\b`)
 	reMeioDia     = regexp.MustCompile(`\b(?:(?:ao|as|a)\s+)?(meio[- ]dia|meia[- ]noite)(?:\s+e\s+meia)?\b`)
 	reMarcaDeHora = regexp.MustCompile(`\d\s*(h|:|horas?)`)
-	reTurno       = regexp.MustCompile(`\b(?:(?:de|da|pela|na|nesta|esta|a)\s+)?(manha|tarde|noite)\b`)
-	reHora        = regexp.MustCompile(`\b(?:(?:as|a|ate as|pelas|por volta das)\s+)?(\d{1,2})(?:\s*(?:h|:|horas?)\s*(\d{2})?|\s+e\s+(meia|\d{1,2})(?:\s+minutos?)?)?(?:\s+(?:da|de)\s+(manha|tarde|noite|madrugada))?\b`)
+	// O almoço só com preposição: "almoço com a Ana" é o texto do lembrete.
+	reTurno = regexp.MustCompile(`\b(?:(?:de|da|pela|na|nesta|esta|a)\s+)?(manha|tarde|noite)\b|\b(?:na hora do|no)\s+(almoco)\b`)
+	reHora  = regexp.MustCompile(`\b(?:(?:as|a|ate as|pelas|por volta das)\s+)?(\d{1,2})(?:\s*(?:h|:|horas?)\s*(\d{2})?|\s+e\s+(meia|\d{1,2})(?:\s+minutos?)?)?(?:\s+(?:da|de)\s+(manha|tarde|noite|madrugada))?\b`)
 )
 
 // trecho é uma parte reconhecida do texto, em índices de rune.
@@ -197,7 +198,7 @@ func InterpretarLembrete(texto string, ref time.Time, fuso *time.Location) (Lemb
 		periodo = turno // "à tarde, às 3"
 	}
 	switch periodo {
-	case "tarde", "noite":
+	case "almoco", "tarde", "noite":
 		if hora < 12 {
 			hora += 12
 		}
@@ -235,7 +236,7 @@ func (l *leitura) diaRelativo(ref time.Time, dias int) (Lembrete, error) {
 	if periodo == "" {
 		periodo = turno
 	}
-	if (periodo == "tarde" || periodo == "noite") && hora < 12 {
+	if (periodo == "almoco" || periodo == "tarde" || periodo == "noite") && hora < 12 {
 		hora += 12
 	}
 	return l.resultado(time.Date(d.Year(), d.Month(), d.Day(), hora, minuto, 0, 0, ref.Location()))
@@ -256,13 +257,16 @@ func (l *leitura) semHora(dia time.Time, p Precisao, turno string) (Lembrete, er
 	return x, err
 }
 
-// lerTurno acha "de manhã", "à tarde", "à noite" fora da hora já lida (e marca o trecho).
+// lerTurno acha "de manhã", "no almoço", "à tarde", "à noite" fora da hora já lida (e marca o trecho).
 func (l *leitura) lerTurno() (string, bool) {
 	for _, m := range reTurno.FindAllStringSubmatchIndex(l.norm, -1) {
 		if l.dentroDeTrecho(m[0]) {
 			continue
 		}
 		l.marcar(m[0], m[1])
+		if m[2] < 0 {
+			return l.norm[m[4]:m[5]], true // almoco
+		}
 		return l.norm[m[2]:m[3]], true
 	}
 	return "", false
@@ -420,7 +424,7 @@ func Descrever(t time.Time) string {
 	return fmt.Sprintf("%s %02d/%02d às %02d:%02d", nomesDosDias[t.Weekday()], t.Day(), int(t.Month()), t.Hour(), t.Minute())
 }
 
-var falaDoTurno = map[string]string{"manha": "de manhã", "tarde": "à tarde", "noite": "à noite"}
+var falaDoTurno = map[string]string{"manha": "de manhã", "almoco": "no almoço", "tarde": "à tarde", "noite": "à noite"}
 
 // DescreverLembrete fala o quando do lembrete: "terça 21/10 às 09:00", "terça 21/10 à tarde" ou
 // "terça 21/10, o dia todo".

@@ -67,9 +67,11 @@ const (
 
 // Defines values for PrecisaoLembrete.
 const (
-	PrecisaoDia   PrecisaoLembrete = "dia"
-	PrecisaoHora  PrecisaoLembrete = "hora"
-	PrecisaoTurno PrecisaoLembrete = "turno"
+	PrecisaoDia    PrecisaoLembrete = "dia"
+	PrecisaoHora   PrecisaoLembrete = "hora"
+	PrecisaoMes    PrecisaoLembrete = "mes"
+	PrecisaoSemana PrecisaoLembrete = "semana"
+	PrecisaoTurno  PrecisaoLembrete = "turno"
 )
 
 // Defines values for Prioridade.
@@ -396,9 +398,10 @@ type Lembrete struct {
 	Organizacao string  `json:"organizacao"`
 
 	// Precisao Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
-	// sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
-	// (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
-	// os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+	// sensível ao horário e as integrações podem tocar alarme. turno, dia, semana ou mes: vale para
+	// um turno (manhã, almoço, tarde ou noite), um dia, uma semana (de segunda a domingo) ou um mês
+	// inteiro; o rex põe `quando` no início da janela, então os da mesma janela disparam juntos e as
+	// integrações os avisam em lote, sem alarme.
 	Precisao PrecisaoLembrete `json:"precisao"`
 
 	// Quando Hora marcada atual (após adiamentos), com o fuso em que foi pedida
@@ -653,9 +656,10 @@ type Pontos struct {
 }
 
 // PrecisaoLembrete Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
-// sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
-// (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
-// os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+// sensível ao horário e as integrações podem tocar alarme. turno, dia, semana ou mes: vale para
+// um turno (manhã, almoço, tarde ou noite), um dia, uma semana (de segunda a domingo) ou um mês
+// inteiro; o rex põe `quando` no início da janela, então os da mesma janela disparam juntos e as
+// integrações os avisam em lote, sem alarme.
 type PrecisaoLembrete string
 
 // Prioridade Obsoleta, substituída pelos pontos de importância; guardada só como histórico.

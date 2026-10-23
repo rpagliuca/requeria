@@ -33,15 +33,16 @@ type Config struct {
 	BasePublica string   `json:"base_publica"`
 	Captura     *Captura `json:"captura"`
 	Ganchos     []Gancho `json:"ganchos"`
-	// Turnos dos lembretes de turno ou dia, em "HH:MM". Padrão: 08:00, 13:00 e 18:00.
+	// Turnos dos lembretes de turno ou dia, em "HH:MM". Padrão: 08:00, 12:00, 13:00 e 18:00.
 	Turnos *Turnos `json:"turnos"`
 }
 
-// Turnos: onde começam a manhã (e o dia), a tarde e a noite.
+// Turnos: onde começam a manhã (e o dia), o almoço, a tarde e a noite.
 type Turnos struct {
-	Manha string `json:"manha"`
-	Tarde string `json:"tarde"`
-	Noite string `json:"noite"`
+	Manha  string `json:"manha"`
+	Almoco string `json:"almoco"`
+	Tarde  string `json:"tarde"`
+	Noite  string `json:"noite"`
 }
 
 // Captura liga POST /captura.
@@ -165,7 +166,7 @@ func lerTurnos(t Turnos) (servidor.Turnos, error) {
 	for _, c := range []struct {
 		nome, valor string
 		destino     *int
-	}{{"manha", t.Manha, &out.Manha}, {"tarde", t.Tarde, &out.Tarde}, {"noite", t.Noite, &out.Noite}} {
+	}{{"manha", t.Manha, &out.Manha}, {"almoco", t.Almoco, &out.Almoco}, {"tarde", t.Tarde, &out.Tarde}, {"noite", t.Noite, &out.Noite}} {
 		if c.valor == "" {
 			continue
 		}

@@ -1411,13 +1411,14 @@ export interface components {
         StatusLembrete: "agendado" | "disparado" | "adiado" | "confirmado" | "cancelado";
         /**
          * @description Quão exata é a hora marcada. hora: o Rafael disse data e hora explícitas; o lembrete é
-         *     sensível ao horário e as integrações podem tocar alarme. turno ou dia: vale para um turno
-         *     (manhã, tarde ou noite) ou para um dia inteiro; o rex põe `quando` no início da janela, então
-         *     os do mesmo turno disparam juntos e as integrações os avisam em lote, sem alarme.
+         *     sensível ao horário e as integrações podem tocar alarme. turno, dia, semana ou mes: vale para
+         *     um turno (manhã, almoço, tarde ou noite), um dia, uma semana (de segunda a domingo) ou um mês
+         *     inteiro; o rex põe `quando` no início da janela, então os da mesma janela disparam juntos e as
+         *     integrações os avisam em lote, sem alarme.
          *
          * @enum {string}
          */
-        PrecisaoLembrete: "hora" | "turno" | "dia";
+        PrecisaoLembrete: "hora" | "turno" | "dia" | "semana" | "mes";
         Lembrete: {
             /** @example L-0001 */
             id: string;
